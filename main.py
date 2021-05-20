@@ -1,11 +1,11 @@
-from flask import Flask, current_app, jsonify
+from flask import Flask, current_app, render_template
 from flask_cors import CORS
 from flask_caching import Cache
 import ujson as json
 from ratelimit import limits
 from api.scrape import Vlr
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="frontpage")
 cache = Cache(app, config={"CACHE_TYPE": "simple"})
 CORS(app)
 vlr = Vlr()
@@ -15,7 +15,7 @@ TEN_MINUTES = 600
 
 @app.route("/")
 def home():
-    return jsonify({"hello": "world"})
+    return render_template("index.html")
 
 
 @limits(calls=50, period=TEN_MINUTES)

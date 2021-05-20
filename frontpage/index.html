@@ -1,0 +1,84 @@
+<h1 id="vlrggapi">vlrggapi</h1>
+<p>
+  An Unofficial REST API for <a href="https://www.vlr.gg/">vlr.gg</a>, a site
+  for Valorant Esports match and news coverage.
+</p>
+<p>Built by <a href="https://github.com/rehkloos/">Andre Saddler</a></p>
+<p>
+  <a href="https://heroku.com/deploy" rel="nofollow"
+    ><img
+      src="https://camo.githubusercontent.com/c0824806f5221ebb7d25e559568582dd39dd1170/68747470733a2f2f7777772e6865726f6b7563646e2e636f6d2f6465706c6f792f627574746f6e2e706e67"
+      alt="Deploy to Heroku"
+      data-canonical-src="https://www.herokucdn.com/deploy/button.png"
+      style="max-width: 100%"
+  /></a>
+</p>
+
+<h2 id="current-endpoints">Current Endpoints</h2>
+<p>
+  All endpoints are relative to
+  <a href="https://vlrggapi.herokuapp.com">https://vlrggapi.herokuapp.com</a>.
+</p>
+<h3 id="news"><code>/news</code></h3>
+<ul>
+  <li>Method: <code>GET</code><br /></li>
+  <li>Cached Time: 300 seconds (5 Minutes)<br /></li>
+  <li>
+    Response:<br />
+    <code
+      >python { &quot;data&quot;: { &quot;status&quot;: 200, 'segments': [ {
+      'title': str, 'description': str, 'date': str, 'author': str, 'url_path':
+      str } ], } }</code
+    >
+  </li>
+</ul>
+<h3 id="rankingsregion"><code>/rankings/&lt;region&gt;</code></h3>
+<ul>
+  <li>Method: <code>GET</code><br /></li>
+  <li>
+    region: <code>north-america</code>, <code>europe</code>,
+    <code>asia-pacific</code>, <code>latin-america</code>, <code>oceania</code>,
+    <code>korea</code>, <code>mena</code><br />
+  </li>
+  <li>Cached Time: 300 seconds (5 Minutes)<br /></li>
+  <li>
+    Response:<br />
+    <code
+      >python { &quot;data&quot;: { &quot;status&quot;: 200, 'segments': [ {
+      'rank': str, 'team': str, 'country': str, 'streak': str, 'record': str,
+      'winnings': str, 'logo': str, 'url_path': str } ], } }</code
+    >
+  </li>
+</ul>
+<h2 id="installation">Installation</h2>
+<h3 id="source">Source</h3>
+<pre><code>$ git clone https://github.com/rehkloos/vlrggapi/
+$ cd vlrggapi
+$ pip3 install -r requirements.txt</code></pre>
+<h3 id="usage">Usage</h3>
+<pre><code>python3 main.py</code></pre>
+<h2 id="built-with">Built With</h2>
+<ul>
+  <li><a href="https://flask.palletsprojects.com/en/1.1.x/">Flask</a><br /></li>
+  <li>
+    <a href="https://requests.readthedocs.io/en/master/">Requests</a><br />
+  </li>
+  <li>
+    <a href="https://www.crummy.com/software/BeautifulSoup/">BeautifulSoup</a
+    ><br />
+  </li>
+  <li>
+    <a href="https://github.com/sh4nks/flask-caching">Flask-Caching</a><br />
+  </li>
+  <li><a href="https://gunicorn.org/">gunicorn</a></li>
+</ul>
+<h2 id="contributing">Contributing</h2>
+<p>
+  Feel free to submit a
+  <a href="https://github.com/rehkloos/vlrggapi/pull/new/master"
+    >pull request</a
+  >
+  or an <a href="https://github.com/rehkloos/vlrggapi/issues/new">issue</a>!
+</p>
+<h2 id="license">License</h2>
+<p>The MIT License (MIT)</p>
