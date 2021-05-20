@@ -30,10 +30,6 @@ class Vlr:
             title = module.find(
                 "div",
                 attrs={"style": "font-weight: 700; font-size: 15px; line-height: 1.3;"},
-            )
-            title = module.find(
-                "div",
-                attrs={"style": "font-weight: 700; font-size: 15px; line-height: 1.3;"},
             ).text.strip()
 
             # get descriptions of articles
