@@ -30,10 +30,10 @@ def vlr_news():
 
 @limits(calls=50, period=TEN_MINUTES)
 @cache.cached(timeout=300)
-@app.route("/rankings", methods=["GET"])
-def vlr_ranks():
+@app.route("/rankings/<region>", methods=["GET"])
+def vlr_ranks(region):
     return current_app.response_class(
-        json.dumps(vlr.vlr_rankings(), indent=4, escape_forward_slashes=False),
+        json.dumps(vlr.vlr_rankings(region), indent=4, escape_forward_slashes=False),
         mimetype="application/json",
     )
 

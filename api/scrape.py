@@ -75,7 +75,8 @@ class Vlr:
         return data
 
     @staticmethod
-    def vlr_rankings():
+    def vlr_rankings(region: str = ""):
+        region = region
         headers = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET",
@@ -83,7 +84,7 @@ class Vlr:
             "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
-        URL = "https://www.vlr.gg/rankings/north-america"
+        URL = f"https://www.vlr.gg/rankings/{region}"
         html = requests.get(URL, headers=headers).text
         response = requests.get(URL)
         soup = BeautifulSoup(html, "html.parser")
