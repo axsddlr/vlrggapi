@@ -32,6 +32,32 @@ All endpoints are relative to https://vlrggapi.herokuapp.com.
   }
   ```
 
+### `/rankings/<region>`
+
+- Method: `GET`
+- region: `north-america`, `europe`, `asia-pacific`, `latin-america`, `oceania`, `korea`, `mena`
+- Cached Time: 300 seconds (5 Minutes)
+- Response:
+  ```python
+  {
+      "data": {
+          "status": 200,
+          'segments': [
+              {
+                  'rank': str,
+                  'team': str,
+                  'country': str,
+                  'streak': str,
+                  'record': str,
+                  'winnings': str,
+                  'logo': str,
+                  'url_path': str
+              }
+          ],
+      }
+  }
+  ```
+
 ## Installation
 
 ### Source
