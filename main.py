@@ -28,5 +28,15 @@ def vlr_news():
     )
 
 
+@limits(calls=50, period=TEN_MINUTES)
+@cache.cached(timeout=300)
+@app.route("/rankings", methods=["GET"])
+def vlr_ranks():
+    return current_app.response_class(
+        json.dumps(vlr.vlr_rankings(), indent=4, escape_forward_slashes=False),
+        mimetype="application/json",
+    )
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
