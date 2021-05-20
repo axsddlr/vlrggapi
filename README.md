@@ -8,6 +8,8 @@ Built by [Andre Saddler](https://github.com/rehkloos/)
 
 ## Current Endpoints
 
+All endpoints are relative to https://vlrggapi.herokuapp.com.
+
 ### `/news`
 
 - Method: `GET`
