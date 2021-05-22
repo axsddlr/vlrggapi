@@ -160,3 +160,114 @@ class Vlr:
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
+
+    @staticmethod
+    def vlr_score():
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "3600",
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
+        }
+        URL = "https://www.vlr.gg/matches/results"
+        html = requests.get(URL, headers=headers).text
+        response = requests.get(URL)
+        soup = BeautifulSoup(html, "html.parser")
+        status = response.status_code
+
+        base = soup.find(id="wrapper")
+
+        vlr_module = base.find_all(
+            "a",
+            {"class": "wf-module-item"},
+        )
+
+        result = []
+        for module in vlr_module:
+            # link to match info
+            url_path = module["href"]
+
+            # Match completed time
+            eta_container = module.find("div", {"class": "match-item-eta"})
+            eta = (
+                eta_container.find("div", {"class": "ml-eta mod-completed"})
+                .get_text()
+                .strip()
+            )
+
+            # round of tounranment
+            round_container = module.find("div", {"class": "match-item-event text-of"})
+            round = (
+                round_container.find(
+                    "div", {"class": "match-item-event-series text-of"}
+                )
+                .get_text()
+                .strip()
+            )
+            round = round.replace("\u2013", "-")
+
+            # tournament name
+            tourney = (
+                module.find("div", {"class": "match-item-event text-of"})
+                .get_text()
+                .strip()
+            )
+            tourney = tourney.replace("\t", " ")
+            tourney = tourney.strip().split("\n")[1]
+            tourney = tourney.strip()
+
+            # tournament icon
+            tourney_icon = module.find("img")["src"]
+            tourney_icon = f"https:{tourney_icon}"
+
+            # teams
+            team_container = (
+                module.find("div", {"class": "match-item-vs"}).get_text().strip()
+            )
+
+            # team1
+            team1 = team_container.replace("\t", " ").replace("\n", " ")
+            team1 = team1.strip().split("                                    ")[0]
+            team1 = team1.strip().split("                                  ")[0]
+
+            # team 2
+            team2 = team_container.replace("\t", " ").replace("\n", " ")
+            team2 = team2.strip().split("                                    ")[1]
+            team2 = team2.strip().split("                                  ")[0]
+
+            # score
+            score_container = (
+                module.find("div", {"class": "match-item-vs"}).get_text().strip()
+            )
+
+            # score 1
+            score1 = score_container.replace("\t", " ").replace("\n", " ")
+            score1 = score1.strip().split("                                    ")[0]
+            score1 = score1.strip().split("                                  ")[1]
+
+            # score 2
+            score2 = score_container.replace("\t", " ").replace("\n", " ")
+            score2 = score2.strip().split("                                    ")[1]
+            score2 = score2.strip().split("                                  ")[1]
+
+            result.append(
+                {
+                    "team1": team1,
+                    "team2": team2,
+                    "score1": score1,
+                    "score2": score2,
+                    "time_completed": eta,
+                    "round_info": round,
+                    "tournament_name": tourney,
+                    "url_path": url_path,
+                    "tournament_icon": tourney_icon,
+                }
+            )
+        segments = {"status": status, "segments": result}
+
+        data = {"data": segments}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+        return data
