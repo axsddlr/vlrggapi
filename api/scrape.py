@@ -194,7 +194,7 @@ class Vlr:
                 eta_container.find("div", {"class": "ml-eta mod-completed"})
                 .get_text()
                 .strip()
-            )
+            ) + " ago"
 
             # round of tounranment
             round_container = module.find("div", {"class": "match-item-event text-of"})
@@ -260,7 +260,7 @@ class Vlr:
                     "time_completed": eta,
                     "round_info": round,
                     "tournament_name": tourney,
-                    "url_path": url_path,
+                    "match_page": url_path,
                     "tournament_icon": tourney_icon,
                 }
             )
