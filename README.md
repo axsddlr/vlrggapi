@@ -4,7 +4,7 @@ An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Es
 
 Built by [Andre Saddler](https://github.com/rehkloos/)
 
-<p><a href="https://heroku.com/deploy" rel="nofollow"><img src="https://camo.githubusercontent.com/c0824806f5221ebb7d25e559568582dd39dd1170/68747470733a2f2f7777772e6865726f6b7563646e2e636f6d2f6465706c6f792f627574746f6e2e706e67" alt="Deploy to Heroku" data-canonical-src="https://www.herokucdn.com/deploy/button.png" style="max-width:100%;"></a></p>
+[![heroku](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
 
 ## Current Endpoints
 
@@ -32,10 +32,36 @@ All endpoints are relative to https://vlrggapi.herokuapp.com.
   }
   ```
 
+### `/matches/results`
+
+- Method: `GET`
+- Cached Time: 300 seconds (5 Minutes)
+- Response:
+  ```python
+  {
+      "data": {
+          "status": 200,
+          'segments': [
+              {
+                "team1": str,
+                "team2": str,
+                "score1": str,
+                "score2": str,
+                "time_completed": str,
+                "round_info": str,
+                "tournament_name": str,
+                "match_page": str,
+                "tournament_icon": str
+              }
+          ],
+      }
+  }
+  ```
+
 ### `/rankings/<region>`
 
 - Method: `GET`
-- region: `north-america`, `europe`, `asia-pacific`, `latin-america`, `oceania`, `korea`, `mena`
+- Region: `north-america`, `europe`, `asia-pacific`, `latin-america`, `oceania`, `korea`, `mena`
 - Cached Time: 300 seconds (5 Minutes)
 - Response:
   ```python
@@ -52,6 +78,36 @@ All endpoints are relative to https://vlrggapi.herokuapp.com.
                   'winnings': str,
                   'logo': str,
                   'url_path': str
+              }
+          ],
+      }
+  }
+  ```
+
+### `/stats/<region>`
+
+- Method: `GET`
+- Cached Time: 300 seconds (5 Minutes)
+- Region: `na`, `eu`, `ap`, `sa`, `oce`, `mn`
+- Response:
+  ```python
+  {
+      "data": {
+          "status": 200,
+          'segments': [
+              {
+                'title': str,
+                "player": str,
+                "org": str,
+                "average_combat_score": str,
+                "kill_deaths": str,
+                "average_damage_per_round": str,
+                "kills_per_round": str,
+                "assists_per_round": str,
+                "first_kills_per_round": str,
+                "first_deaths_per_round": str,
+                "headshot_percentage": str,
+                "clutch_success_percentage": str
               }
           ],
       }
