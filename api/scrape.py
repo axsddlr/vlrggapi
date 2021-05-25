@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+import utils.resources as res
 
 
 class Vlr:
@@ -84,7 +85,7 @@ class Vlr:
             "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
-        URL = f"https://www.vlr.gg/rankings/{region}"
+        URL = "https://www.vlr.gg/rankings/" + res.region[str(region)]
         html = requests.get(URL, headers=headers).text
         response = requests.get(URL)
         soup = BeautifulSoup(html, "html.parser")
