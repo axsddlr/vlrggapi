@@ -271,3 +271,75 @@ class Vlr:
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
+
+    @staticmethod
+    def vlr_stats(region: str = ""):
+        region = region
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "3600",
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
+        }
+        URL = f"https://www.vlr.gg/stats/?event_group_id=3&event_id=all&region={region}&country=all&min_rounds=300&agent=all&map_id=all&timespan=all"
+        html = requests.get(URL, headers=headers).text
+        response = requests.get(URL)
+        soup = BeautifulSoup(html, "html.parser")
+        status = response.status_code
+
+        tbody = soup.find("tbody")
+        containers = tbody.findAll("tr")
+
+        result = []
+        for container in containers:
+            # name of player
+            player_container = container.find("td", {"class": "mod-player mod-a"})
+            player = player_container.a.div.text.replace("\n", " ").strip()
+            player = player.split(" ")[0]
+
+            # org name for player
+            org_container = container.find("td", {"class": "mod-player mod-a"})
+            org = org_container.a.div.text.replace("\n", " ").strip()
+            org = org.split(" ")[-1]
+
+            # stats for player
+            stats_container = container.findAll("td", {"class": "mod-color-sq"})
+            acs = stats_container[0].div.text.strip()
+            kd = stats_container[1].div.text.strip()
+            adr = stats_container[2].div.text.strip()
+            kpr = stats_container[3].div.text.strip()
+            apr = stats_container[4].div.text.strip()
+            fkpr = stats_container[5].div.text.strip()
+            fdpr = stats_container[6].div.text.strip()
+            hs = stats_container[7].div.text.strip()
+            cl = stats_container[8].div.text.strip()
+
+            result.append(
+                {
+                    "player": player,
+                    "org": org,
+                    "average_combat_score": acs,
+                    "kill_deaths": kd,
+                    "average_damage_per_round": adr,
+                    "kills_per_round": kpr,
+                    "assists_per_round": apr,
+                    "first_kills_per_round": fkpr,
+                    "first_deaths_per_round": fdpr,
+                    "headshot_percentage": hs,
+                    "clutch_success_percentage": cl,
+                    # "score2": score2,
+                    # "time_completed": eta,
+                    # "round_info": round,
+                    # "tournament_name": tourney,
+                    # "match_page": url_path,
+                    # "tournament_icon": tourney_icon,
+                }
+            )
+        segments = {"status": status, "segments": result}
+
+        data = {"data": segments}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+        return data
