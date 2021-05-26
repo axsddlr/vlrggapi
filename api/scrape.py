@@ -221,6 +221,16 @@ class Vlr:
             # tournament icon
             tourney_icon = module.find("img")["src"]
             tourney_icon = f"https:{tourney_icon}"
+            
+            # flags
+            flags_container = module.findAll("div", {"class": "text-of"})
+            flag1 = flags_container[0].span.get("class")[1]
+            flag1 = flag1.replace("-", " ")
+            flag1 = "flag_" + flag1.strip().split(" ")[1]
+
+            flag2 = flags_container[1].span.get("class")[1]
+            flag2 = flag2.replace("-", " ")
+            flag2 = "flag_" + flag2.strip().split(" ")[1]
 
             # teams
             team_container = (
@@ -258,6 +268,8 @@ class Vlr:
                     "team2": team2,
                     "score1": score1,
                     "score2": score2,
+                    "flag1": flag1,
+                    "flag2": flag2,
                     "time_completed": eta,
                     "round_info": round,
                     "tournament_name": tourney,
