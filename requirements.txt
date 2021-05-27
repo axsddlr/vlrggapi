@@ -5,4 +5,5 @@ flask-cors==3.0.10
 requests>=2.18.4
 Flask-Caching==1.10.1
 ujson==4.0.2
-
+pyppeteer==0.2.5
+html5lib==1.1
