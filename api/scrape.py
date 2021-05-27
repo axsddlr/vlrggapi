@@ -1,6 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import utils.resources as res
+from utils.HTMLReceive import r
+import asyncio
 
 
 class Vlr:
@@ -164,17 +166,11 @@ class Vlr:
 
     @staticmethod
     def vlr_score():
-        headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Max-Age": "3600",
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
-        }
+        loop = asyncio.new_event_loop()
+        html = r("https://www.vlr.gg/matches/results", loop)
         URL = "https://www.vlr.gg/matches/results"
-        html = requests.get(URL, headers=headers).text
         response = requests.get(URL)
-        soup = BeautifulSoup(html, "html.parser")
+        soup = BeautifulSoup(html, "html5lib")
         status = response.status_code
 
         base = soup.find(id="wrapper")
@@ -221,7 +217,7 @@ class Vlr:
             # tournament icon
             tourney_icon = module.find("img")["src"]
             tourney_icon = f"https:{tourney_icon}"
-            
+
             # flags
             flags_container = module.findAll("div", {"class": "text-of"})
             flag1 = flags_container[0].span.get("class")[1]
@@ -244,8 +240,12 @@ class Vlr:
 
             # team 2
             team2 = team_container.replace("\t", " ").replace("\n", " ")
-            team2 = team2.strip().split("                                    ")[1]
-            team2 = team2.strip().split("                                  ")[0]
+            team2 = team2.strip().split(
+                "                                                                                                          "
+            )[1]
+            team2 = team2.strip().split(
+                "                                                    "
+            )[0]
 
             # score
             score_container = (
@@ -254,13 +254,21 @@ class Vlr:
 
             # score 1
             score1 = score_container.replace("\t", " ").replace("\n", " ")
-            score1 = score1.strip().split("                                    ")[0]
-            score1 = score1.strip().split("                                  ")[1]
+            score1 = (
+                score1.strip()
+                .split("                                                    ")[1]
+                .strip()
+            )
+            # score1 = score1.strip().split("                                  ")[1]
 
             # score 2
             score2 = score_container.replace("\t", " ").replace("\n", " ")
-            score2 = score2.strip().split("                                    ")[1]
-            score2 = score2.strip().split("                                  ")[1]
+            score2 = score2.strip().split(
+                "                                                                                                          "
+            )[1]
+            score2 = score2.strip().split(
+                "                                                    "
+            )[1]
 
             result.append(
                 {
@@ -341,12 +349,6 @@ class Vlr:
                     "first_deaths_per_round": fdpr,
                     "headshot_percentage": hs,
                     "clutch_success_percentage": cl,
-                    # "score2": score2,
-                    # "time_completed": eta,
-                    # "round_info": round,
-                    # "tournament_name": tourney,
-                    # "match_page": url_path,
-                    # "tournament_icon": tourney_icon,
                 }
             )
         segments = {"status": status, "segments": result}
