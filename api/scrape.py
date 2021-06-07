@@ -1,7 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 import utils.resources as res
-from utils.HTMLReceive import r
 import asyncio
 
 
@@ -166,11 +165,17 @@ class Vlr:
 
     @staticmethod
     def vlr_score():
-        loop = asyncio.new_event_loop()
-        html = r("https://www.vlr.gg/matches/results", loop)
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "3600",
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
+        }
         URL = "https://www.vlr.gg/matches/results"
+        html = requests.get(URL, headers=headers).text
         response = requests.get(URL)
-        soup = BeautifulSoup(html, "html5lib")
+        soup = BeautifulSoup(html, "html.parser")
         status = response.status_code
 
         base = soup.find(id="wrapper")
@@ -233,42 +238,23 @@ class Vlr:
                 module.find("div", {"class": "match-item-vs"}).get_text().strip()
             )
 
-            # team1
-            team1 = team_container.replace("\t", " ").replace("\n", " ")
-            team1 = team1.strip().split("                                    ")[0]
-            team1 = team1.strip().split("                                  ")[0]
-
-            # team 2
-            team2 = team_container.replace("\t", " ").replace("\n", " ")
-            team2 = team2.strip().split(
-                "                                                                                                          "
-            )[1]
-            team2 = team2.strip().split(
-                "                                                    "
-            )[0]
-
-            # score
-            score_container = (
+            # match items
+            match_container = (
                 module.find("div", {"class": "match-item-vs"}).get_text().strip()
             )
 
-            # score 1
-            score1 = score_container.replace("\t", " ").replace("\n", " ")
-            score1 = (
-                score1.strip()
-                .split("                                                    ")[1]
-                .strip()
+            match_array = match_container.replace("\t", " ").replace("\n", " ")
+            match_array = match_array.strip().split(
+                "                                  "
             )
-            # score1 = score1.strip().split("                                  ")[1]
-
-            # score 2
-            score2 = score_container.replace("\t", " ").replace("\n", " ")
-            score2 = score2.strip().split(
-                "                                                                                                          "
-            )[1]
-            score2 = score2.strip().split(
-                "                                                    "
-            )[1]
+            # 1st item in match_array is first team
+            team1 = match_array[0]
+            # 2nd item in match_array is first team score
+            score1 = match_array[1]
+            # 3rd item in match_array is second team                            ")[1]
+            team2 = match_array[2].strip()
+            # 4th item in match_array is second team score
+            score2 = match_array[3]
 
             result.append(
                 {

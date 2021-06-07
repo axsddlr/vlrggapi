@@ -1,62 +1,43 @@
-from flask import Flask, current_app, render_template
-from flask_cors import CORS
-from flask_caching import Cache
-import ujson as json
-from ratelimit import limits
+from fastapi import FastAPI
+import uvicorn
 from api.scrape import Vlr
+from ratelimit import limits
 
-app = Flask(__name__, template_folder="frontpage")
-cache = Cache(app, config={"CACHE_TYPE": "simple"})
-CORS(app)
+
+app = FastAPI()
 vlr = Vlr()
 
 TEN_MINUTES = 600
 
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 
 
 @limits(calls=50, period=TEN_MINUTES)
-@cache.cached(timeout=300)
-@app.route("/news", methods=["GET"])
-def vlr_news():
-    return current_app.response_class(
-        json.dumps(vlr.vlr_recent(), indent=4, escape_forward_slashes=False),
-        mimetype="application/json",
-    )
+@app.get("/news")
+async def VLR_news():
+    return vlr.vlr_recent()
 
 
 @limits(calls=50, period=TEN_MINUTES)
-@cache.cached(timeout=300)
-@app.route("/match/results", methods=["GET"])
-def vlr_scores():
-    return current_app.response_class(
-        json.dumps(vlr.vlr_score(), indent=4, escape_forward_slashes=False),
-        mimetype="application/json",
-    )
+@app.get("/match/results")
+async def VLR_scores():
+    return vlr.vlr_score()
 
 
 @limits(calls=50, period=TEN_MINUTES)
-@cache.cached(timeout=300)
-@app.route("/stats/<region>", methods=["GET"])
-def vlr_stats(region):
-    return current_app.response_class(
-        json.dumps(vlr.vlr_stats(region), indent=4, escape_forward_slashes=False),
-        mimetype="application/json",
-    )
+@app.get("/stats/{region}")
+async def VLR_stats(region):
+    return vlr.vlr_stats(region)
 
 
 @limits(calls=50, period=TEN_MINUTES)
-@cache.cached(timeout=300)
-@app.route("/rankings/<region>", methods=["GET"])
-def vlr_ranks(region):
-    return current_app.response_class(
-        json.dumps(vlr.vlr_rankings(region), indent=4, escape_forward_slashes=False),
-        mimetype="application/json",
-    )
+@app.get("/rankings/{region}")
+async def VLR_ranks(region):
+    return vlr.vlr_rankings(region)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+    uvicorn.run("main:app", host="0.0.0.0", port=3001)

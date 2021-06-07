@@ -5,7 +5,7 @@ LABEL build_date="2021-05-23"
 RUN apk update && apk upgrade
 RUN apk add --no-cache git make build-base linux-headers chromium
 
-ENV CHROME_BIN=/usr/bin/chromium-browser
+# ENV CHROME_BIN=/usr/bin/chromium-browser
 
 
 
