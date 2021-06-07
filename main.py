@@ -4,15 +4,16 @@ from api.scrape import Vlr
 from ratelimit import limits
 
 
-app = FastAPI()
+app = FastAPI(
+    title="vlrggapi",
+    description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage.",
+    version="1.0.3",
+    docs_url="/",
+    redoc_url=None,
+)
 vlr = Vlr()
 
 TEN_MINUTES = 600
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
 
 
 @limits(calls=50, period=TEN_MINUTES)
