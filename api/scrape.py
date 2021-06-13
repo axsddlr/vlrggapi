@@ -289,7 +289,7 @@ class Vlr:
             "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
-        URL = f"https://www.vlr.gg/stats/?event_group_id=3&event_id=all&region={region}&country=all&min_rounds=300&agent=all&map_id=all&timespan=all"
+        URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=300&min_rating=1600&agent=all&map_id=all&timespan=all"
         html = requests.get(URL, headers=headers).text
         response = requests.get(URL)
         soup = BeautifulSoup(html, "html.parser")
