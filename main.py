@@ -6,7 +6,7 @@ from ratelimit import limits
 
 app = FastAPI(
     title="vlrggapi",
-    description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage.",
+    description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage. Made by [Rehkloos](https://github.com/Rehkloos)",
     version="1.0.3",
     docs_url="/",
     redoc_url=None,
