@@ -254,7 +254,7 @@ class Vlr:
             # 3rd item in match_array is second team                            ")[1]
             team2 = match_array[2].strip()
             # 4th item in match_array is second team score
-            score2 = match_array[3]
+            score2 = match_array[-1]
 
             result.append(
                 {
