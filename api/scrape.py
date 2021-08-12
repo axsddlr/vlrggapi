@@ -5,13 +5,8 @@ import asyncio
 
 
 class Vlr:
-    @staticmethod
-    def vlr_recent():
+    def vlr_recent(self):
         headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
         URL = "https://www.vlr.gg/news"
@@ -76,21 +71,14 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-    @staticmethod
-    def vlr_rankings(region: str = ""):
-        region = region
+    def vlr_rankings(self, region):
         headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
         URL = "https://www.vlr.gg/rankings/" + res.region[str(region)]
-        html = requests.get(URL, headers=headers).text
-        response = requests.get(URL)
-        soup = BeautifulSoup(html, "html.parser")
-        status = response.status_code
+        html = requests.get(URL, headers=headers)
+        soup = BeautifulSoup(html.content, "html.parser")
+        status = html.status_code
 
         tbody = soup.find("tbody")
         containers = tbody.findAll("tr")
@@ -163,20 +151,14 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-    @staticmethod
-    def vlr_score():
+    def vlr_score(self):
         headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
         URL = "https://www.vlr.gg/matches/results"
-        html = requests.get(URL, headers=headers).text
-        response = requests.get(URL)
-        soup = BeautifulSoup(html, "html.parser")
-        status = response.status_code
+        html = requests.get(URL, headers=headers)
+        soup = BeautifulSoup(html.content, "html.parser")
+        status = html.status_code
 
         base = soup.find(id="wrapper")
 
@@ -279,21 +261,14 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-    @staticmethod
-    def vlr_stats(region: str = ""):
-        region = region
+    def vlr_stats(self, region):
         headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Max-Age": "3600",
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
         }
         URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=300&min_rating=1600&agent=all&map_id=all&timespan=all"
-        html = requests.get(URL, headers=headers).text
-        response = requests.get(URL)
-        soup = BeautifulSoup(html, "html.parser")
-        status = response.status_code
+        html = requests.get(URL, headers=headers)
+        soup = BeautifulSoup(html.content, "html.parser")
+        status = html.status_code
 
         tbody = soup.find("tbody")
         containers = tbody.findAll("tr")
