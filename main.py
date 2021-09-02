@@ -39,6 +39,11 @@ async def VLR_stats(region):
 async def VLR_ranks(region):
     return vlr.vlr_rankings(region)
 
+@limits(calls=50, period=TEN_MINUTES)
+@app.get("/match/upcoming")
+async def VLR_upcoming():
+    return vlr.vlr_upcoming()
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=3001)

@@ -215,11 +215,6 @@ class Vlr:
             flag2 = flag2.replace("-", " ")
             flag2 = "flag_" + flag2.strip().split(" ")[1]
 
-            # teams
-            team_container = (
-                module.find("div", {"class": "match-item-vs"}).get_text().strip()
-            )
-
             # match items
             match_container = (
                 module.find("div", {"class": "match-item-vs"}).get_text().strip()
@@ -310,6 +305,108 @@ class Vlr:
                     "first_deaths_per_round": fdpr,
                     "headshot_percentage": hs,
                     "clutch_success_percentage": cl,
+                }
+            )
+        segments = {"status": status, "segments": result}
+
+        data = {"data": segments}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+        return data
+
+    def vlr_upcoming(self):
+        headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
+        }
+        URL = "https://www.vlr.gg/matches"
+        html = requests.get(URL, headers=headers)
+        soup = BeautifulSoup(html.content, "html.parser")
+        status = html.status_code
+
+        base = soup.find(id="wrapper")
+
+        vlr_module = base.find_all(
+            "a",
+            {"class": "wf-module-item"},
+        )
+
+        result = []
+        for module in vlr_module:
+            # link to match info
+            url_path = module["href"]
+
+            # Match completed time
+            eta_container = module.find("div", {"class": "match-item-eta"})
+            eta = "TBD"
+            eta_time = eta_container.find("div", {"class": "ml-eta"})
+            if eta_time is not None:
+                eta = (
+                    eta_time
+                    .get_text()
+                    .strip()
+                ) + " from now"
+
+            # round of tournament
+            round_container = module.find("div", {"class": "match-item-event text-of"})
+            round = (
+                round_container.find(
+                    "div", {"class": "match-item-event-series text-of"}
+                )
+                .get_text()
+                .strip()
+            )
+            round = round.replace("\u2013", "-")
+
+            # tournament name
+            tourney = (
+                module.find("div", {"class": "match-item-event text-of"})
+                .get_text()
+                .strip()
+            )
+            tourney = tourney.replace("\t", " ")
+            tourney = tourney.strip().split("\n")[1]
+            tourney = tourney.strip()
+
+            # tournament icon
+            tourney_icon = module.find("img")["src"]
+            tourney_icon = f"https:{tourney_icon}"
+
+            # flags
+            flags_container = module.findAll("div", {"class": "text-of"})
+            flag1 = flags_container[0].span.get("class")[1]
+            flag1 = flag1.replace("-", " ")
+            flag1 = "flag_" + flag1.strip().split(" ")[1]
+
+            flag2 = flags_container[1].span.get("class")[1]
+            flag2 = flag2.replace("-", " ")
+            flag2 = "flag_" + flag2.strip().split(" ")[1]
+
+            # match items
+            match_container = (
+                module.find("div", {"class": "match-item-vs"}).get_text().strip()
+            )
+
+            match_array = match_container.replace("\t", " ").replace("\n", " ")
+            match_array = match_array.strip().split(
+                "                                  "
+            )
+            team1 = "TBD"
+            team2 = "TBD"
+            if match_array is not None and len(match_array) > 1:
+                team1 = match_array[0]
+                team2 = match_array[2].strip()
+            result.append(
+                {
+                    "team1": team1,
+                    "team2": team2,
+                    "flag1": flag1,
+                    "flag2": flag2,
+                    "time_until_match": eta,
+                    "round_info": round,
+                    "tournament_name": tourney,
+                    "match_page": url_path,
+                    "tournament_icon": tourney_icon,
                 }
             )
         segments = {"status": status, "segments": result}
