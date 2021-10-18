@@ -1,4 +1,4 @@
-beautifulsoup4==4.9.3
+beautifulsoup4==4.10.0
 requests>=2.18.4
-uvicorn==0.14.0
-fastapi==0.65.1
+uvicorn==0.15.0
+fastapi==0.70.0
