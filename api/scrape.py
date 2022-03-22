@@ -1,7 +1,10 @@
+import re
+
 import requests
 from bs4 import BeautifulSoup
-import utils.resources as res
-import asyncio
+
+import utils.utils as res
+from utils.utils import headers
 
 
 class Vlr:
@@ -14,7 +17,7 @@ class Vlr:
         response = requests.get(URL, headers=self.headers)
 
         html, status_code = response.text, response.status_code
-        return BeautifulSoup(html, "html.parser"), status_code
+        return BeautifulSoup(html, "lxml"), status_code
 
     def vlr_recent(self):
         URL = "https://www.vlr.gg/news"
@@ -27,7 +30,6 @@ class Vlr:
 
         result = []
         for article in articles:
-
             # Titles of articles
             title = article.find(
                 "div",
@@ -69,93 +71,54 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-    def vlr_rankings(self, region):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
-        }
+    @staticmethod
+    def vlr_rankings(region):
         URL = "https://www.vlr.gg/rankings/" + res.region[str(region)]
         html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "html.parser")
+        soup = BeautifulSoup(html.content, "lxml")
         status = html.status_code
 
-        tbody = soup.find("tbody")
-        containers = tbody.findAll("tr")
+        base = soup.find(class_=re.compile("mod-scroll"))
+        containers = base.find_all(class_="rank-item")
+
         result = []
         for container in containers:
             # column 1
-            rank_container = container.find("td", {"class": "rank-item-rank"})
-            rank = rank_container.a.text.strip()
-            # .get_text().strip()
+            rank = container.find(class_=re.compile("rank-item-rank-num")).text.strip()
 
             # column 2 - team
-            team_container = container.find("td", {"class": "rank-item-team"})
-            team = team_container.a.text.strip()
-            team = team.replace("\t", " ")
-            team = team.strip().split("  ")[0]
+            team_container = container.find("div", {"class": "ge-text"}).text.strip()
+            team = re.sub(re.compile(r'\s+'), '', team_container)
+            team = team.split("#")[0]
 
             # column 2 - logo
-            logo_container = container.find("td", {"class": "rank-item-team"})
-            img = logo_container.find("a").find("img")
+            logo_container = container.find(class_=re.compile("rank-item-team"))
+            img = logo_container.find("img")
             logo = "https:" + img["src"]
 
             # column 2 - ctry
-            ctry_container = container.find("td", {"class": "rank-item-team"})
-            ctry = ctry_container.a.div.text.replace("\t", " ").strip()
-            ctry = ctry.strip().split("        ")[1]
-
-            # column 4 - last played
-            streak_container = container.find(
-                "td", {"class": "rank-item-streak mod-right"}
-            )
-            streak = streak_container.a.span.text.replace("\t", " ").strip()
-            streak = streak.replace("", " ").strip()
-            streak = streak.replace("W", "Wins")
-            streak = streak.replace("L", "Loss(s)")
-
-            # column 4 - last played
-            record_container = container.find(
-                "td", {"class": "rank-item-record mod-right"}
-            )
-            record = record_container.a.text.strip()
-            record = record.replace("\u2013", "-")
-
-            # column 5 - Winnings
-            winnings_container = container.find(
-                "td", {"class": "rank-item-earnings mod-right"}
-            )
-            winnings = winnings_container.a.text.strip()
-
-            # link to team
-            profile_container = container.find("td", {"class": "rank-item-team"})
-            profile = profile_container.find("a")["href"]
+            country = container.find(class_=re.compile("rank-item-team-country")).text.strip()
 
             result.append(
                 {
                     "rank": rank,
                     "team": team,
-                    "country": ctry,
-                    "streak": streak,
-                    "record": record,
-                    "winnings": winnings,
+                    "country": country,
                     "logo": logo,
-                    "url_path": profile,
                 }
             )
-        segments = {"status": status, "segments": result}
 
-        data = {"data": segments}
+        data = {"status": status, "data": result}
 
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
 
-    def vlr_score(self):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
-        }
+    @staticmethod
+    def vlr_score():
         URL = "https://www.vlr.gg/matches/results"
         html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "html.parser")
+        soup = BeautifulSoup(html.content, "lxml")
         status = html.status_code
 
         base = soup.find(id="wrapper")
@@ -173,10 +136,10 @@ class Vlr:
             # Match completed time
             eta_container = module.find("div", {"class": "match-item-eta"})
             eta = (
-                eta_container.find("div", {"class": "ml-eta mod-completed"})
-                .get_text()
-                .strip()
-            ) + " ago"
+                      eta_container.find("div", {"class": "ml-eta mod-completed"})
+                          .get_text()
+                          .strip()
+                  ) + " ago"
 
             # round of tounranment
             round_container = module.find("div", {"class": "match-item-event text-of"})
@@ -184,16 +147,16 @@ class Vlr:
                 round_container.find(
                     "div", {"class": "match-item-event-series text-of"}
                 )
-                .get_text()
-                .strip()
+                    .get_text()
+                    .strip()
             )
             round = round.replace("\u2013", "-")
 
             # tournament name
             tourney = (
                 module.find("div", {"class": "match-item-event text-of"})
-                .get_text()
-                .strip()
+                    .get_text()
+                    .strip()
             )
             tourney = tourney.replace("\t", " ")
             tourney = tourney.strip().split("\n")[1]
@@ -254,17 +217,16 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-    def vlr_stats(self, region):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
-        }
-        URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=300&min_rating=1600&agent=all&map_id=all&timespan=all"
+    @staticmethod
+    def vlr_stats(region):
+        URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=300" \
+              f"&min_rating=1600&agent=all&map_id=all&timespan=all "
         html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "html.parser")
+        soup = BeautifulSoup(html.content, "lxml")
         status = html.status_code
 
         tbody = soup.find("tbody")
-        containers = tbody.findAll("tr")
+        containers = tbody.find_all("tr")
 
         result = []
         for container in containers:
@@ -313,13 +275,11 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-    def vlr_upcoming(self):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
-        }
+    @staticmethod
+    def vlr_upcoming():
         URL = "https://www.vlr.gg/matches"
         html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "html.parser")
+        soup = BeautifulSoup(html.content, "lxml")
         status = html.status_code
 
         base = soup.find(id="wrapper")
@@ -340,10 +300,10 @@ class Vlr:
             eta_time = eta_container.find("div", {"class": "ml-eta"})
             if eta_time is not None:
                 eta = (
-                    eta_time
-                    .get_text()
-                    .strip()
-                ) + " from now"
+                          eta_time
+                              .get_text()
+                              .strip()
+                      ) + " from now"
 
             # round of tournament
             round_container = module.find("div", {"class": "match-item-event text-of"})
@@ -351,16 +311,16 @@ class Vlr:
                 round_container.find(
                     "div", {"class": "match-item-event-series text-of"}
                 )
-                .get_text()
-                .strip()
+                    .get_text()
+                    .strip()
             )
             round = round.replace("\u2013", "-")
 
             # tournament name
             tourney = (
                 module.find("div", {"class": "match-item-event text-of"})
-                .get_text()
-                .strip()
+                    .get_text()
+                    .strip()
             )
             tourney = tourney.replace("\t", " ")
             tourney = tourney.strip().split("\n")[1]
@@ -414,3 +374,7 @@ class Vlr:
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
+
+
+if __name__ == '__main__':
+    print(Vlr.vlr_rankings("na"))
