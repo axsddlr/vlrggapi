@@ -8,7 +8,7 @@ app = FastAPI(
     title="vlrggapi",
     description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news "
                 "coverage. Made by [Rehkloos](https://github.com/Rehkloos)",
-    version="1.0.3",
+    version="1.0.4",
     docs_url="/",
     redoc_url=None,
 )
@@ -30,9 +30,24 @@ async def VLR_scores():
 
 
 @limits(calls=50, period=TEN_MINUTES)
-@app.get("/stats/{region}")
-async def VLR_stats(region):
-    return vlr.vlr_stats(region)
+@app.get("/stats/{region}/{timespan}")
+async def VLR_stats(region, timespan):
+    """
+    region shortnames:
+        "na" -> "north-america",
+        "eu" -> "europe",
+        "ap" -> "asia-pacific",
+        "sa" -> "latin-america",
+        "jp" -> "japan",
+        "oce" -> "oceania",
+        "mn" -> "mena",
+
+    timespan:
+        "30" -> 30 days,
+        "60" -> 60 days,
+        "90" -> 90 days,
+    """
+    return vlr.vlr_stats(region, timespan)
 
 
 @limits(calls=50, period=TEN_MINUTES)
