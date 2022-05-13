@@ -245,13 +245,13 @@ class Vlr:
             stats_container = container.findAll("td", {"class": "mod-color-sq"})
             acs = stats_container[0].div.text.strip()
             kd = stats_container[1].div.text.strip()
-            adr = stats_container[2].div.text.strip()
-            kpr = stats_container[3].div.text.strip()
-            apr = stats_container[4].div.text.strip()
-            fkpr = stats_container[5].div.text.strip()
-            fdpr = stats_container[6].div.text.strip()
-            hs = stats_container[7].div.text.strip()
-            cl = stats_container[8].div.text.strip()
+            adr = stats_container[3].div.text.strip()
+            kpr = stats_container[4].div.text.strip()
+            apr = stats_container[5].div.text.strip()
+            fkpr = stats_container[6].div.text.strip()
+            fdpr = stats_container[7].div.text.strip()
+            hs = stats_container[8].div.text.strip()
+            cl = stats_container[9].div.text.strip()
 
             result.append(
                 {
