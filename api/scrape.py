@@ -218,9 +218,10 @@ class Vlr:
         return data
 
     @staticmethod
-    def vlr_stats(region):
-        URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=300" \
-              f"&min_rating=1600&agent=all&map_id=all&timespan=all "
+    def vlr_stats(region: str, timespan: int):
+        URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200" \
+              f"&min_rating=1550&agent=all&map_id=all&timespan={timespan}d"
+
         html = requests.get(URL, headers=headers)
         soup = BeautifulSoup(html.content, "lxml")
         status = html.status_code
