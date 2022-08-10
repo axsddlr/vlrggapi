@@ -1,17 +1,24 @@
-FROM python:3.7-alpine
-LABEL maintainer="Andre Saddler <contact@rehkloos.com>"
+FROM python:3.9.13-alpine as base
 
-LABEL build_date="2021-05-23"
-RUN apk update && apk upgrade
-RUN apk add --no-cache git make build-base linux-headers chromium
-
-# ENV CHROME_BIN=/usr/bin/chromium-browser
-
-
+RUN mkdir -p /vlrggapi
 
 WORKDIR /vlrggapi
+
+RUN apk add --update \
+    gcc \
+    curl \
+    git \
+    build-base
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir  -r requirements.txt
+
+
+FROM python:3.9.13-alpine as final
+
+WORKDIR /vlrggapi
+COPY --from=base /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 COPY . .
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["python", "main.py"]
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD curl -f http://localhost:3001/health
