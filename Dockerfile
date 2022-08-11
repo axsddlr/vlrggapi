@@ -21,4 +21,4 @@ COPY --from=base /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9
 COPY . .
 
 CMD ["python", "main.py"]
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD curl -f http://localhost:3001/health
+HEALTHCHECK --interval=5s --timeout=3s CMD curl --fail http://127.0.0.1:3001/health || exit 1
