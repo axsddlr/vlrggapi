@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from api.scrape import Vlr
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -28,19 +28,19 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.get("/news")
 @limiter.limit("250/minute")
-async def VLR_news():
+async def VLR_news(request: Request):
     return vlr.vlr_recent()
 
 
 @app.get("/match/results")
 @limiter.limit("250/minute")
-async def VLR_scores():
+async def VLR_scores(request: Request):
     return vlr.vlr_score()
 
 
 @app.get("/stats/{region}/{timespan}")
 @limiter.limit("250/minute")
-async def VLR_stats(region, timespan):
+async def VLR_stats(region, timespan, request: Request):
     """
     region shortnames:
         "na" -> "north-america",
@@ -61,7 +61,7 @@ async def VLR_stats(region, timespan):
 
 @app.get("/rankings/{region}")
 @limiter.limit("250/minute")
-async def VLR_ranks(region):
+async def VLR_ranks(region, request: Request):
     """
     region shortnames:
         "na" -> "north-america",
@@ -82,7 +82,7 @@ async def VLR_ranks(region):
 
 @app.get("/match/upcoming")
 @limiter.limit("250/minute")
-async def VLR_upcoming():
+async def VLR_upcoming(request: Request):
     return vlr.vlr_upcoming()
 
 
