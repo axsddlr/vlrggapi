@@ -2,6 +2,7 @@ import re
 
 import requests
 from bs4 import BeautifulSoup
+from selectolax.parser import HTMLParser
 
 import utils.utils as res
 from utils.utils import headers
@@ -10,7 +11,7 @@ from utils.utils import headers
 class Vlr:
     def __init__(self):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
         }
 
     def get_soup(self, URL):
@@ -19,47 +20,55 @@ class Vlr:
         html, status_code = response.text, response.status_code
         return BeautifulSoup(html, "lxml"), status_code
 
+    def get_parse(self, url):
+        """
+        It takes a URL, makes a request to that URL, and returns a tuple of the HTMLParser object and the status code
+
+        :param url: The URL of the page you want to parse
+        :return: A tuple of the HTMLParser object and the status code.
+        """
+        resp = requests.get(url, headers=self.headers)
+        html, status_code = resp.text, resp.status_code
+        return HTMLParser(html), status_code
+
     def vlr_recent(self):
-        URL = "https://www.vlr.gg/news"
-
-        soup, status = self.get_soup(URL)
-
-        articles = soup.body.find_all(
-            "a", class_="wf-module-item"
-        )
-
+        """
+            This function is getting the news articles from the website and
+            returning the data in a dictionary.
+            :return: a dictionary with the key "data" and the value of the dictionary is another dictionary with the
+            keys "status" and "segments".
+            """
+        url = "https://www.vlr.gg/news"
+        html, status = self.get_parse(url)
         result = []
-        for article in articles:
-            # Titles of articles
-            title = article.find(
-                "div",
-                attrs={"style": "font-weight: 700; font-size: 15px; line-height: 1.3;"},
-            ).text.strip()
+        for item in html.css('a.wf-module-item'):
+            # This is getting the date and author of the article.
+            date_author = item.css_first("div.ge-text-light").text()
+            date, author = date_author.split('by')
 
-            # get descriptions of articles
-            desc = article.find(
-                "div",
-                attrs={
-                    "style": " font-size: 13px; padding: 5px 0; padding-bottom: 6px; line-height: 1.4;"
-                },
-            ).text.strip()
+            # Getting description of article via selecting second element in div
+            desc = item.css_first("div").css_first("div:nth-child(2)").text().strip()
 
-            date_and_author = article.find("div", class_="ge-text-light").text.strip()
-            date, by_author = map(lambda s: s.strip(), date_and_author[1:].split("\u2022"))
+            # Getting the title of the news article by selecting the first element in div and then selecting the first
+            # element after splitting
+            title = item.css_first("div:nth-child(1)").text().strip().split('\n')[0]
+            title = title.replace('\t', '')
 
-            # get url_path of articles
-            url = article["href"]
+            # Getting the url of the article.
+            url = item.css_first("a.wf-module-item").attributes['href']
 
+            # This is appending the data to the result list.
             result.append(
                 {
                     "title": title,
                     "description": desc,
-                    "date": date,
-                    "author": by_author[3:],
+                    "date": date.split("\u2022")[1].strip(),
+                    "author": author.strip(),
                     "url_path": url,
                 }
             )
-
+        # This is creating a dictionary with the key "data" and the value of the dictionary is another dictionary with the
+        # keys "status" and "segments".
         data = {
             "data": {
                 "status": status,
@@ -67,6 +76,7 @@ class Vlr:
             }
         }
 
+        # This is checking if the status code is not 200, if it is not 200 then it will raise an exception.
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
@@ -137,8 +147,8 @@ class Vlr:
             eta_container = module.find("div", {"class": "match-item-eta"})
             eta = (
                       eta_container.find("div", {"class": "ml-eta mod-completed"})
-                          .get_text()
-                          .strip()
+                      .get_text()
+                      .strip()
                   ) + " ago"
 
             # round of tounranment
@@ -147,16 +157,16 @@ class Vlr:
                 round_container.find(
                     "div", {"class": "match-item-event-series text-of"}
                 )
-                    .get_text()
-                    .strip()
+                .get_text()
+                .strip()
             )
             round = round.replace("\u2013", "-")
 
             # tournament name
             tourney = (
                 module.find("div", {"class": "match-item-event text-of"})
-                    .get_text()
-                    .strip()
+                .get_text()
+                .strip()
             )
             tourney = tourney.replace("\t", " ")
             tourney = tourney.strip().split("\n")[1]
@@ -302,8 +312,8 @@ class Vlr:
             if eta_time is not None:
                 eta = (
                           eta_time
-                              .get_text()
-                              .strip()
+                          .get_text()
+                          .strip()
                       ) + " from now"
 
             # round of tournament
@@ -312,16 +322,16 @@ class Vlr:
                 round_container.find(
                     "div", {"class": "match-item-event-series text-of"}
                 )
-                    .get_text()
-                    .strip()
+                .get_text()
+                .strip()
             )
             round = round.replace("\u2013", "-")
 
             # tournament name
             tourney = (
                 module.find("div", {"class": "match-item-event text-of"})
-                    .get_text()
-                    .strip()
+                .get_text()
+                .strip()
             )
             tourney = tourney.replace("\t", " ")
             tourney = tourney.strip().split("\n")[1]
