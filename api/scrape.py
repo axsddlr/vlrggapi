@@ -67,8 +67,8 @@ class Vlr:
                     "url_path": url,
                 }
             )
-        # This is creating a dictionary with the key "data" and the value of the dictionary is another dictionary with the
-        # keys "status" and "segments".
+        # This is creating a dictionary with the key "data" and the value of the dictionary is another dictionary
+        # with the keys "status" and "segments".
         data = {
             "data": {
                 "status": status,
@@ -83,37 +83,53 @@ class Vlr:
 
     @staticmethod
     def vlr_rankings(region):
-        URL = "https://www.vlr.gg/rankings/" + res.region[str(region)]
-        html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "lxml")
-        status = html.status_code
-
-        base = soup.find(class_=re.compile("mod-scroll"))
-        containers = base.find_all(class_="rank-item")
+        url = "https://www.vlr.gg/rankings/" + res.region[str(region)]
+        resp = requests.get(url, headers=headers)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
         result = []
-        for container in containers:
-            # column 1
-            rank = container.find(class_=re.compile("rank-item-rank-num")).text.strip()
+        # for item in html.css('div.rank-'):
+        for item in html.css("div.rank-item"):
+            # get team ranking
+            rank = item.css_first("div.rank-item-rank-num").text().strip()
 
-            # column 2 - team
-            team_container = container.find("div", {"class": "ge-text"}).text.strip()
-            team = re.sub(re.compile(r'\s+'), '', team_container)
+            # get team name
+            team = item.css_first("div.ge-text").text()
             team = team.split("#")[0]
 
-            # column 2 - logo
-            logo_container = container.find(class_=re.compile("rank-item-team"))
-            img = logo_container.find("img")
-            logo = "https:" + img["src"]
+            # get logo png url
+            logo = item.css_first("a.rank-item-team").css_first("img").attributes['src']
+            logo = re.sub(r'\/img\/vlr\/tmp\/vlr.png', '', logo)
 
-            # column 2 - ctry
-            country = container.find(class_=re.compile("rank-item-team-country")).text.strip()
+            # get team country
+            country = item.css_first("div.rank-item-team-country").text()
 
+            last_played = item.css_first("a.rank-item-last").text()
+            last_played = last_played.replace('\n', '').replace('\t', '').split('v')[0]
+
+            last_played_team = item.css_first("a.rank-item-last").text()
+            last_played_team = last_played_team.replace('\t', '').replace('\n', '').split('o')[1]
+            last_played_team = last_played_team.replace('.', '. ')
+
+            last_played_team_logo = item.css_first("a.rank-item-last").css_first("img").attributes['src']
+            # last_played_team_name = item.css_first("a.rank-item-last").css_first("span:nth-child(3)").text()
+
+            record = item.css_first("div.rank-item-record").text()
+            record = record.replace('\t', '').replace('\n', '')
+
+            earnings = item.css_first("div.rank-item-earnings").text()
+            earnings = earnings.replace('\t', '').replace('\n', '')
             result.append(
                 {
                     "rank": rank,
-                    "team": team,
+                    "team": team.strip(),
                     "country": country,
+                    "last_played": last_played.strip(),
+                    "last_played_team": last_played_team.strip(),
+                    "last_played_team_logo": last_played_team_logo,
+                    "record": record,
+                    "earnings": earnings,
                     "logo": logo,
                 }
             )

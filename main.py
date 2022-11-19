@@ -63,19 +63,19 @@ async def VLR_stats(region, timespan, request: Request):
 @limiter.limit("250/minute")
 async def VLR_ranks(region, request: Request):
     """
-    region shortnames:
-        "na" -> "north-america",
-        "eu" -> "europe",
-        "ap" -> "asia-pacific",
-        "la" -> "latin-america",
-        "la-s" -> "la-s",
-        "la-n" -> "la-n",
-        "oce" -> "oceania",
-        "kr" -> "korea",
-        "mn" -> "mena",
-        "gc" -> "game-changers",
-        "br" -> "Brazil",
-        "ch" -> "china",
+    region shortnames:\n
+        "na" -> "north-america",\n
+        "eu" -> "europe",\n
+        "ap" -> "asia-pacific",\n
+        "la" -> "latin-america",\n
+        "la-s" -> "la-s",\n
+        "la-n" -> "la-n",\n
+        "oce" -> "oceania",\n
+        "kr" -> "korea",\n
+        "mn" -> "mena",\n
+        "gc" -> "game-changers",\n
+        "br" -> "Brazil",\n
+        "cn" -> "china",\n
     """
     return vlr.vlr_rankings(region)
 
