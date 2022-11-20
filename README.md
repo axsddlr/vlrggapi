@@ -2,13 +2,11 @@
 
 An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage.
 
-Built by [Andre Saddler](https://github.com/rehkloos/)
-
-[![heroku](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+Built by [Andre Saddler](https://github.com/axsddlr/)
 
 ## Current Endpoints
 
-All endpoints are relative to https://vlrggapi.herokuapp.com.
+All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.vercel.app).
 
 ### `/news`
 
@@ -119,7 +117,7 @@ All endpoints are relative to https://vlrggapi.herokuapp.com.
 ### Source
 
 ```
-$ git clone https://github.com/rehkloos/vlrggapi/
+$ git clone https://github.com/axsddlr/vlrggapi/
 $ cd vlrggapi
 $ pip3 install -r requirements.txt
 ```
@@ -132,15 +130,14 @@ python3 main.py
 
 ## Built With
 
-- [Flask](https://flask.palletsprojects.com/en/1.1.x/)
+- [FastAPI](https://fastapi.tiangolo.com/)
 - [Requests](https://requests.readthedocs.io/en/master/)
-- [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/)
-- [Flask-Caching](https://github.com/sh4nks/flask-caching)
-- [gunicorn](https://gunicorn.org/)
+- [Selectolax](https://github.com/rushter/selectolax)
+- [uvicorn](https://www.uvicorn.org/)
 
 ## Contributing
 
-Feel free to submit a [pull request](https://github.com/rehkloos/vlrggapi/pull/new/master) or an [issue](https://github.com/rehkloos/vlrggapi/issues/new)!
+Feel free to submit a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/master) or an [issue](https://github.com/axsddlr/vlrggapi/issues/new)!
 
 ## License
 
