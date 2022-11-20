@@ -160,7 +160,7 @@ class Vlr:
             tourney = tourney.replace("\t", " ")
             tourney = tourney.strip().split("\n")[1]
             tourney = tourney.strip()
-            
+
             tourney_icon_url = item.css_first("img").attributes['src']
             tourney_icon_url = f"https:{tourney_icon_url}"
 
@@ -211,43 +211,43 @@ class Vlr:
 
     @staticmethod
     def vlr_stats(region: str, timespan: int):
-        URL = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200" \
+        url = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200" \
               f"&min_rating=1550&agent=all&map_id=all&timespan={timespan}d"
 
-        html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "lxml")
-        status = html.status_code
-
-        tbody = soup.find("tbody")
-        containers = tbody.find_all("tr")
+        resp = requests.get(url, headers=headers)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
         result = []
-        for container in containers:
-            # name of player
-            player_container = container.find("td", {"class": "mod-player mod-a"})
-            player = player_container.a.div.text.replace("\n", " ").strip()
-            player = player.split(" ")[0]
+        for item in html.css("tbody tr"):
+            player = item.text().replace("\t", "").replace("\n", " ").strip()
+            player = player.split()
+            player_name = player[0]
 
-            # org name for player
-            org_container = container.find("td", {"class": "mod-player mod-a"})
-            org = org_container.a.div.text.replace("\n", " ").strip()
-            org = org.split(" ")[-1]
+            # get org name abbreviation via player variable
+            try:
+                org = player[1]
+            except:
+                org = "N/A"
 
-            # stats for player
-            stats_container = container.findAll("td", {"class": "mod-color-sq"})
-            acs = stats_container[0].div.text.strip()
-            kd = stats_container[1].div.text.strip()
-            adr = stats_container[3].div.text.strip()
-            kpr = stats_container[4].div.text.strip()
-            apr = stats_container[5].div.text.strip()
-            fkpr = stats_container[6].div.text.strip()
-            fdpr = stats_container[7].div.text.strip()
-            hs = stats_container[8].div.text.strip()
-            cl = stats_container[9].div.text.strip()
+            # agents = [agents.css_first("img").attributes['src'] for agents in item.css("td.mod-agents")]
+
+            # get all td items from mod-color-sq class
+            color_sq = [stats.text() for stats in item.css("td.mod-color-sq")]
+            acs = color_sq[0]
+            kd = color_sq[1]
+            kast = color_sq[2]
+            adr = color_sq[3]
+            kpr = color_sq[4]
+            apr = color_sq[5]
+            fkpr = color_sq[6]
+            fdpr = color_sq[7]
+            hs = color_sq[8]
+            cl = color_sq[9]
 
             result.append(
                 {
-                    "player": player,
+                    "player": player_name,
                     "org": org,
                     "average_combat_score": acs,
                     "kill_deaths": kd,
@@ -266,8 +266,8 @@ class Vlr:
 
         if status != 200:
             raise Exception("API response: {}".format(status))
-        return data
-
+        # return data
+        return result
     @staticmethod
     def vlr_upcoming():
         URL = "https://www.vlr.gg/matches"
@@ -370,4 +370,4 @@ class Vlr:
 
 
 if __name__ == '__main__':
-    print(Vlr.vlr_rankings("na"))
+    print(Vlr.vlr_stats("na", "30"))
