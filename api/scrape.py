@@ -1,7 +1,6 @@
 import re
 
 import requests
-from bs4 import BeautifulSoup
 from selectolax.parser import HTMLParser
 
 import utils.utils as res
@@ -11,14 +10,9 @@ from utils.utils import headers
 class Vlr:
     def __init__(self):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/74.0.3729.169 Safari/537.36",
         }
-
-    def get_soup(self, URL):
-        response = requests.get(URL, headers=self.headers)
-
-        html, status_code = response.text, response.status_code
-        return BeautifulSoup(html, "lxml"), status_code
 
     def get_parse(self, url):
         """
