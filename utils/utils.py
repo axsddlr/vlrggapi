@@ -15,5 +15,5 @@ region = {
     "mn": "mena",
     "gc": "game-changers",
     "br": "Brazil",
-    "ch": "china",
+    "cn": "china",
 }
