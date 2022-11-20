@@ -89,7 +89,6 @@ class Vlr:
         status = resp.status_code
 
         result = []
-        # for item in html.css('div.rank-'):
         for item in html.css("div.rank-item"):
             # get team ranking
             rank = item.css_first("div.rank-item-rank-num").text().strip()
@@ -142,83 +141,50 @@ class Vlr:
 
     @staticmethod
     def vlr_score():
-        URL = "https://www.vlr.gg/matches/results"
-        html = requests.get(URL, headers=headers)
-        soup = BeautifulSoup(html.content, "lxml")
-        status = html.status_code
-
-        base = soup.find(id="wrapper")
-
-        vlr_module = base.find_all(
-            "a",
-            {"class": "wf-module-item"},
-        )
+        url = "https://www.vlr.gg/matches/results"
+        resp = requests.get(url, headers=headers)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
         result = []
-        for module in vlr_module:
-            # link to match info
-            url_path = module["href"]
+        for item in html.css("a.wf-module-item"):
+            url_path = item.attributes['href']
 
-            # Match completed time
-            eta_container = module.find("div", {"class": "match-item-eta"})
-            eta = (
-                      eta_container.find("div", {"class": "ml-eta mod-completed"})
-                      .get_text()
-                      .strip()
-                  ) + " ago"
+            eta = item.css_first("div.ml-eta").text() + " ago"
 
-            # round of tounranment
-            round_container = module.find("div", {"class": "match-item-event text-of"})
-            round = (
-                round_container.find(
-                    "div", {"class": "match-item-event-series text-of"}
-                )
-                .get_text()
-                .strip()
-            )
-            round = round.replace("\u2013", "-")
+            rounds = item.css_first("div.match-item-event-series").text()
+            rounds = rounds.replace("\u2013", "-")
+            rounds = rounds.replace("\n", " ").replace("\t", "")
 
-            # tournament name
-            tourney = (
-                module.find("div", {"class": "match-item-event text-of"})
-                .get_text()
-                .strip()
-            )
+            tourney = item.css_first("div.match-item-event").text()
             tourney = tourney.replace("\t", " ")
             tourney = tourney.strip().split("\n")[1]
             tourney = tourney.strip()
+            
+            tourney_icon_url = item.css_first("img").attributes['src']
+            tourney_icon_url = f"https:{tourney_icon_url}"
 
-            # tournament icon
-            tourney_icon = module.find("img")["src"]
-            tourney_icon = f"https:{tourney_icon}"
-
-            # flags
-            flags_container = module.findAll("div", {"class": "text-of"})
-            flag1 = flags_container[0].span.get("class")[1]
-            flag1 = flag1.replace("-", " ")
-            flag1 = "flag_" + flag1.strip().split(" ")[1]
-
-            flag2 = flags_container[1].span.get("class")[1]
-            flag2 = flag2.replace("-", " ")
-            flag2 = "flag_" + flag2.strip().split(" ")[1]
-
-            # match items
-            match_container = (
-                module.find("div", {"class": "match-item-vs"}).get_text().strip()
-            )
-
-            match_array = match_container.replace("\t", " ").replace("\n", " ")
-            match_array = match_array.strip().split(
+            try:
+                team_array = item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
+            except:
+                team_array = "TBD"
+            team_array = team_array.replace("\t", " ").replace("\n", " ")
+            team_array = team_array.strip().split(
                 "                                  "
             )
-            # 1st item in match_array is first team
-            team1 = match_array[0]
-            # 2nd item in match_array is first team score
-            score1 = match_array[1]
-            # 3rd item in match_array is second team                            ")[1]
-            team2 = match_array[2].strip()
-            # 4th item in match_array is second team score
-            score2 = match_array[-1]
+            # 1st item in team_array is first team
+            team1 = team_array[0]
+            # 2nd item in team_array is first team score
+            score1 = team_array[1].replace(" ", "").strip()
+            # 3rd item in team_array is second team
+            team2 = team_array[4].strip()
+            # 4th item in team_array is second team score
+            score2 = team_array[-1].replace(" ", "").strip()
+
+            # Creating a list of the classes of the flag elements.
+            flag_list = [flag_parent.attributes["class"].replace(" mod-", "_") for flag_parent in item.css('.flag')]
+            flag1 = flag_list[0]
+            flag2 = flag_list[1]
 
             result.append(
                 {
@@ -229,10 +195,10 @@ class Vlr:
                     "flag1": flag1,
                     "flag2": flag2,
                     "time_completed": eta,
-                    "round_info": round,
+                    "round_info": rounds,
                     "tournament_name": tourney,
                     "match_page": url_path,
-                    "tournament_icon": tourney_icon,
+                    "tournament_icon": tourney_icon_url,
                 }
             )
         segments = {"status": status, "segments": result}
