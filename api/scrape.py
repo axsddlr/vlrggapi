@@ -2,10 +2,9 @@ import re
 
 import requests
 from selectolax.parser import HTMLParser
+from data_management.structures import Team
 
-import utils.utils as res
-from utils.utils import headers
-
+from utils.utils import headers, region
 
 class Vlr:
     def __init__(self):
@@ -77,7 +76,7 @@ class Vlr:
 
     @staticmethod
     def vlr_rankings(region):
-        url = "https://www.vlr.gg/rankings/" + res.region[str(region)]
+        url = "https://www.vlr.gg/rankings/" + region[str(region)]
         resp = requests.get(url, headers=headers)
         html = HTMLParser(resp.text)
         status = resp.status_code
@@ -341,7 +340,46 @@ class Vlr:
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
-
+    
+    @staticmethod
+    def vlr_team(id: int):
+        id_str = str(id).zfill(4)
+        base_url = "https://www.vlr.gg/team/"
+        resp= requests.get(base_url + id_str, headers=headers)
+        if resp.status_code == 404:
+            return 404, "no team for given id"
+        
+        html = HTMLParser(resp.text)
+        name = html.css_first("div.team-header-name").css_first("h1").text()
+        if html.css_first("div.team-header-name").any_css_matches(("h2", "team-header-tag")): 
+            shortname = html.css_first("div.team-header-name").css_first("h2").text() 
+        else: 
+            shortname = ""
+        active = not html.css_first("div.team-header-name").any_css_matches(("span", "team-header-status"))
+        links = html.css_first("div.team-header-links").css("a")
+        
+        if len(links) == 1:
+            website = ""
+            twitter = ""
+        elif len(links) == 2:
+            if links[0].attributes["href"].startswith("https://twitter.com"):
+                website = ""
+                twitter = links[0].attributes["href"]
+            else:
+                website = links[0].attributes["href"]
+                twitter = ""
+        else:
+            website = links[0].attributes["href"]
+            twitter = links[1].attributes["href"]
+            
+        #players
+        
+        
+        region = html.css_first("div.team-header-country").text().replace("\t", "").replace("\n", " ").strip()
+        
+        team = Team(id, name, shortname, active, website, twitter, region)
+        
+        return resp.status_code, team
 
 if __name__ == '__main__':
-    print(Vlr.vlr_upcoming())
+    print(Vlr.vlr_team(0))
