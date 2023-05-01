@@ -2,7 +2,7 @@ import re
 
 import requests
 from selectolax.parser import HTMLParser
-from data_management.structures import Team
+from data_management.structures import Player, Players, Team
 
 from utils.utils import headers, region
 
@@ -373,11 +373,22 @@ class Vlr:
             twitter = links[1].attributes["href"]
             
         #players
-        
+        players = Players()
+        roster = html.css("div.team-roster-item")
+        for player in roster:
+            player_name = player.css_first("div.team-roster-item-name-real").text().replace("\t", "").replace("\n", " ").strip()
+            player_shortname = player.css_first("div.team-roster-item-name-alias").text().replace("\t", "").replace("\n", " ").strip()
+            role = "player"
+            if player.css_first("div.team-roster-item-name-alias").css_first("i.fa-star") is not None:
+                role = "IGL"
+            elif player.css_first("div.team-roster-item-name").css_first("div.team-roster-item-name-role") is not None:
+                role = player.css_first("div.team-roster-item-name-role").text().replace("\t", "").replace("\n", " ").strip()
+            
+            players.add(Player(player_name, player_shortname, role, id))
         
         region = html.css_first("div.team-header-country").text().replace("\t", "").replace("\n", " ").strip()
         
-        team = Team(id, name, shortname, active, website, twitter, region)
+        team = Team(id, name, shortname, active, website, twitter, region, players)
         
         return resp.status_code, team
 
