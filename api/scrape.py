@@ -342,6 +342,54 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
+    @staticmethod
+    def vlr_upcoming_index():
+        url = "https://www.vlr.gg"
+        resp = requests.get(url, headers=headers)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
+
+        result = []
+        for item in html.css(".js-home-matches-upcoming a.wf-module-item"):
+            teams = []
+            flags = []
+            scores = []
+            for team in item.css(".h-match-team"):
+                teams.append(team.css_first(".h-match-team-name").text().strip())
+                flags.append(team.css_first(".flag").attributes["class"].replace(" mod-", "").replace("16", "_"))
+                scores.append(team.css_first(".h-match-team-score").text().strip())
+
+            eta = item.css_first(".h-match-eta").text().strip()
+            if eta != "LIVE":
+                eta = eta + " from now"
+
+            rounds = item.css_first(".h-match-preview-event").text().strip()
+            tournament = item.css_first(".h-match-preview-series").text().strip()
+            timestamp = int(item.css_first(".moment-tz-convert").attributes["data-utc-ts"])
+            url_path = url + "/" + item.attributes["href"]
+
+            result.append(
+                {
+                    "team1": teams[0],
+                    "team2": teams[1],
+                    "flag1": flags[0],
+                    "flag2": flags[1],
+                    "score1": scores[0],
+                    "score2": scores[1],
+                    "time_until_match": eta,
+                    "round_info": rounds,
+                    "tournament_name": tournament,
+                    "unix_timestamp": timestamp,
+                    "match_page": url_path
+                }
+            )
+        segments = {"status": status, "segments": result}
+
+        data = {"data": segments}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+        return data
 
 if __name__ == '__main__':
     print(Vlr.vlr_upcoming())

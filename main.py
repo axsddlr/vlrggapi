@@ -85,6 +85,10 @@ async def VLR_ranks(region, request: Request):
 async def VLR_upcoming(request: Request):
     return vlr.vlr_upcoming()
 
+@app.get("/match/upcoming_index")
+@limiter.limit("250/minute")
+async def VLR_upcoming_index(request: Request):
+    return vlr.vlr_upcoming_index()
 
 @app.get('/health')
 def health():
