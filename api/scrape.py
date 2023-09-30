@@ -390,6 +390,60 @@ class Vlr:
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
+    
+    @staticmethod
+    def vlr_live_score():
+        url = "https://www.vlr.gg"
+        resp = requests.get(url, headers=headers)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
+
+        result = []
+        first_item = html.css(".js-home-matches-upcoming a.wf-module-item")[0]
+
+        teams = []
+        flags = []
+        scores = []
+        rounds = []
+        for team in first_item.css(".h-match-team"):
+            teams.append(team.css_first(".h-match-team-name").text().strip())
+            flags.append(team.css_first(".flag").attributes["class"].replace(" mod-", "").replace("16", "_"))
+            scores.append(team.css_first(".h-match-team-score").text().strip())
+            rounds.append(team.css_first(".h-match-team-rounds").find('span', class_='mod-t').text.strip() if team.css_first(".h-match-team-rounds") else "N/A")
+
+        eta = first_item.css_first(".h-match-eta").text().strip()
+        if eta != "LIVE":
+            eta = eta + " from now"
+
+        rounds_info = first_item.css_first(".h-match-preview-event").text().strip()
+        tournament = first_item.css_first(".h-match-preview-series").text().strip()
+        timestamp = int(first_item.css_first(".moment-tz-convert").attributes["data-utc-ts"])
+        url_path = url + "/" + first_item.attributes["href"]
+
+        result.append(
+            {
+                "team1": teams[0],
+                "team2": teams[1],
+                "flag1": flags[0],
+                "flag2": flags[1],
+                "score1": scores[0],
+                "score2": scores[1],
+                "round1": rounds[0],
+                "round2": rounds[1],
+                "time_until_match": eta,
+                "round_info": rounds_info,
+                "tournament_name": tournament,
+                "unix_timestamp": timestamp,
+                "match_page": url_path
+            }
+        )
+
+        segments = {"status": status, "segments": result}
+        data = {"data": segments}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+        return data
 
 if __name__ == '__main__':
     print(Vlr.vlr_upcoming())
