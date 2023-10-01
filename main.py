@@ -90,6 +90,11 @@ async def VLR_upcoming(request: Request):
 async def VLR_upcoming_index(request: Request):
     return vlr.vlr_upcoming_index()
 
+@app.get("/match/live_score")
+@limiter.limit("250/minute")
+async def VLR_live_score(request: Request):
+    return vlr.vlr_live_score()
+
 @app.get('/health')
 def health():
     return "Healthy: OK"
