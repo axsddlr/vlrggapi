@@ -3,8 +3,8 @@ import re
 import requests
 from selectolax.parser import HTMLParser
 
-import utils.utils as res
-from utils.utils import headers
+import vlrggapi.utils.utils as res
+from vlrggapi.utils.utils import headers
 
 
 class Vlr:
