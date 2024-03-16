@@ -1,8 +1,8 @@
 version: "3"
 
 services:
-  vlrggapi:
+  vlrggapi-dev:
     container_name: "vlrggapi"
-    image: ghcr.io/axsddlr/vlrggapi:latest
     ports:
       - "3001:3001"
+    build: .

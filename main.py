@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI, Request
 
-from api.scrape import Vlr
+from vlrggapi.api.scrape import Vlr
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address

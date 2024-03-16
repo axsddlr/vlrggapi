@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "vlrggapi"
+version = "1.0.6"
+description = "An Unofficial REST API for vlr.gg, a site for Valorant Pro Esports match results and news."
+authors = ["axsddlr"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.31.0"
+uvicorn = "^0.28.0"
+fastapi = "^0.110.0"
+lxml = "^5.1.0"
+slowapi = "^0.1.9"
+selectolax = "^0.3.21"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
