@@ -8,11 +8,6 @@ from utils.utils import headers
 
 
 class Vlr:
-    def __init__(self):
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0",
-        }
-
     def get_parse(self, url):
         """
         It takes a URL, makes a request to that URL, and returns a tuple of the HTMLParser object and the status code
@@ -86,27 +81,31 @@ class Vlr:
             team = team.split("#")[0]
 
             # get logo png url
-            logo = item.css_first("a.rank-item-team").css_first("img").attributes['src']
-            logo = re.sub(r'\/img\/vlr\/tmp\/vlr.png', '', logo)
+            logo = item.css_first("a.rank-item-team").css_first("img").attributes["src"]
+            logo = re.sub(r"\/img\/vlr\/tmp\/vlr.png", "", logo)
 
             # get team country
             country = item.css_first("div.rank-item-team-country").text()
 
             last_played = item.css_first("a.rank-item-last").text()
-            last_played = last_played.replace('\n', '').replace('\t', '').split('v')[0]
+            last_played = last_played.replace("\n", "").replace("\t", "").split("v")[0]
 
             last_played_team = item.css_first("a.rank-item-last").text()
-            last_played_team = last_played_team.replace('\t', '').replace('\n', '').split('o')[1]
-            last_played_team = last_played_team.replace('.', '. ')
+            last_played_team = (
+                last_played_team.replace("\t", "").replace("\n", "").split("o")[1]
+            )
+            last_played_team = last_played_team.replace(".", ". ")
 
-            last_played_team_logo = item.css_first("a.rank-item-last").css_first("img").attributes['src']
+            last_played_team_logo = (
+                item.css_first("a.rank-item-last").css_first("img").attributes["src"]
+            )
             # last_played_team_name = item.css_first("a.rank-item-last").css_first("span:nth-child(3)").text()
 
             record = item.css_first("div.rank-item-record").text()
-            record = record.replace('\t', '').replace('\n', '')
+            record = record.replace("\t", "").replace("\n", "")
 
             earnings = item.css_first("div.rank-item-earnings").text()
-            earnings = earnings.replace('\t', '').replace('\n', '')
+            earnings = earnings.replace("\t", "").replace("\n", "")
             result.append(
                 {
                     "rank": rank,
@@ -204,8 +203,10 @@ class Vlr:
 
     @staticmethod
     def vlr_stats(region: str, timespan: int):
-        url = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200" \
-              f"&min_rating=1550&agent=all&map_id=all&timespan={timespan}d"
+        url = (
+            f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200"
+            f"&min_rating=1550&agent=all&map_id=all&timespan={timespan}d"
+        )
 
         resp = requests.get(url, headers=headers)
         html = HTMLParser(resp.text)
