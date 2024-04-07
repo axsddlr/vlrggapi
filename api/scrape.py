@@ -157,7 +157,7 @@ class Vlr:
                     .css_first("div:nth-child(2)")
                     .text()
                 )
-            except:
+            except Exception:  # Replace bare except with except Exception
                 team_array = "TBD"
             team_array = team_array.replace("\t", " ").replace("\n", " ")
             team_array = team_array.strip().split("                                  ")
@@ -221,7 +221,7 @@ class Vlr:
             # get org name abbreviation via player variable
             try:
                 org = player[1]
-            except:
+            except Exception:
                 org = "N/A"
 
             # agents = [agents.css_first("img").attributes['src'] for agents in item.css("td.mod-agents")]
@@ -245,6 +245,7 @@ class Vlr:
                     "org": org,
                     "average_combat_score": acs,
                     "kill_deaths": kd,
+                    "kill_assists_survived_traded": kast,
                     "average_damage_per_round": adr,
                     "kills_per_round": kpr,
                     "assists_per_round": apr,
@@ -280,8 +281,8 @@ class Vlr:
                     eta = "Live"
                 else:
                     eta = eta[1] + " " + eta[2] + " from now"
-            except:
-                eta = eta[0]
+            except IndexError:
+                eta = "Unknown"
 
             rounds = item.css_first(".match-item-event-series").text().strip()
 
@@ -306,7 +307,7 @@ class Vlr:
                     .css_first("div:nth-child(2)")
                     .text()
                 )
-            except:
+            except Exception:  # Replace bare except with except Exception
                 team_array = "TBD"
             team_array = team_array.replace("\t", " ").replace("\n", " ")
             team_array = team_array.strip().split("                                  ")
