@@ -408,7 +408,7 @@ class Vlr:
             teams.append(team.css_first(".h-match-team-name").text().strip())
             flags.append(team.css_first(".flag").attributes["class"].replace(" mod-", "").replace("16", "_"))
             scores.append(team.css_first(".h-match-team-score").text().strip())
-            rounds.append(team.css_first(".h-match-team-rounds").find('span', class_='mod-t').text.strip() if team.css_first(".h-match-team-rounds") else "N/A")
+            # rounds.append(team.css_first(".h-match-team-rounds").find('span', class_='mod-t').text.strip() if team.css_first(".h-match-team-rounds") else "N/A")
 
         eta = first_item.css_first(".h-match-eta").text().strip()
         if eta != "LIVE":
@@ -427,8 +427,8 @@ class Vlr:
                 "flag2": flags[1],
                 "score1": scores[0],
                 "score2": scores[1],
-                "round1": rounds[0],
-                "round2": rounds[1],
+                # "round1": rounds[0],
+                # "round2": rounds[1],
                 "time_until_match": eta,
                 "round_info": rounds_info,
                 "tournament_name": tournament,
@@ -445,4 +445,4 @@ class Vlr:
         return data
 
 if __name__ == '__main__':
-    print(Vlr.vlr_upcoming())
+    print(Vlr.vlr_live_score())
