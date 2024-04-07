@@ -26,29 +26,29 @@ class Vlr:
 
     def vlr_recent(self):
         """
-            This function is getting the news articles from the website and
-            returning the data in a dictionary.
-            :return: a dictionary with the key "data" and the value of the dictionary is another dictionary with the
-            keys "status" and "segments".
-            """
+        This function is getting the news articles from the website and
+        returning the data in a dictionary.
+        :return: a dictionary with the key "data" and the value of the dictionary is another dictionary with the
+        keys "status" and "segments".
+        """
         url = "https://www.vlr.gg/news"
         html, status = self.get_parse(url)
         result = []
-        for item in html.css('a.wf-module-item'):
+        for item in html.css("a.wf-module-item"):
             # This is getting the date and author of the article.
             date_author = item.css_first("div.ge-text-light").text()
-            date, author = date_author.split('by')
+            date, author = date_author.split("by")
 
             # Getting description of article via selecting second element in div
             desc = item.css_first("div").css_first("div:nth-child(2)").text().strip()
 
             # Getting the title of the news article by selecting the first element in div and then selecting the first
             # element after splitting
-            title = item.css_first("div:nth-child(1)").text().strip().split('\n')[0]
-            title = title.replace('\t', '')
+            title = item.css_first("div:nth-child(1)").text().strip().split("\n")[0]
+            title = title.replace("\t", "")
 
             # Getting the url of the article.
-            url = item.css_first("a.wf-module-item").attributes['href']
+            url = item.css_first("a.wf-module-item").attributes["href"]
 
             # This is appending the data to the result list.
             result.append(
@@ -62,12 +62,7 @@ class Vlr:
             )
         # This is creating a dictionary with the key "data" and the value of the dictionary is another dictionary
         # with the keys "status" and "segments".
-        data = {
-            "data": {
-                "status": status,
-                "segments": result
-            }
-        }
+        data = {"data": {"status": status, "segments": result}}
 
         # This is checking if the status code is not 200, if it is not 200 then it will raise an exception.
         if status != 200:
@@ -141,7 +136,7 @@ class Vlr:
 
         result = []
         for item in html.css("a.wf-module-item"):
-            url_path = item.attributes['href']
+            url_path = item.attributes["href"]
 
             eta = item.css_first("div.ml-eta").text() + " ago"
 
@@ -154,17 +149,19 @@ class Vlr:
             tourney = tourney.strip().split("\n")[1]
             tourney = tourney.strip()
 
-            tourney_icon_url = item.css_first("img").attributes['src']
+            tourney_icon_url = item.css_first("img").attributes["src"]
             tourney_icon_url = f"https:{tourney_icon_url}"
 
             try:
-                team_array = item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
+                team_array = (
+                    item.css_first("div.match-item-vs")
+                    .css_first("div:nth-child(2)")
+                    .text()
+                )
             except:
                 team_array = "TBD"
             team_array = team_array.replace("\t", " ").replace("\n", " ")
-            team_array = team_array.strip().split(
-                "                                  "
-            )
+            team_array = team_array.strip().split("                                  ")
             # 1st item in team_array is first team
             team1 = team_array[0]
             # 2nd item in team_array is first team score
@@ -175,7 +172,10 @@ class Vlr:
             score2 = team_array[-1].replace(" ", "").strip()
 
             # Creating a list of the classes of the flag elements.
-            flag_list = [flag_parent.attributes["class"].replace(" mod-", "_") for flag_parent in item.css('.flag')]
+            flag_list = [
+                flag_parent.attributes["class"].replace(" mod-", "_")
+                for flag_parent in item.css(".flag")
+            ]
             flag1 = flag_list[0]
             flag2 = flag_list[1]
 
@@ -270,8 +270,7 @@ class Vlr:
 
         result = []
         for item in html.css("a.wf-module-item"):
-
-            url_path = item.attributes['href']
+            url_path = item.attributes["href"]
             eta = item.css_first(".match-item-eta").text().strip()
             eta = eta.replace("\t", " ").replace("\n", " ").split()
 
@@ -290,21 +289,26 @@ class Vlr:
             tourney = tourney.strip().split("\n")[1]
             tourney = tourney.strip()
 
-            tourney_icon_url = item.css_first("img").attributes['src']
+            tourney_icon_url = item.css_first("img").attributes["src"]
             tourney_icon_url = f"https:{tourney_icon_url}"
 
-            flag_list = [flag_parent.attributes["class"].replace(" mod-", "_") for flag_parent in item.css('.flag')]
+            flag_list = [
+                flag_parent.attributes["class"].replace(" mod-", "_")
+                for flag_parent in item.css(".flag")
+            ]
             flag1 = flag_list[0]
             flag2 = flag_list[1]
 
             try:
-                team_array = item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
+                team_array = (
+                    item.css_first("div.match-item-vs")
+                    .css_first("div:nth-child(2)")
+                    .text()
+                )
             except:
                 team_array = "TBD"
             team_array = team_array.replace("\t", " ").replace("\n", " ")
-            team_array = team_array.strip().split(
-                "                                  "
-            )
+            team_array = team_array.strip().split("                                  ")
 
             team1 = "TBD"
             team2 = "TBD"
@@ -355,7 +359,12 @@ class Vlr:
             scores = []
             for team in item.css(".h-match-team"):
                 teams.append(team.css_first(".h-match-team-name").text().strip())
-                flags.append(team.css_first(".flag").attributes["class"].replace(" mod-", "").replace("16", "_"))
+                flags.append(
+                    team.css_first(".flag")
+                    .attributes["class"]
+                    .replace(" mod-", "")
+                    .replace("16", "_")
+                )
                 scores.append(team.css_first(".h-match-team-score").text().strip())
 
             eta = item.css_first(".h-match-eta").text().strip()
@@ -364,7 +373,9 @@ class Vlr:
 
             rounds = item.css_first(".h-match-preview-event").text().strip()
             tournament = item.css_first(".h-match-preview-series").text().strip()
-            timestamp = int(item.css_first(".moment-tz-convert").attributes["data-utc-ts"])
+            timestamp = int(
+                item.css_first(".moment-tz-convert").attributes["data-utc-ts"]
+            )
             url_path = url + "/" + item.attributes["href"]
 
             result.append(
@@ -379,7 +390,7 @@ class Vlr:
                     "round_info": rounds,
                     "tournament_name": tournament,
                     "unix_timestamp": timestamp,
-                    "match_page": url_path
+                    "match_page": url_path,
                 }
             )
         segments = {"status": status, "segments": result}
@@ -389,7 +400,7 @@ class Vlr:
         if status != 200:
             raise Exception("API response: {}".format(status))
         return data
-    
+
     @staticmethod
     def vlr_live_score():
         url = "https://www.vlr.gg"
@@ -403,22 +414,33 @@ class Vlr:
         teams = []
         flags = []
         scores = []
-        rounds = []
+        round_texts = []
         for team in first_item.css(".h-match-team"):
             teams.append(team.css_first(".h-match-team-name").text().strip())
-            flags.append(team.css_first(".flag").attributes["class"].replace(" mod-", "").replace("16", "_"))
+            flags.append(
+                team.css_first(".flag")
+                .attributes["class"]
+                .replace(" mod-", "")
+                .replace("16", "_")
+            )
             scores.append(team.css_first(".h-match-team-score").text().strip())
-            # rounds.append(team.css_first(".h-match-team-rounds").find('span', class_='mod-t').text.strip() if team.css_first(".h-match-team-rounds") else "N/A")
+            # Check for both mod-t and mod-ct classes and extract text accordingly
+            round_info_ct = team.css(".h-match-team-rounds .mod-ct")
+            round_info_t = team.css(".h-match-team-rounds .mod-t")
+            round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
+            round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
+            # Append both CT and T round texts for each team
+            round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
         eta = first_item.css_first(".h-match-eta").text().strip()
         if eta != "LIVE":
             eta = eta + " from now"
-
         rounds_info = first_item.css_first(".h-match-preview-event").text().strip()
         tournament = first_item.css_first(".h-match-preview-series").text().strip()
-        timestamp = int(first_item.css_first(".moment-tz-convert").attributes["data-utc-ts"])
+        timestamp = int(
+            first_item.css_first(".moment-tz-convert").attributes["data-utc-ts"]
+        )
         url_path = url + "/" + first_item.attributes["href"]
-
         result.append(
             {
                 "team1": teams[0],
@@ -427,13 +449,15 @@ class Vlr:
                 "flag2": flags[1],
                 "score1": scores[0],
                 "score2": scores[1],
-                # "round1": rounds[0],
-                # "round2": rounds[1],
+                "team1_round_ct": round_texts[0]["ct"],
+                "team1_round_t": round_texts[0]["t"],
+                "team2_round_ct": round_texts[1]["ct"],
+                "team2_round_t": round_texts[1]["t"],
                 "time_until_match": eta,
                 "round_info": rounds_info,
                 "tournament_name": tournament,
                 "unix_timestamp": timestamp,
-                "match_page": url_path
+                "match_page": url_path,
             }
         )
 
@@ -444,5 +468,6 @@ class Vlr:
             raise Exception("API response: {}".format(status))
         return data
 
-if __name__ == '__main__':
-    print(Vlr.vlr_live_score())
+
+if __name__ == "__main__":
+    print(Vlr.vlr_live_score(self=Vlr()))
