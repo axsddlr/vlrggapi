@@ -277,8 +277,8 @@ class Vlr:
             eta = eta.replace("\t", " ").replace("\n", " ").split()
 
             try:
-                if eta[0] == "ago":
-                    eta = "Live"
+                if eta[0] == "ago" or "LIVE":
+                    eta = "LIVE"
                 else:
                     eta = eta[1] + " " + eta[2] + " from now"
             except IndexError:
