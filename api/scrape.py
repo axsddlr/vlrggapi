@@ -277,7 +277,7 @@ class Vlr:
             eta = eta.replace("\t", " ").replace("\n", " ").split()
 
             try:
-                if eta[0] == "ago" or "LIVE":
+                if eta[0] == "LIVE":
                     eta = "LIVE"
                 else:
                     eta = eta[1] + " " + eta[2] + " from now"
