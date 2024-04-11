@@ -1,6 +1,8 @@
 import re
 
 import requests
+from datetime import timezone
+from datetime import datetime
 from selectolax.parser import HTMLParser
 
 import utils.utils as res
@@ -413,6 +415,9 @@ class Vlr:
         result = []
         # Select all matches within the upcoming matches container
         matches = html.css(".js-home-matches-upcoming a.wf-module-item")
+        result = []
+        # Select all matches within the upcoming matches container
+        matches = html.css(".js-home-matches-upcoming a.wf-module-item")
         for match in matches:
             # Check if the match is live by looking for the mod-live class within h-match-eta div
             is_live = match.css_first(".h-match-eta.mod-live")
@@ -433,17 +438,29 @@ class Vlr:
                     # Extract round information if available
                     round_info_ct = team.css(".h-match-team-rounds .mod-ct")
                     round_info_t = team.css(".h-match-team-rounds .mod-t")
-                    round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
-                    round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
+                    round_text_ct = (
+                        round_info_ct[0].text().strip() if round_info_ct else "N/A"
+                    )
+                    round_text_t = (
+                        round_info_t[0].text().strip() if round_info_t else "N/A"
+                    )
                     round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
                 eta = "LIVE"
                 rounds_info = match.css_first(".h-match-preview-event").text().strip()
                 tournament = match.css_first(".h-match-preview-series").text().strip()
-                timestamp = int(
-                    match.css_first(".moment-tz-convert").attributes["data-utc-ts"]
-                )
+                timestamp = datetime.fromtimestamp(
+                    int(
+                        match.css_first(".moment-tz-convert").attributes["data-utc-ts"]
+                    ),
+                    tz=timezone.utc,
+                ).strftime("%Y-%m-%d %H:%M:%S")
                 url_path = "https://www.vlr.gg" + match.attributes["href"]
+                # Ensure round_texts has items for both teams before accessing
+                team1_round_ct = round_texts[0]["ct"] if len(round_texts) > 0 else "N/A"
+                team1_round_t = round_texts[0]["t"] if len(round_texts) > 0 else "N/A"
+                team2_round_ct = round_texts[1]["ct"] if len(round_texts) > 1 else "N/A"
+                team2_round_t = round_texts[1]["t"] if len(round_texts) > 1 else "N/A"
                 result.append(
                     {
                         "team1": teams[0],
@@ -452,10 +469,10 @@ class Vlr:
                         "flag2": flags[1],
                         "score1": scores[0],
                         "score2": scores[1],
-                        "team1_round_ct": round_texts[0]["ct"],
-                        "team1_round_t": round_texts[0]["t"],
-                        "team2_round_ct": round_texts[1]["ct"],
-                        "team2_round_t": round_texts[1]["t"],
+                        "team1_round_ct": team1_round_ct,
+                        "team1_round_t": team1_round_t,
+                        "team2_round_ct": team2_round_ct,
+                        "team2_round_t": team2_round_t,
                         "time_until_match": eta,
                         "round_info": rounds_info,
                         "tournament_name": tournament,
@@ -463,6 +480,13 @@ class Vlr:
                         "match_page": url_path,
                     }
                 )
+
+        segments = {"status": status, "segments": result}
+        data = {"data": segments}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+        return data
 
         segments = {"status": status, "segments": result}
         data = {"data": segments}
