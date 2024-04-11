@@ -12,7 +12,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="vlrggapi",
     description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news "
-                "coverage. Made by [Rehkloos](https://github.com/Rehkloos)",
+    "coverage. Made by [Rehkloos](https://github.com/Rehkloos)",
     version="1.0.5",
     docs_url="/",
     redoc_url=None,
@@ -83,19 +83,16 @@ async def VLR_ranks(region, request: Request):
 @app.get("/match/upcoming")
 @limiter.limit("250/minute")
 async def VLR_upcoming(request: Request):
-    return vlr.vlr_upcoming()
+    return vlr.vlr_upcoming_matches()
 
-@app.get("/match/upcoming_index")
-@limiter.limit("250/minute")
-async def VLR_upcoming_index(request: Request):
-    return vlr.vlr_upcoming_index()
 
 @app.get("/match/live_score")
 @limiter.limit("250/minute")
 async def VLR_live_score(request: Request):
     return vlr.vlr_live_score()
 
-@app.get('/health')
+
+@app.get("/health")
 def health():
     return "Healthy: OK"
 
