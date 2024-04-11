@@ -411,57 +411,58 @@ class Vlr:
         status = resp.status_code
 
         result = []
-        first_item = html.css(".js-home-matches-upcoming a.wf-module-item")[0]
+        # Select all matches within the upcoming matches container
+        matches = html.css(".js-home-matches-upcoming a.wf-module-item")
+        for match in matches:
+            # Check if the match is live by looking for the mod-live class within h-match-eta div
+            is_live = match.css_first(".h-match-eta.mod-live")
+            if is_live:
+                teams = []
+                flags = []
+                scores = []
+                round_texts = []
+                for team in match.css(".h-match-team"):
+                    teams.append(team.css_first(".h-match-team-name").text().strip())
+                    flags.append(
+                        team.css_first(".flag")
+                        .attributes["class"]
+                        .replace(" mod-", "")
+                        .replace("16", "_")
+                    )
+                    scores.append(team.css_first(".h-match-team-score").text().strip())
+                    # Extract round information if available
+                    round_info_ct = team.css(".h-match-team-rounds .mod-ct")
+                    round_info_t = team.css(".h-match-team-rounds .mod-t")
+                    round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
+                    round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
+                    round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
-        teams = []
-        flags = []
-        scores = []
-        round_texts = []
-        for team in first_item.css(".h-match-team"):
-            teams.append(team.css_first(".h-match-team-name").text().strip())
-            flags.append(
-                team.css_first(".flag")
-                .attributes["class"]
-                .replace(" mod-", "")
-                .replace("16", "_")
-            )
-            scores.append(team.css_first(".h-match-team-score").text().strip())
-            # Check for both mod-t and mod-ct classes and extract text accordingly
-            round_info_ct = team.css(".h-match-team-rounds .mod-ct")
-            round_info_t = team.css(".h-match-team-rounds .mod-t")
-            round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
-            round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
-            # Append both CT and T round texts for each team
-            round_texts.append({"ct": round_text_ct, "t": round_text_t})
-
-        eta = first_item.css_first(".h-match-eta").text().strip()
-        if eta != "LIVE":
-            eta = eta + " from now"
-        rounds_info = first_item.css_first(".h-match-preview-event").text().strip()
-        tournament = first_item.css_first(".h-match-preview-series").text().strip()
-        timestamp = int(
-            first_item.css_first(".moment-tz-convert").attributes["data-utc-ts"]
-        )
-        url_path = url + "/" + first_item.attributes["href"]
-        result.append(
-            {
-                "team1": teams[0],
-                "team2": teams[1],
-                "flag1": flags[0],
-                "flag2": flags[1],
-                "score1": scores[0],
-                "score2": scores[1],
-                "team1_round_ct": round_texts[0]["ct"],
-                "team1_round_t": round_texts[0]["t"],
-                "team2_round_ct": round_texts[1]["ct"],
-                "team2_round_t": round_texts[1]["t"],
-                "time_until_match": eta,
-                "round_info": rounds_info,
-                "tournament_name": tournament,
-                "unix_timestamp": timestamp,
-                "match_page": url_path,
-            }
-        )
+                eta = "LIVE"
+                rounds_info = match.css_first(".h-match-preview-event").text().strip()
+                tournament = match.css_first(".h-match-preview-series").text().strip()
+                timestamp = int(
+                    match.css_first(".moment-tz-convert").attributes["data-utc-ts"]
+                )
+                url_path = "https://www.vlr.gg" + match.attributes["href"]
+                result.append(
+                    {
+                        "team1": teams[0],
+                        "team2": teams[1],
+                        "flag1": flags[0],
+                        "flag2": flags[1],
+                        "score1": scores[0],
+                        "score2": scores[1],
+                        "team1_round_ct": round_texts[0]["ct"],
+                        "team1_round_t": round_texts[0]["t"],
+                        "team2_round_ct": round_texts[1]["ct"],
+                        "team2_round_t": round_texts[1]["t"],
+                        "time_until_match": eta,
+                        "round_info": rounds_info,
+                        "tournament_name": tournament,
+                        "unix_timestamp": timestamp,
+                        "match_page": url_path,
+                    }
+                )
 
         segments = {"status": status, "segments": result}
         data = {"data": segments}
