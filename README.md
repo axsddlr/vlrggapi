@@ -9,7 +9,6 @@ Built by [Andre Saddler](https://github.com/axsddlr/)
 All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.vercel.app).
 
 ### `/news`
-
 - Method: `GET`
 - Description: Fetches the latest news articles related to Valorant Esports.
 - Response Example:
@@ -31,7 +30,6 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/match/results`
-
 - Method: `GET`
 - Description: Fetches recent match results.
 - Response Example:
@@ -59,7 +57,6 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/rankings/{region}`
-
 - Method: `GET`
 - Description: Fetches rankings for a specific region.
 - Response Example:
@@ -85,7 +82,6 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/stats/{region}/{timespan}`
-
 - Method: `GET`
 - Description: Fetches player statistics for a specific region and timespan.
 - Response Example:
@@ -113,7 +109,6 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/match/upcoming`
-
 - Method: `GET`
 - Description: Fetches upcoming matches.
 - Response Example:
@@ -141,7 +136,6 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/match/live_score`
-
 - Method: `GET`
 - Description: Fetches live scores for ongoing matches.
 - Response Example:
@@ -172,67 +166,20 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   }
   ```
 
-## Running with Docker
-
-This application can be easily run using Docker and Docker Compose. This method encapsulates the application and its environment, ensuring consistency across different setups.
-
-### Prerequisites
-
-- Docker
-- Docker Compose
-
-### Steps
-
-1. **Build the Docker Image**
-
-   Navigate to the root directory of the project where the `Dockerfile` and `docker-compose.yml` are located and run the following command:
-
-   ```bash
-   docker-compose build
-   ```
-
-   This command builds the Docker image for the application, using the instructions from the `Dockerfile` and configurations from `docker-compose.yml`.
-
-2. **Run the Container**
-
-   After the build completes, you can start the application by running:
-
-   ```bash
-   docker-compose up
-   ```
-
-   This command starts the application container. You can access the application by navigating to `http://localhost:3001` in your web browser (or the port you configured in `docker-compose.yml`).
-
-### Stopping the Application
-
-To stop the application, you can use the following command in the terminal:
-
-```bash
-docker-compose down
-```
-
-This command stops and removes the containers created by `docker-compose up`. It cleans up the running application and frees up the ports it was using.
-
-```
-
 ## Installation
 
 ### Source
 
 ```
-
 $ git clone https://github.com/axsddlr/vlrggapi/
 $ cd vlrggapi
 $ pip3 install -r requirements.txt
-
 ```
 
 ### Usage
 
 ```
-
 python3 main.py
-
 ```
 
 ## Built With
@@ -249,4 +196,3 @@ Feel free to submit a [pull request](https://github.com/axsddlr/vlrggapi/pull/ne
 ## License
 
 The MIT License (MIT)
-```
