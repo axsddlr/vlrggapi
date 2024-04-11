@@ -12,8 +12,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="vlrggapi",
     description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news "
-    "coverage. Made by [Rehkloos](https://github.com/Rehkloos)",
-    version="1.0.5",
+    "coverage. Made by [axsddlr](https://github.com/axsddlr)",
     docs_url="/",
     redoc_url=None,
 )
