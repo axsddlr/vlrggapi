@@ -9,6 +9,7 @@ Built by [Andre Saddler](https://github.com/axsddlr/)
 All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.vercel.app).
 
 ### `/news`
+
 - Method: `GET`
 - Description: Fetches the latest news articles related to Valorant Esports.
 - Response Example:
@@ -30,6 +31,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/match/results`
+
 - Method: `GET`
 - Description: Fetches recent match results.
 - Response Example:
@@ -57,6 +59,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/rankings/{region}`
+
 - Method: `GET`
 - Description: Fetches rankings for a specific region.
 - Response Example:
@@ -82,6 +85,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/stats/{region}/{timespan}`
+
 - Method: `GET`
 - Description: Fetches player statistics for a specific region and timespan.
 - Response Example:
@@ -109,6 +113,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
   ```
 
 ### `/match/upcoming`
+
 - Method: `GET`
 - Description: Fetches upcoming matches.
 - Response Example:
@@ -122,11 +127,10 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
           "team2": "Team 2 Name",
           "flag1": "Team 1 Country Flag",
           "flag2": "Team 2 Country Flag",
-          "score1": "-",
-          "score2": "-",
           "time_until_match": "Time Until Match",
           "round_info": "Round Information",
           "tournament_name": "Tournament Name",
+          "unix_timestamp": "Match Start Time UNIX Timestamp",
           "match_page": "/path/to/match",
           "tournament_icon": "URL to Tournament Icon"
         }
@@ -134,8 +138,12 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
     }
   }
   ```
+  ```
+
+  ```
 
 ### `/match/live_score`
+
 - Method: `GET`
 - Description: Fetches live scores for ongoing matches.
 - Response Example:
