@@ -17,7 +17,7 @@ class Vlr:
         :param url: The URL of the page you want to parse
         :return: A tuple of the HTMLParser object and the status code.
         """
-        resp = requests.get(url, headers=self.headers)
+        resp = requests.get(url, headers=headers)
         html, status_code = resp.text, resp.status_code
         return HTMLParser(html), status_code
 
