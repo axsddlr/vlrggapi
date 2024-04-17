@@ -300,7 +300,7 @@ class Vlr:
                     int(item.css_first(".moment-tz-convert").attributes["data-utc-ts"]),
                     tz=timezone.utc,
                 ).strftime("%Y-%m-%d %H:%M:%S")
-                url_path = "https://www.vlr.gg" + item.attributes["href"]
+                url_path = "https://www.vlr.gg/" + item.attributes["href"]
 
                 result.append(
                     {
