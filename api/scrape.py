@@ -230,21 +230,23 @@ class Vlr:
 
             # get all td items from mod-color-sq class
             color_sq = [stats.text() for stats in item.css("td.mod-color-sq")]
-            acs = color_sq[0]
-            kd = color_sq[1]
-            kast = color_sq[2]
-            adr = color_sq[3]
-            kpr = color_sq[4]
-            apr = color_sq[5]
-            fkpr = color_sq[6]
-            fdpr = color_sq[7]
-            hs = color_sq[8]
-            cl = color_sq[9]
+            rat = color_sq[0]
+            acs = color_sq[1]
+            kd = color_sq[2]
+            kast = color_sq[3]
+            adr = color_sq[4]
+            kpr = color_sq[5]
+            apr = color_sq[6]
+            fkpr = color_sq[7]
+            fdpr = color_sq[8]
+            hs = color_sq[9]
+            cl = color_sq[10]
 
             result.append(
                 {
                     "player": player_name,
                     "org": org,
+                    "rating": rat,
                     "average_combat_score": acs,
                     "kill_deaths": kd,
                     "kill_assists_survived_traded": kast,
