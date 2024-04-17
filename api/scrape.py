@@ -296,8 +296,8 @@ class Vlr:
                 if eta != "LIVE":
                     eta = eta + " from now"
 
-                rounds = item.css_first(".h-match-preview-event").text().strip()
-                tournament = item.css_first(".h-match-preview-series").text().strip()
+                match_event = item.css_first(".h-match-preview-event").text().strip()
+                match_series = item.css_first(".h-match-preview-series").text().strip()
                 timestamp = datetime.fromtimestamp(
                     int(item.css_first(".moment-tz-convert").attributes["data-utc-ts"]),
                     tz=timezone.utc,
@@ -311,8 +311,8 @@ class Vlr:
                         "flag1": flags[0],
                         "flag2": flags[1],
                         "time_until_match": eta,
-                        "round_info": rounds,
-                        "tournament_name": tournament,
+                        "match_series": match_series,
+                        "match_event": match_event,
                         "unix_timestamp": timestamp,
                         "match_page": url_path,
                     }
@@ -368,8 +368,8 @@ class Vlr:
                     round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
                 eta = "LIVE"
-                rounds_info = match.css_first(".h-match-preview-event").text().strip()
-                tournament = match.css_first(".h-match-preview-series").text().strip()
+                match_event = match.css_first(".h-match-preview-event").text().strip()
+                match_series = match.css_first(".h-match-preview-series").text().strip()
                 timestamp = datetime.fromtimestamp(
                     int(
                         match.css_first(".moment-tz-convert").attributes["data-utc-ts"]
@@ -395,8 +395,8 @@ class Vlr:
                         "team2_round_ct": team2_round_ct,
                         "team2_round_t": team2_round_t,
                         "time_until_match": eta,
-                        "round_info": rounds_info,
-                        "tournament_name": tournament,
+                        "match_event": match_event,
+                        "match_series": match_series,
                         "unix_timestamp": timestamp,
                         "match_page": url_path,
                     }
