@@ -54,7 +54,7 @@ class Vlr:
                     "description": desc,
                     "date": date.split("\u2022")[1].strip(),
                     "author": author.strip(),
-                    "url_path": url,
+                    "url_path": "https://vlr.gg" + url,
                 }
             )
         # This is creating a dictionary with the key "data" and the value of the dictionary is another dictionary
