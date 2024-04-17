@@ -21,7 +21,7 @@ class Vlr:
         html, status_code = resp.text, resp.status_code
         return HTMLParser(html), status_code
 
-    def vlr_recent(self):
+    def vlr_news(self):
         """
         This function is getting the news articles from the website and
         returning the data in a dictionary.
@@ -129,7 +129,7 @@ class Vlr:
         return data
 
     @staticmethod
-    def vlr_score():
+    def vlr_match_results():
         url = "https://www.vlr.gg/matches/results"
         resp = requests.get(url, headers=headers)
         html = HTMLParser(resp.text)
