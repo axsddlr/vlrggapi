@@ -21,7 +21,7 @@ class Vlr:
         html, status_code = resp.text, resp.status_code
         return HTMLParser(html), status_code
 
-    def vlr_recent(self):
+    def vlr_news(self):
         """
         This function is getting the news articles from the website and
         returning the data in a dictionary.
@@ -54,7 +54,7 @@ class Vlr:
                     "description": desc,
                     "date": date.split("\u2022")[1].strip(),
                     "author": author.strip(),
-                    "url_path": url,
+                    "url_path": "https://vlr.gg" + url,
                 }
             )
         # This is creating a dictionary with the key "data" and the value of the dictionary is another dictionary
@@ -129,7 +129,7 @@ class Vlr:
         return data
 
     @staticmethod
-    def vlr_score():
+    def vlr_match_results():
         url = "https://www.vlr.gg/matches/results"
         resp = requests.get(url, headers=headers)
         html = HTMLParser(resp.text)
@@ -230,21 +230,23 @@ class Vlr:
 
             # get all td items from mod-color-sq class
             color_sq = [stats.text() for stats in item.css("td.mod-color-sq")]
-            acs = color_sq[0]
-            kd = color_sq[1]
-            kast = color_sq[2]
-            adr = color_sq[3]
-            kpr = color_sq[4]
-            apr = color_sq[5]
-            fkpr = color_sq[6]
-            fdpr = color_sq[7]
-            hs = color_sq[8]
-            cl = color_sq[9]
+            rat = color_sq[0]
+            acs = color_sq[1]
+            kd = color_sq[2]
+            kast = color_sq[3]
+            adr = color_sq[4]
+            kpr = color_sq[5]
+            apr = color_sq[6]
+            fkpr = color_sq[7]
+            fdpr = color_sq[8]
+            hs = color_sq[9]
+            cl = color_sq[10]
 
             result.append(
                 {
                     "player": player_name,
                     "org": org,
+                    "rating": rat,
                     "average_combat_score": acs,
                     "kill_deaths": kd,
                     "kill_assists_survived_traded": kast,
@@ -294,13 +296,13 @@ class Vlr:
                 if eta != "LIVE":
                     eta = eta + " from now"
 
-                rounds = item.css_first(".h-match-preview-event").text().strip()
-                tournament = item.css_first(".h-match-preview-series").text().strip()
+                match_event = item.css_first(".h-match-preview-event").text().strip()
+                match_series = item.css_first(".h-match-preview-series").text().strip()
                 timestamp = datetime.fromtimestamp(
                     int(item.css_first(".moment-tz-convert").attributes["data-utc-ts"]),
                     tz=timezone.utc,
                 ).strftime("%Y-%m-%d %H:%M:%S")
-                url_path = "https://www.vlr.gg" + item.attributes["href"]
+                url_path = "https://www.vlr.gg/" + item.attributes["href"]
 
                 result.append(
                     {
@@ -309,8 +311,8 @@ class Vlr:
                         "flag1": flags[0],
                         "flag2": flags[1],
                         "time_until_match": eta,
-                        "round_info": rounds,
-                        "tournament_name": tournament,
+                        "match_series": match_series,
+                        "match_event": match_event,
                         "unix_timestamp": timestamp,
                         "match_page": url_path,
                     }
@@ -366,8 +368,8 @@ class Vlr:
                     round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
                 eta = "LIVE"
-                rounds_info = match.css_first(".h-match-preview-event").text().strip()
-                tournament = match.css_first(".h-match-preview-series").text().strip()
+                match_event = match.css_first(".h-match-preview-event").text().strip()
+                match_series = match.css_first(".h-match-preview-series").text().strip()
                 timestamp = datetime.fromtimestamp(
                     int(
                         match.css_first(".moment-tz-convert").attributes["data-utc-ts"]
@@ -393,8 +395,8 @@ class Vlr:
                         "team2_round_ct": team2_round_ct,
                         "team2_round_t": team2_round_t,
                         "time_until_match": eta,
-                        "round_info": rounds_info,
-                        "tournament_name": tournament,
+                        "match_event": match_event,
+                        "match_series": match_series,
                         "unix_timestamp": timestamp,
                         "match_page": url_path,
                     }

@@ -128,8 +128,8 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
           "flag1": "Team 1 Country Flag",
           "flag2": "Team 2 Country Flag",
           "time_until_match": "Time Until Match",
-          "round_info": "Round Information",
-          "tournament_name": "Tournament Name",
+          "match_series": "Match Series",
+          "match_event": "Match Event",
           "unix_timestamp": "Match Start Time UNIX Timestamp",
           "match_page": "/path/to/match",
           "tournament_icon": "URL to Tournament Icon"
@@ -137,9 +137,6 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
       ]
     }
   }
-  ```
-  ```
-
   ```
 
 ### `/match/live_score`
@@ -164,8 +161,8 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
           "team2_round_ct": "Team 2 CT Rounds",
           "team2_round_t": "Team 2 T Rounds",
           "time_until_match": "LIVE",
-          "round_info": "Round Information",
-          "tournament_name": "Tournament Name",
+          "match_event": "Match Event",
+          "match_series": "Match Series",
           "unix_timestamp": "Match Start Time",
           "match_page": "/path/to/match"
         }

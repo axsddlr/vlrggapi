@@ -28,13 +28,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 @app.get("/news")
 @limiter.limit("250/minute")
 async def VLR_news(request: Request):
-    return vlr.vlr_recent()
+    return vlr.vlr_news()
 
 
 @app.get("/match/results")
 @limiter.limit("250/minute")
 async def VLR_scores(request: Request):
-    return vlr.vlr_score()
+    return vlr.vlr_match_results()
 
 
 @app.get("/stats/{region}/{timespan}")
