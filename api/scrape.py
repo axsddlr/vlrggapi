@@ -377,7 +377,23 @@ class Vlr:
                     tz=timezone.utc,
                 ).strftime("%Y-%m-%d %H:%M:%S")
                 url_path = "https://www.vlr.gg/" + match.attributes["href"]
-                # Ensure round_texts has items for both teams before accessing
+
+
+                # Fetch additional details from the match page
+                match_page = requests.get(url_path, headers=headers)
+                match_html = HTMLParser(match_page.text)
+                current_map_element = match_html.css_first(".vm-stats-gamesnav-item.js-map-switch.mod-active.mod-live")
+                current_map = "Unknown"
+                if current_map_element:
+                    current_map = current_map_element.css_first("div", default="Unknown").text().strip().replace("\n", "").replace("\t", "")
+                    current_map = re.sub(r"^\d+", "", current_map)
+
+                    # Extract the leading integer representing the map number in the series sequence
+                    map_number_match = current_map_element.css_first("div", default="Unknown").text().strip().replace("\n", "").replace("\t", "")
+                    map_number_match = re.search(r"^\d+", map_number_match)
+                    map_number = map_number_match.group(0) if map_number_match else "Unknown"
+
+
                 team1_round_ct = round_texts[0]["ct"] if len(round_texts) > 0 else "N/A"
                 team1_round_t = round_texts[0]["t"] if len(round_texts) > 0 else "N/A"
                 team2_round_ct = round_texts[1]["ct"] if len(round_texts) > 1 else "N/A"
@@ -394,6 +410,8 @@ class Vlr:
                         "team1_round_t": team1_round_t,
                         "team2_round_ct": team2_round_ct,
                         "team2_round_t": team2_round_t,
+                        "map_number": map_number,
+                        "current_map": current_map,
                         "time_until_match": eta,
                         "match_event": match_event,
                         "match_series": match_series,

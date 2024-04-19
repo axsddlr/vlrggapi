@@ -144,32 +144,35 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 - Method: `GET`
 - Description: Fetches live scores for ongoing matches.
 - Response Example:
-  ```json
-  {
-    "data": {
-      "status": 200,
-      "segments": [
-        {
-          "team1": "Team 1 Name",
-          "team2": "Team 2 Name",
-          "flag1": "Team 1 Country Flag",
-          "flag2": "Team 2 Country Flag",
-          "score1": "Team 1 Current Score",
-          "score2": "Team 2 Current Score",
-          "team1_round_ct": "Team 1 CT Rounds",
-          "team1_round_t": "Team 1 T Rounds",
-          "team2_round_ct": "Team 2 CT Rounds",
-          "team2_round_t": "Team 2 T Rounds",
-          "time_until_match": "LIVE",
-          "match_event": "Match Event",
-          "match_series": "Match Series",
-          "unix_timestamp": "Match Start Time",
-          "match_page": "/path/to/match"
-        }
-      ]
-    }
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "team1": "Team 1 Name",
+        "team2": "Team 2 Name",
+        "flag1": "Team 1 Country Flag",
+        "flag2": "Team 2 Country Flag",
+        "score1": "Team 1 Current Score",
+        "score2": "Team 2 Current Score",
+        "team1_round_ct": "Team 1 CT Rounds",
+        "team1_round_t": "Team 1 T Rounds",
+        "team2_round_ct": "Team 2 CT Rounds",
+        "team2_round_t": "Team 2 T Rounds",
+        "map_number": "Current Map Number",
+        "current_map": "Current Map Name",
+        "time_until_match": "LIVE",
+        "match_event": "Match Event",
+        "match_series": "Match Series",
+        "unix_timestamp": "Match Start Time UNIX Timestamp",
+        "match_page": "/path/to/match"
+      }
+    ]
   }
-  ```
+}
+```
+
 
 ## Installation
 
