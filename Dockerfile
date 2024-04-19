@@ -1,13 +1,18 @@
-# Builder stage
-FROM python:3.11 as builder
-WORKDIR /vlrggapi
-COPY ./requirements.txt /vlrggapi/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /vlrggapi/requirements.txt
+FROM python:3.10-alpine as base
 
-# Final stage
-FROM python:3.11-slim
+RUN apk update && apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    curl \
+    && pip install --upgrade pip
+
 WORKDIR /vlrggapi
-COPY --from=builder /vlrggapi /vlrggapi
-COPY . /vlrggapi
-RUN pip install --no-cache-dir -r /vlrggapi/requirements.txt
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt -vvv
+COPY . .
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3001"]
+HEALTHCHECK --interval=60s --timeout=3s CMD curl --fail http://127.0.0.1:3001/health || exit 1
