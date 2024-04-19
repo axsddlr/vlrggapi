@@ -376,7 +376,7 @@ class Vlr:
                     ),
                     tz=timezone.utc,
                 ).strftime("%Y-%m-%d %H:%M:%S")
-                url_path = "https://www.vlr.gg" + match.attributes["href"]
+                url_path = "https://www.vlr.gg/" + match.attributes["href"]
                 # Ensure round_texts has items for both teams before accessing
                 team1_round_ct = round_texts[0]["ct"] if len(round_texts) > 0 else "N/A"
                 team1_round_t = round_texts[0]["t"] if len(round_texts) > 0 else "N/A"
