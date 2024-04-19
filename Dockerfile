@@ -1,18 +1,20 @@
-FROM python:3.10-alpine as base
+FROM tiangolo/uvicorn-gunicorn:python3.9-alpine3.14 as base
 
-RUN apk update && apk add --no-cache \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    curl \
-    && pip install --upgrade pip
+RUN mkdir -p /vlrggapi
 
 WORKDIR /vlrggapi
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt -vvv
+RUN pip install --no-cache-dir  -r requirements.txt
+
+
+FROM tiangolo/uvicorn-gunicorn:python3.9-alpine3.14 as final
+
+WORKDIR /vlrggapi
+COPY --from=base /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3001"]
-HEALTHCHECK --interval=60s --timeout=3s CMD curl --fail http://127.0.0.1:3001/health || exit 1
+RUN apk add curl
+
+CMD ["python", "main.py"]
+HEALTHCHECK --interval=5s --timeout=3s CMD curl --fail http://127.0.0.1:3001/health || exit 1
