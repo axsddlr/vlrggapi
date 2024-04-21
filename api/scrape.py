@@ -8,8 +8,14 @@ from selectolax.parser import HTMLParser
 import utils.utils as res
 from utils.utils import headers
 
+import hashlib
 
 class Vlr:
+    def generate_match_id(team1, team2, match_event, match_series, timestamp):
+        match_info = f"{team1}_{team2}_{match_event}_{match_series}_{timestamp}"
+        match_id = hashlib.sha256(match_info.encode()).hexdigest()
+        return match_id
+
     def get_parse(self, url):
         """
         It takes a URL, makes a request to that URL, and returns a tuple of the HTMLParser object and the status code
@@ -304,8 +310,12 @@ class Vlr:
                 ).strftime("%Y-%m-%d %H:%M:%S")
                 url_path = "https://www.vlr.gg/" + item.attributes["href"]
 
+                # Generate match ID
+                match_id = Vlr.generate_match_id(teams[0], teams[1], match_event, match_series, timestamp)
+
                 result.append(
                     {
+                        "match_id": match_id,
                         "team1": teams[0],
                         "team2": teams[1],
                         "flag1": flags[0],
@@ -378,6 +388,8 @@ class Vlr:
                 ).strftime("%Y-%m-%d %H:%M:%S")
                 url_path = "https://www.vlr.gg/" + match.attributes["href"]
 
+                # Generate match ID
+                match_id = Vlr.generate_match_id(teams[0], teams[1], match_event, match_series, timestamp)
 
                 # Fetch additional details from the match page
                 match_page = requests.get(url_path, headers=headers)
@@ -400,6 +412,7 @@ class Vlr:
                 team2_round_t = round_texts[1]["t"] if len(round_texts) > 1 else "N/A"
                 result.append(
                     {
+                        "match_id": match_id,
                         "team1": teams[0],
                         "team2": teams[1],
                         "flag1": flags[0],
