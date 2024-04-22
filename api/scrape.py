@@ -47,11 +47,9 @@ class Vlr:
             # Getting the url of the article.
             url = item.css_first("a.wf-module-item").attributes["href"]
 
-            flag_list = [
-                flag_parent.attributes["class"].replace(" mod-", "_")
-                for flag_parent in item.css(".flag")
-            ]
-            flag = flag_list[0]
+            # Get flag
+            flag = item.css(".flag")[0].attributes["class"].replace(" mod-", "_")
+
 
             # This is appending the data to the result list.
             result.append(
