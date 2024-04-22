@@ -47,6 +47,12 @@ class Vlr:
             # Getting the url of the article.
             url = item.css_first("a.wf-module-item").attributes["href"]
 
+            flag_list = [
+                flag_parent.attributes["class"].replace(" mod-", "_")
+                for flag_parent in item.css(".flag")
+            ]
+            flag = flag_list[0]
+
             # This is appending the data to the result list.
             result.append(
                 {
@@ -54,6 +60,7 @@ class Vlr:
                     "description": desc,
                     "date": date.split("\u2022")[1].strip(),
                     "author": author.strip(),
+                    "flag": flag,
                     "url_path": "https://vlr.gg" + url,
                 }
             )
