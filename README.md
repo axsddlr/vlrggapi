@@ -107,7 +107,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
       "last_played": "4d ago",
       "last_played_team": "vs. Turtle Tr",
       "last_played_team_logo": "//owcdn.net/img/63d552c5dd028.png",
-      "record": "4�1",
+      "record": "4-1",
       "earnings": "$104,850",
       "logo": "//owcdn.net/img/63d91e60a84bc.png"
     },
@@ -118,7 +118,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
       "last_played": "22h ago",
       "last_played_team": "vs. Evil Geniuses",
       "last_played_team_logo": "//owcdn.net/img/62a409ad29351.png",
-      "record": "7�3",
+      "record": "7-3",
       "earnings": "$295,500",
       "logo": "//owcdn.net/img/62875027c8e06.png"
     }
@@ -141,7 +141,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
     "segments": [
       {
         "team1": "G2 Esports",
-        "team2": "Leviat�n",
+        "team2": "Leviatán",
         "flag1": "flag_us",
         "flag2": "flag_cl",
         "time_until_match": "51m from now",
