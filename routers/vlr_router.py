@@ -14,12 +14,6 @@ async def VLR_news(request: Request):
     return vlr.vlr_news()
 
 
-@router.get("/match/results")
-@limiter.limit("250/minute")
-async def VLR_scores(request: Request):
-    return vlr.vlr_match_results()
-
-
 @router.get("/stats/{region}/{timespan}")
 @limiter.limit("250/minute")
 async def VLR_stats(region, timespan, request: Request):
@@ -32,16 +26,17 @@ async def VLR_ranks(region, request: Request):
     return vlr.vlr_rankings(region)
 
 
-@router.get("/match/upcoming")
+@router.get("/match")
 @limiter.limit("250/minute")
-async def VLR_upcoming(request: Request):
-    return vlr.vlr_upcoming_matches()
-
-
-@router.get("/match/live_score")
-@limiter.limit("250/minute")
-async def VLR_live_score(request: Request):
-    return vlr.vlr_live_score()
+async def VLR_match(request: Request, q: str):
+    if q == "upcoming":
+        return vlr.vlr_upcoming_matches()
+    elif q == "live_score":
+        return vlr.vlr_live_score()
+    elif q == "results":
+        return vlr.vlr_match_results()
+    else:
+        return {"error": "Invalid query parameter"}
 
 
 @router.get("/health")
