@@ -1,8 +1,7 @@
 import re
+from datetime import datetime, timezone
 
 import requests
-from datetime import timezone
-from datetime import datetime
 from selectolax.parser import HTMLParser
 
 import utils.utils as res
@@ -333,12 +332,8 @@ class Vlr:
         html = HTMLParser(resp.text)
         status = resp.status_code
 
-        result = []
-        # Select all matches within the upcoming matches container
         matches = html.css(".js-home-matches-upcoming a.wf-module-item")
         result = []
-        # Select all matches within the upcoming matches container
-        matches = html.css(".js-home-matches-upcoming a.wf-module-item")
         for match in matches:
             # Check if the match is live by looking for the mod-live class within h-match-eta div
             is_live = match.css_first(".h-match-eta.mod-live")
@@ -378,21 +373,35 @@ class Vlr:
                 ).strftime("%Y-%m-%d %H:%M:%S")
                 url_path = "https://www.vlr.gg/" + match.attributes["href"]
 
-
                 # Fetch additional details from the match page
                 match_page = requests.get(url_path, headers=headers)
                 match_html = HTMLParser(match_page.text)
-                current_map_element = match_html.css_first(".vm-stats-gamesnav-item.js-map-switch.mod-active.mod-live")
+                current_map_element = match_html.css_first(
+                    ".vm-stats-gamesnav-item.js-map-switch.mod-active.mod-live"
+                )
                 current_map = "Unknown"
                 if current_map_element:
-                    current_map = current_map_element.css_first("div", default="Unknown").text().strip().replace("\n", "").replace("\t", "")
+                    current_map = (
+                        current_map_element.css_first("div", default="Unknown")
+                        .text()
+                        .strip()
+                        .replace("\n", "")
+                        .replace("\t", "")
+                    )
                     current_map = re.sub(r"^\d+", "", current_map)
 
                     # Extract the leading integer representing the map number in the series sequence
-                    map_number_match = current_map_element.css_first("div", default="Unknown").text().strip().replace("\n", "").replace("\t", "")
+                    map_number_match = (
+                        current_map_element.css_first("div", default="Unknown")
+                        .text()
+                        .strip()
+                        .replace("\n", "")
+                        .replace("\t", "")
+                    )
                     map_number_match = re.search(r"^\d+", map_number_match)
-                    map_number = map_number_match.group(0) if map_number_match else "Unknown"
-
+                    map_number = (
+                        map_number_match.group(0) if map_number_match else "Unknown"
+                    )
 
                 team1_round_ct = round_texts[0]["ct"] if len(round_texts) > 0 else "N/A"
                 team1_round_t = round_texts[0]["t"] if len(round_texts) > 0 else "N/A"
