@@ -1,99 +1,34 @@
-import uvicorn
-from fastapi import FastAPI, Request
+import logging
 
-from api.scrape import Vlr
+import uvicorn
+from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-# It's creating an instance of the Limiter class.
-limiter = Limiter(key_func=get_remote_address)
+from routers.vlr_router import router as vlr_router
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="vlrggapi",
-    description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news "
-    "coverage. Made by [axsddlr](https://github.com/axsddlr)",
+    description="An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage. Made by [axsddlr](https://github.com/axsddlr)",
     docs_url="/",
     redoc_url=None,
 )
-vlr = Vlr()
 
-TEN_MINUTES = 600
 
-# It's setting the rate limit for the API.
+limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.include_router(vlr_router)
 
 
-@app.get("/news")
-@limiter.limit("250/minute")
-async def VLR_news(request: Request):
-    return vlr.vlr_news()
-
-
-@app.get("/match/results")
-@limiter.limit("250/minute")
-async def VLR_scores(request: Request):
-    return vlr.vlr_match_results()
-
-
-@app.get("/stats/{region}/{timespan}")
-@limiter.limit("250/minute")
-async def VLR_stats(region, timespan, request: Request):
-    """
-    region shortnames:
-        "na" -> "north-america",
-        "eu" -> "europe",
-        "ap" -> "asia-pacific",
-        "sa" -> "latin-america",
-        "jp" -> "japan",
-        "oce" -> "oceania",
-        "mn" -> "mena",
-
-    timespan:
-        "30" -> 30 days,
-        "60" -> 60 days,
-        "90" -> 90 days,
-    """
-    return vlr.vlr_stats(region, timespan)
-
-
-@app.get("/rankings/{region}")
-@limiter.limit("250/minute")
-async def VLR_ranks(region, request: Request):
-    """
-    region shortnames:\n
-        "na" -> "north-america",\n
-        "eu" -> "europe",\n
-        "ap" -> "asia-pacific",\n
-        "la" -> "latin-america",\n
-        "la-s" -> "la-s",\n
-        "la-n" -> "la-n",\n
-        "oce" -> "oceania",\n
-        "kr" -> "korea",\n
-        "mn" -> "mena",\n
-        "gc" -> "game-changers",\n
-        "br" -> "Brazil",\n
-        "cn" -> "china",\n
-    """
-    return vlr.vlr_rankings(region)
-
-
-@app.get("/match/upcoming")
-@limiter.limit("250/minute")
-async def VLR_upcoming(request: Request):
-    return vlr.vlr_upcoming_matches()
-
-
-@app.get("/match/live_score")
-@limiter.limit("250/minute")
-async def VLR_live_score(request: Request):
-    return vlr.vlr_live_score()
-
-
-@app.get("/health")
-def health():
-    return "Healthy: OK"
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/docs")
 
 
 if __name__ == "__main__":
