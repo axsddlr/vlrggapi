@@ -116,16 +116,18 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 
 ### Source
 
-```
-$ git clone https://github.com/axsddlr/vlrggapi/
-$ cd vlrggapi
-$ pip3 install -r requirements.txt
+To work on the project, you will need to have Poetry installed. Please [follow the docs](https://python-poetry.org/docs/#installation) to do so.
+
+```bash
+git clone https://github.com/axsddlr/vlrggapi/
+cd vlrggapi
+poetry install
 ```
 
 ### Usage
 
-```
-python3 main.py
+```bash
+poetry python3 main.py
 ```
 
 ## Built With
