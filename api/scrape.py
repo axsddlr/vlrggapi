@@ -142,7 +142,7 @@ class Vlr:
 
             rounds = item.css_first("div.match-item-event-series").text()
             rounds = rounds.replace("\u2013", "-")
-            rounds = rounds.replace("\n", " ").replace("\t", "")
+            rounds = rounds.replace("\n", "").replace("\t", "")
 
             tourney = item.css_first("div.match-item-event").text()
             tourney = tourney.replace("\t", " ")
