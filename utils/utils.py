@@ -13,7 +13,9 @@ region = {
     "oce": "oceania",
     "kr": "korea",
     "mn": "mena",
-    "gc": "game-changers",
+    "gc": "gc",
     "br": "Brazil",
     "cn": "china",
+    "jp": "japan",
+    "col": "collegiate",
 }
