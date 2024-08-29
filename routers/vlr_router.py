@@ -52,6 +52,8 @@ async def VLR_ranks(region, request: Request):
         "gc": "game-changers",\n
         "br": "Brazil",\n
         "cn": "china",\n
+        "jp": "japan",\n
+        "col": "collegiate",\n
     """
     return vlr.vlr_rankings(region)
 
