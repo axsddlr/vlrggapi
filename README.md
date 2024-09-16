@@ -12,6 +12,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 
 - Method: `GET`
 - Description: Fetches the latest news articles related to Valorant Esports.
+- Example: `GET https://vlrggapi.vercel.app/news`
 - Response Example:
 
 ```json
@@ -38,13 +39,14 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 }
 ```
 
-### `/stats/{region}/{timespan}`
+### `/stats`
 
 - Method: `GET`
 - Description: Fetches player statistics for a specific region and timespan.
-- Parameters:
-  - `region`: Region shortnames (e.g., "na" for North America).
-  - `timespan`: Time span in days (e.g., "30" for the last 30 days).
+- Query Parameters:
+  - `region`: Region shortname (e.g., "na" for North America).
+  - `timespan`: Time span in days (e.g., "30" for the last 30 days, or "all" for all time).
+- Example: `GET https://vlrggapi.vercel.app/stats?region=na&timespan=30`
 
 - Response Example:
 
@@ -88,12 +90,13 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 }
 ```
 
-### `/rankings/{region}`
+### `/rankings`
 
 - Method: `GET`
 - Description: Fetches rankings for a specific region.
-- Parameters:
-  - `region`: Region shortnames (e.g., "na" for North America).
+- Query Parameters:
+  - `region`: Region shortname (e.g., "na" for North America).
+- Example: `GET https://vlrggapi.vercel.app/rankings?region=na`
 - Response Example:
 
 ```json
@@ -132,6 +135,10 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 - Description: Fetches matches based on the query parameter provided.
 - Query Parameters:
   - `q`: Type of matches to fetch ("upcoming", "live_score", "results").
+- Examples:
+  - Upcoming matches: `GET https://vlrggapi.vercel.app/match?q=upcoming`
+  - Live scores: `GET https://vlrggapi.vercel.app/match?q=live_score`
+  - Match results: `GET https://vlrggapi.vercel.app/match?q=results`
 - Response Example for `q=upcoming`:
 
 ```json
@@ -216,6 +223,7 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 - Method: `GET`
 - Description: Returns the health status of the API.
 - Response: `Healthy: OK`
+- Example: `GET https://vlrggapi.vercel.app/health`
 
 ## Installation
 
