@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Request
-from api.scrape import Vlr
+from fastapi import APIRouter, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+from api.scrape import Vlr
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -14,10 +15,16 @@ async def VLR_news(request: Request):
     return vlr.vlr_news()
 
 
-@router.get("/stats/{region}/{timespan}")
+@router.get("/stats")
 @limiter.limit("250/minute")
-async def VLR_stats(region, timespan, request: Request):
+async def VLR_stats(
+    request: Request,
+    region: str = Query(..., description="Region shortname"),
+    timespan: str = Query(..., description="Timespan (30, 60, 90, or all)"),
+):
     """
+    Get VLR stats with query parameters.
+
     region shortnames:\n
         "na": "north-america",\n
         "eu": "europe",\n
@@ -26,14 +33,11 @@ async def VLR_stats(region, timespan, request: Request):
         "jp": "japan",\n
         "oce": "oceania",\n
         "mn": "mena"\n
-
-    timespan:\n
-        "30": 30 days,\n
-        "60": 60 days,\n
-        "90": 90 days,\n
-        "all": All time\n"
     """
-    return vlr.vlr_stats(region, timespan)
+    return vlr.vlr_stats(
+        region,
+        timespan,
+    )
 
 
 @router.get("/rankings/{region}")
