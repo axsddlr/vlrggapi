@@ -1,5 +1,6 @@
 import requests
 
+
 def check_health():
     sites = ["https://vlrggapi.vercel.app", "https://vlr.gg"]
     results = {}

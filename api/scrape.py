@@ -1,11 +1,11 @@
 from api.scrapers import (
+    check_health,
+    vlr_live_score,
+    vlr_match_results,
     vlr_news,
     vlr_rankings,
     vlr_stats,
     vlr_upcoming_matches,
-    vlr_live_score,
-    vlr_match_results,
-    check_health,
 )
 
 

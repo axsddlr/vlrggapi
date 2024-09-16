@@ -1,7 +1,9 @@
 import re
 from datetime import datetime, timezone
+
 import requests
 from selectolax.parser import HTMLParser
+
 from utils.utils import headers
 
 
