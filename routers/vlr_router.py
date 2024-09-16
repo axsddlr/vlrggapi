@@ -40,10 +40,14 @@ async def VLR_stats(
     )
 
 
-@router.get("/rankings/{region}")
+@router.get("/rankings")
 @limiter.limit("250/minute")
-async def VLR_ranks(region, request: Request):
+async def VLR_ranks(
+    request: Request, region: str = Query(..., description="Region shortname")
+):
     """
+    Get VLR rankings for a specific region.
+
     region shortnames:\n
         "na": "north-america",\n
         "eu": "europe",\n
