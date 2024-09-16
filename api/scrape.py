@@ -203,11 +203,13 @@ class Vlr:
         return data
 
     @staticmethod
-    def vlr_stats(region: str, timespan: int):
-        url = (
-            f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200"
-            f"&min_rating=1550&agent=all&map_id=all&timespan={timespan}d"
-        )
+    def vlr_stats(region: str, timespan: str):
+        base_url = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200&min_rating=1550&agent=all&map_id=all"
+
+        if timespan.lower() == "all":
+            url = f"{base_url}&timespan=all"
+        else:
+            url = f"{base_url}&timespan={timespan}d"
 
         resp = requests.get(url, headers=headers)
         html = HTMLParser(resp.text)

@@ -25,12 +25,13 @@ async def VLR_stats(region, timespan, request: Request):
         "sa": "latin-america",\n
         "jp": "japan",\n
         "oce": "oceania",\n
-        "mn": "mena",\n
+        "mn": "mena"\n
 
     timespan:\n
         "30": 30 days,\n
         "60": 60 days,\n
         "90": 90 days,\n
+        "all": All time\n"
     """
     return vlr.vlr_stats(region, timespan)
 
