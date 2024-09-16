@@ -221,9 +221,24 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 ### `/health`
 
 - Method: `GET`
-- Description: Returns the health status of the API.
-- Response: `Healthy: OK`
+- Description: Returns the health status of the API and vlr.gg website.
 - Example: `GET https://vlrggapi.vercel.app/health`
+- Response Example:
+
+```json
+{
+  "https://vlrggapi.vercel.app": {
+    "status": "Healthy",
+    "status_code": 200
+  },
+  "https://vlr.gg": {
+    "status": "Healthy",
+    "status_code": 200
+  }
+}
+```
+
+The response includes the status ("Healthy" or "Unhealthy") and the HTTP status code for both the API and the vlr.gg website. If a site is unreachable, the status will be "Unhealthy" and the status_code will be null.
 
 ## Installation
 

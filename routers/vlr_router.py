@@ -88,4 +88,4 @@ async def VLR_match(request: Request, q: str):
 
 @router.get("/health")
 def health():
-    return "Healthy: OK"
+    return vlr.check_health()
