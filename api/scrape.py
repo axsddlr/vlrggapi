@@ -227,7 +227,11 @@ class Vlr:
             except Exception:
                 org = "N/A"
 
-            # agents = [agents.css_first("img").attributes['src'] for agents in item.css("td.mod-agents")]
+            # get agent names
+            agents = [
+                agents.attributes["src"].split("/")[-1].split(".")[0]
+                for agents in item.css("td.mod-agents img")
+            ]
 
             # get all td items from mod-color-sq class
             color_sq = [stats.text() for stats in item.css("td.mod-color-sq")]
@@ -243,10 +247,15 @@ class Vlr:
             hs = color_sq[9]
             cl = color_sq[10]
 
+            # Get the rounds played
+            rnd = item.css_first("td.mod-rnd").text()
+
             result.append(
                 {
                     "player": player_name,
                     "org": org,
+                    "agents": agents,
+                    "rounds_played": rnd,
                     "rating": rat,
                     "average_combat_score": acs,
                     "kill_deaths": kd,
