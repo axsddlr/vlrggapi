@@ -34,10 +34,7 @@ async def VLR_stats(
         "oce": "oceania",\n
         "mn": "mena"\n
     """
-    return vlr.vlr_stats(
-        region,
-        timespan,
-    )
+    return vlr.vlr_stats(region, timespan)
 
 
 @router.get("/rankings")
