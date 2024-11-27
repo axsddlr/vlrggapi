@@ -174,6 +174,8 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
         "team2": "Team 2 Name",
         "flag1": "Country Flag of Team 1",
         "flag2": "Country Flag of Team 2",
+        "team1_logo": "URL to Team 1 logo",
+        "team2_logo": "URL to Team 2 logo",
         "score1": "Team 1 Score",
         "score2": "Team 2 Score",
         "team1_round_ct": "Team 1 CT-side rounds",

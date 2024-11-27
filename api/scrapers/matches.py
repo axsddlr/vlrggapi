@@ -107,6 +107,12 @@ def vlr_live_score():
 
             match_page = requests.get(url_path, headers=headers)
             match_html = HTMLParser(match_page.text)
+            
+            team_logos = []
+            for img in match_html.css(".match-header-vs img"):
+                logo_url = "https:" + img.attributes.get("src", "")
+                team_logos.append(logo_url)
+
             current_map_element = match_html.css_first(
                 ".vm-stats-gamesnav-item.js-map-switch.mod-active.mod-live"
             )
@@ -142,6 +148,8 @@ def vlr_live_score():
                     "team2": teams[1],
                     "flag1": flags[0],
                     "flag2": flags[1],
+                    "team1_logo": team_logos[0] if len(team_logos) > 0 else "",
+                    "team2_logo": team_logos[1] if len(team_logos) > 1 else "",
                     "score1": scores[0],
                     "score2": scores[1],
                     "team1_round_ct": team1_round_ct,
