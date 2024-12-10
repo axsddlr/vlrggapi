@@ -31,8 +31,8 @@ class Vlr:
         return vlr_live_score()
 
     @staticmethod
-    def vlr_match_results():
-        return vlr_match_results()
+    def vlr_match_results(page: int):
+        return vlr_match_results(page)
 
     @staticmethod
     def check_health():

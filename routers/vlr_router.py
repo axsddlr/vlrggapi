@@ -66,19 +66,19 @@ async def VLR_ranks(
 
 @router.get("/match")
 @limiter.limit("250/minute")
-async def VLR_match(request: Request, q: str):
+async def VLR_match(request: Request, q: str, page: int = Query(..., description="The loaded results page")):
     """
     query parameters:\n
         "upcoming": upcoming matches,\n
         "live_score": live match scores,\n
-        "results": match results,\n
+        "results": match results\n
     """
     if q == "upcoming":
         return vlr.vlr_upcoming_matches()
     elif q == "live_score":
         return vlr.vlr_live_score()
-    elif q == "results":
-        return vlr.vlr_match_results()
+    elif q == "results" and page is not None:
+        return vlr.vlr_match_results(page)
     else:
         return {"error": "Invalid query parameter"}
 
