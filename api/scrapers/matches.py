@@ -174,8 +174,8 @@ def vlr_live_score():
     return data
 
 
-def vlr_match_results():
-    url = "https://www.vlr.gg/matches/results"
+def vlr_match_results(page):
+    url = f"https://www.vlr.gg/matches/results/?page={page}"
     resp = requests.get(url, headers=headers)
     html = HTMLParser(resp.text)
     status = resp.status_code
@@ -242,7 +242,6 @@ def vlr_match_results():
         )
     segments = {"status": status, "segments": result}
     data = {"data": segments}
-
     if status != 200:
         raise Exception("API response: {}".format(status))
     return data
