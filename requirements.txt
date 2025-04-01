@@ -1,6 +1,6 @@
 requests==2.32.3
 uvicorn==0.34.0
-fastapi==0.115.11
+fastapi==0.115.12
 lxml==5.3.1
 slowapi==0.1.9
 selectolax==0.3.28
