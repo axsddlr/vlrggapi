@@ -3,4 +3,4 @@ uvicorn==0.34.2
 fastapi==0.115.12
 lxml==5.4.0
 slowapi==0.1.9
-selectolax==0.3.28
+selectolax==0.3.29
