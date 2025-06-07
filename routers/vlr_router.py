@@ -103,6 +103,7 @@ async def VLR_match(
         return vlr.vlr_live_score(num_pages, from_page, to_page)
     elif q == "results":
         return vlr.vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
+
     else:
         return {"error": "Invalid query parameter"}
 

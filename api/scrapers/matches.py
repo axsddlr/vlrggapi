@@ -210,6 +210,7 @@ def vlr_match_results(num_pages=1, from_page=None, to_page=None, max_retries=3, 
     Returns:
         dict: API response with match data
     """
+
     result = []
     status = 200
     failed_pages = []
