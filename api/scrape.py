@@ -23,16 +23,16 @@ class Vlr:
         return vlr_stats(region, timespan)
 
     @staticmethod
-    def vlr_upcoming_matches():
-        return vlr_upcoming_matches()
+    def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
+        return vlr_upcoming_matches(num_pages, from_page, to_page)
 
     @staticmethod
-    def vlr_live_score():
-        return vlr_live_score()
+    def vlr_live_score(num_pages=1, from_page=None, to_page=None):
+        return vlr_live_score(num_pages, from_page, to_page)
 
     @staticmethod
-    def vlr_match_results():
-        return vlr_match_results()
+    def vlr_match_results(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
+        return vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
 
     @staticmethod
     def check_health():

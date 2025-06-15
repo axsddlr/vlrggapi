@@ -1,4 +1,5 @@
 import re
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -7,7 +8,17 @@ from selectolax.parser import HTMLParser
 from utils.utils import headers
 
 
-def vlr_upcoming_matches():
+def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
+    """
+    Get upcoming matches from VLR.GG.
+    
+    Args:
+        num_pages (int): Number of pages to scrape from page 1 (ignored if from_page/to_page specified)
+        from_page (int, optional): Starting page number (1-based)
+        to_page (int, optional): Ending page number (1-based, inclusive)
+    """
+    # Note: VLR.GG upcoming matches are typically only on the homepage
+    # Page range parameters are included for API consistency but may not apply
     url = "https://www.vlr.gg"
     resp = requests.get(url, headers=headers)
     html = HTMLParser(resp.text)
@@ -64,7 +75,17 @@ def vlr_upcoming_matches():
     return data
 
 
-def vlr_live_score():
+def vlr_live_score(num_pages=1, from_page=None, to_page=None):
+    """
+    Get live match scores from VLR.GG.
+    
+    Args:
+        num_pages (int): Number of pages to scrape from page 1 (ignored if from_page/to_page specified)
+        from_page (int, optional): Starting page number (1-based)
+        to_page (int, optional): Ending page number (1-based, inclusive)
+    """
+    # Note: VLR.GG live matches are typically only on the homepage
+    # Page range parameters are included for API consistency but may not apply
     url = "https://www.vlr.gg"
     resp = requests.get(url, headers=headers)
     html = HTMLParser(resp.text)
@@ -174,75 +195,224 @@ def vlr_live_score():
     return data
 
 
-def vlr_match_results():
-    url = "https://www.vlr.gg/matches/results"
-    resp = requests.get(url, headers=headers)
-    html = HTMLParser(resp.text)
-    status = resp.status_code
+def vlr_match_results(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
+    """
+    Scrape match results with robust error handling for large page counts.
+    
+    Args:
+        num_pages (int): Number of pages to scrape from page 1 (ignored if from_page/to_page specified)
+        from_page (int, optional): Starting page number (1-based)
+        to_page (int, optional): Ending page number (1-based, inclusive)
+        max_retries (int): Maximum retry attempts per page
+        request_delay (float): Delay between requests in seconds
+        timeout (int): Request timeout in seconds
+        
+    Returns:
+        dict: API response with match data
+    """
 
     result = []
-    for item in html.css("a.wf-module-item"):
-        url_path = item.attributes["href"]
-        eta = item.css_first("div.ml-eta").text() + " ago"
-        rounds = (
-            item.css_first("div.match-item-event-series")
-            .text()
-            .replace("\u2013", "-")
-            .replace("\n", "")
-            .replace("\t", "")
-        )
-        tourney = (
-            item.css_first("div.match-item-event")
-            .text()
-            .replace("\t", " ")
-            .strip()
-            .split("\n")[1]
-            .strip()
-        )
-        tourney_icon_url = f"https:{item.css_first('img').attributes['src']}"
+    status = 200
+    failed_pages = []
+    
+    # Determine page range
+    if from_page is not None and to_page is not None:
+        if from_page < 1:
+            raise ValueError("from_page must be >= 1")
+        if to_page < from_page:
+            raise ValueError("to_page must be >= from_page")
+        start_page = from_page
+        end_page = to_page
+        total_pages = end_page - start_page + 1
+    elif from_page is not None:
+        if from_page < 1:
+            raise ValueError("from_page must be >= 1")
+        start_page = from_page
+        end_page = from_page + num_pages - 1
+        total_pages = num_pages
+    elif to_page is not None:
+        if to_page < 1:
+            raise ValueError("to_page must be >= 1")
+        start_page = max(1, to_page - num_pages + 1)
+        end_page = to_page
+        total_pages = end_page - start_page + 1
+    else:
+        # Default behavior: scrape from page 1
+        start_page = 1
+        end_page = num_pages
+        total_pages = num_pages
+    
+    # Create a session for connection pooling and efficiency
+    session = requests.Session()
+    session.headers.update(headers)
+    
+    print(f"Starting to scrape pages {start_page}-{end_page} ({total_pages} pages) with {request_delay}s delay between requests...")
+    
+    for page in range(start_page, end_page + 1):
+        page_success = False
+        retry_count = 0
+        
+        while not page_success and retry_count < max_retries:
+            try:
+                if page == 1:
+                    url = "https://www.vlr.gg/matches/results"
+                else:
+                    url = f"https://www.vlr.gg/matches/results/?page={page}"
+                
+                current_page_num = page - start_page + 1
+                print(f"Scraping page {page} ({current_page_num}/{total_pages}) (attempt {retry_count + 1}/{max_retries})")
+                
+                # Add timeout and handle potential connection issues
+                resp = session.get(url, timeout=timeout)
+                html = HTMLParser(resp.text)
+                current_status = resp.status_code
+                
+                if current_status != 200:
+                    print(f"Warning: Page {page} returned status {current_status}")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        time.sleep(request_delay * (2 ** retry_count))  # Exponential backoff
+                    continue
+                
+                page_results = []
+                items = html.css("a.wf-module-item")
+                
+                if not items:
+                    print(f"Warning: No match items found on page {page}")
+                    page_success = True  # Consider empty page as success
+                    break
+                
+                for item in items:
+                    try:
+                        url_path = item.attributes["href"]
+                        eta = item.css_first("div.ml-eta").text() + " ago"
+                        rounds = (
+                            item.css_first("div.match-item-event-series")
+                            .text()
+                            .replace("\u2013", "-")
+                            .replace("\n", "")
+                            .replace("\t", "")
+                        )
+                        tourney = (
+                            item.css_first("div.match-item-event")
+                            .text()
+                            .replace("\t", " ")
+                            .strip()
+                            .split("\n")[1]
+                            .strip()
+                        )
+                        tourney_icon_url = f"https:{item.css_first('img').attributes['src']}"
 
-        try:
-            team_array = (
-                item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
-            )
-        except Exception:
-            team_array = "TBD"
-        team_array = (
-            team_array.replace("\t", " ")
-            .replace("\n", " ")
-            .strip()
-            .split("                                  ")
-        )
-        team1 = team_array[0]
-        score1 = team_array[1].replace(" ", "").strip()
-        team2 = team_array[4].strip()
-        score2 = team_array[-1].replace(" ", "").strip()
+                        try:
+                            team_array = (
+                                item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
+                            )
+                        except Exception:
+                            team_array = "TBD"
+                        team_array = (
+                            team_array.replace("\t", " ")
+                            .replace("\n", " ")
+                            .strip()
+                            .split("                                  ")
+                        )
+                        team1 = team_array[0]
+                        score1 = team_array[1].replace(" ", "").strip()
+                        team2 = team_array[4].strip()
+                        score2 = team_array[-1].replace(" ", "").strip()
 
-        flag_list = [
-            flag_parent.attributes["class"].replace(" mod-", "_")
-            for flag_parent in item.css(".flag")
-        ]
-        flag1 = flag_list[0]
-        flag2 = flag_list[1]
+                        flag_list = [
+                            flag_parent.attributes["class"].replace(" mod-", "_")
+                            for flag_parent in item.css(".flag")
+                        ]
+                        flag1 = flag_list[0] if len(flag_list) > 0 else ""
+                        flag2 = flag_list[1] if len(flag_list) > 1 else ""
 
-        result.append(
-            {
-                "team1": team1,
-                "team2": team2,
-                "score1": score1,
-                "score2": score2,
-                "flag1": flag1,
-                "flag2": flag2,
-                "time_completed": eta,
-                "round_info": rounds,
-                "tournament_name": tourney,
-                "match_page": url_path,
-                "tournament_icon": tourney_icon_url,
-            }
-        )
-    segments = {"status": status, "segments": result}
+                        page_results.append(
+                            {
+                                "team1": team1,
+                                "team2": team2,
+                                "score1": score1,
+                                "score2": score2,
+                                "flag1": flag1,
+                                "flag2": flag2,
+                                "time_completed": eta,
+                                "round_info": rounds,
+                                "tournament_name": tourney,
+                                "match_page": url_path,
+                                "tournament_icon": tourney_icon_url,
+                                "page_number": page,  # Track which page this came from
+                            }
+                        )
+                    except Exception as e:
+                        print(f"Warning: Failed to parse match item on page {page}: {str(e)}")
+                        continue
+                
+                result.extend(page_results)
+                print(f"Successfully scraped page {page}: {len(page_results)} matches")
+                page_success = True
+                
+                # Rate limiting between successful requests
+                if page < end_page:
+                    time.sleep(request_delay)
+                
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                print(f"Timeout error on page {page}, attempt {retry_count}/{max_retries}")
+                if retry_count < max_retries:
+                    backoff_time = request_delay * (2 ** retry_count)
+                    print(f"Retrying page {page} in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)
+                
+            except requests.exceptions.ConnectionError:
+                retry_count += 1
+                print(f"Connection error on page {page}, attempt {retry_count}/{max_retries}")
+                if retry_count < max_retries:
+                    backoff_time = request_delay * (2 ** retry_count)
+                    print(f"Retrying page {page} in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)
+                
+            except Exception as e:
+                retry_count += 1
+                print(f"Unexpected error on page {page}: {str(e)}")
+                if retry_count < max_retries:
+                    backoff_time = request_delay * (2 ** retry_count)
+                    print(f"Retrying page {page} in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)
+        
+        if not page_success:
+            failed_pages.append(page)
+            print(f"Failed to scrape page {page} after {max_retries} attempts")
+    
+    # Close the session
+    session.close()
+    
+    # Report results
+    total_matches = len(result)
+    successful_pages = total_pages - len(failed_pages)
+    
+    print(f"\nScraping completed:")
+    print(f"  Page range: {start_page}-{end_page}")
+    print(f"  Total matches: {total_matches}")
+    print(f"  Successful pages: {successful_pages}/{total_pages}")
+    
+    if failed_pages:
+        print(f"  Failed pages: {failed_pages}")
+        print(f"  Consider retrying failed pages or adjusting parameters")
+    
+    segments = {
+        "status": status, 
+        "segments": result,
+        "meta": {
+            "page_range": f"{start_page}-{end_page}",
+            "total_pages_requested": total_pages,
+            "successful_pages": successful_pages,
+            "failed_pages": failed_pages,
+            "total_matches": total_matches
+        }
+    }
     data = {"data": segments}
 
-    if status != 200:
-        raise Exception("API response: {}".format(status))
+    if not result:
+        raise Exception(f"No data retrieved. Failed pages: {failed_pages}")
+    
     return data
