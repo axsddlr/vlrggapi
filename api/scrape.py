@@ -6,6 +6,7 @@ from api.scrapers import (
     vlr_rankings,
     vlr_stats,
     vlr_upcoming_matches,
+    vlr_events
 )
 
 
@@ -37,6 +38,10 @@ class Vlr:
     @staticmethod
     def check_health():
         return check_health()
+    
+    @staticmethod
+    def vlr_events(region):
+        return vlr_events(region)
 
 
 if __name__ == "__main__":
