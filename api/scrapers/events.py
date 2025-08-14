@@ -1,6 +1,6 @@
 from selectolax.parser import HTMLParser
 import re
-from utils.utils import headers, region
+from utils.utils import headers, region, month
 import requests
 
 def vlr_events(region_key):
@@ -11,29 +11,33 @@ def vlr_events(region_key):
 
     result = []
 
-
     for event in html.css("a.wf-card"):
       item = event.css_first("div.event-item-inner")
       eventName = item.css_first("div.event-item-title").text().strip()
       eventStatus = item.css_first("div.event-item-desc-item").css_first("span").text().strip()
       logo = event.css_first("div.event-item-thumb").css_first("img").attributes["src"]
       prizePool = item.css_first("div.mod-prize").text(strip=True, deep=False)
-      logo = re.sub(r"\/img\/vlr\/tmp\/vlr.png", "", logo)
+      logo = re.sub(r"\/img\/vlr\/tmp\/vlr.png", "", logo) 
       dates = item.css_first("div.mod-dates").text(strip=True, deep=False)
 
+      if "https" not in logo:
+        # replace the slashes at the url start | example: "//owcdn.net"
+        logo = re.sub(r"^//", "https://", logo)
 
 
-      if "—" in dates:
-        date_from = dates.split("—")[0].strip()
-        date_to = dates.split("—")[1].strip() 
+      date_from_day = dates.replace("—", " ").split(" ")[1]
+      date_to_day = dates.replace("—", " ").split(" ")[-1]
+
+      date_from_month = month[dates.split(" ")[0].lower()]
+      if dates.replace("—", " ").split(" ")[-2].isdigit():
+        date_to_month = date_from_month
       else:
-        date_from = dates.strip()
-        date_to = dates.strip()
+        date_to_month = month[dates.replace("—", " ").split(" ")[-2].lower()]
 
-      if " " not in date_to:
-        month = date_from.split(" ")[0]
-        date_to = f"{month} {date_to}"
+      print(dates.replace("—", " "))
 
+      date_from = f"{date_from_month} {date_from_day}"
+      date_to = f"{date_to_month} {date_to_day}"
 
       result.append(
         {
@@ -45,7 +49,6 @@ def vlr_events(region_key):
            "date-to": date_to
         }
       )
-
 
     data = {"status": status, "data": result}
 
