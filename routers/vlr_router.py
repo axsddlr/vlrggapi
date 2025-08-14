@@ -111,3 +111,9 @@ async def VLR_match(
 @router.get("/health")
 def health():
     return vlr.check_health()
+
+@router.get("/events")
+@limiter.limit("600/minute")
+async def VLR_events(request: Request, region: str = Query(..., description="Region shortname")):
+
+    return vlr.vlr_events(region)
