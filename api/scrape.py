@@ -36,8 +36,8 @@ class Vlr:
         return vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
 
     @staticmethod
-    def vlr_events(upcoming=True, completed=True):
-        return vlr_events(upcoming, completed)
+    def vlr_events(upcoming=True, completed=True, page=1):
+        return vlr_events(upcoming, completed, page)
 
     @staticmethod
     def check_health():

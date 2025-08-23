@@ -223,16 +223,18 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 ### `/events`
 
 - Method: `GET`
-- Description: Fetches Valorant events from vlr.gg with filtering options.
+- Description: Fetches Valorant events from vlr.gg with filtering and pagination options.
 - Query Parameters:
   - `q`: Event type filter (optional)
     - `"upcoming"`: Show only upcoming events
     - `"completed"`: Show only completed events
     - No parameter or other values: Show both upcoming and completed events
+  - `page`: Page number for pagination (optional, default: 1, applies to completed events only)
 - Examples:
   - All events: `GET https://vlrggapi.vercel.app/events`
   - Upcoming only: `GET https://vlrggapi.vercel.app/events?q=upcoming`
   - Completed only: `GET https://vlrggapi.vercel.app/events?q=completed`
+  - Completed events page 2: `GET https://vlrggapi.vercel.app/events?q=completed&page=2`
 - Response Example:
 
 ```json

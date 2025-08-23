@@ -5,18 +5,24 @@ from selectolax.parser import HTMLParser
 from utils.utils import headers
 
 
-def vlr_events(upcoming=True, completed=True):
+def vlr_events(upcoming=True, completed=True, page=1):
     """
     Get Valorant events from VLR.GG
 
     Args:
         upcoming (bool): If True, include upcoming events
         completed (bool): If True, include completed events
+        page (int): Page number for pagination (only applies to completed events)
 
     Returns:
         dict: Response with status code and events data
     """
-    url = "https://www.vlr.gg/events"
+    # Build URL with pagination for completed events
+    if completed and page > 1:
+        url = f"https://www.vlr.gg/events/?page={page}"
+    else:
+        url = "https://www.vlr.gg/events"
+    
     resp = requests.get(url, headers=headers)
     html = HTMLParser(resp.text)
     status = resp.status_code

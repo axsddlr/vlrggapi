@@ -112,28 +112,50 @@ async def VLR_match(
 @limiter.limit("600/minute")
 async def VLR_events(
     request: Request,
-    q: str = Query(None, description="Event type filter: 'upcoming' or 'completed' (default: shows both)")
+    q: str = Query(
+        None, 
+        description="Event type filter",
+        example="completed",
+        enum=["upcoming", "completed"]
+    ),
+    page: int = Query(
+        1, 
+        description="Page number for pagination (only applies to completed events)",
+        example=1,
+        ge=1, 
+        le=100
+    )
 ):
     """
-    Get Valorant events from VLR.GG
+    Get Valorant events from VLR.GG with optional filtering and pagination.
     
-    Parameters:
-    - q: Event type filter
-      - "upcoming": Show only upcoming events
-      - "completed": Show only completed events
-      - None or other values: Show both upcoming and completed events
+    ## Event Types:
+    - **upcoming**: Currently active or scheduled future events
+    - **completed**: Historical events that have finished
+    - **default**: Both upcoming and completed events (when q parameter is omitted)
     
-    Examples:
-    - /events (shows both)
-    - /events?q=upcoming (shows only upcoming)
-    - /events?q=completed (shows only completed)
+    ## Pagination:
+    - Only applies to **completed events**
+    - Upcoming events are always from the first page
+    - Page numbers range from 1 to 100
+    - Each page contains approximately 25-30 events
+    
+    ## Usage Examples:
+    - `GET /events` - All events (upcoming + completed page 1)
+    - `GET /events?q=upcoming` - Only upcoming events
+    - `GET /events?q=completed` - Only completed events (page 1)
+    - `GET /events?q=completed&page=3` - Completed events from page 3
+    - `GET /events?page=2` - All events (upcoming + completed page 2)
+    
+    ## Response Format:
+    Returns event details including title, status, prize pool, dates, region, thumbnail, and event URL.
     """
     if q == "upcoming":
-        return vlr.vlr_events(upcoming=True, completed=False)
+        return vlr.vlr_events(upcoming=True, completed=False, page=page)
     elif q == "completed":
-        return vlr.vlr_events(upcoming=False, completed=True)
+        return vlr.vlr_events(upcoming=False, completed=True, page=page)
     else:
-        return vlr.vlr_events(upcoming=True, completed=True)
+        return vlr.vlr_events(upcoming=True, completed=True, page=page)
 
 
 @router.get("/health")
