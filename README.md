@@ -220,6 +220,49 @@ All endpoints are relative to [https://vlrggapi.vercel.app](https://vlrggapi.ver
 }
 ```
 
+### `/events`
+
+- Method: `GET`
+- Description: Fetches Valorant events from vlr.gg with filtering options.
+- Query Parameters:
+  - `q`: Event type filter (optional)
+    - `"upcoming"`: Show only upcoming events
+    - `"completed"`: Show only completed events
+    - No parameter or other values: Show both upcoming and completed events
+- Examples:
+  - All events: `GET https://vlrggapi.vercel.app/events`
+  - Upcoming only: `GET https://vlrggapi.vercel.app/events?q=upcoming`
+  - Completed only: `GET https://vlrggapi.vercel.app/events?q=completed`
+- Response Example:
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "title": "VCT 2025: Pacific Stage 2",
+        "status": "ongoing",
+        "prize": "$250,000",
+        "dates": "Jul 15—Aug 31",
+        "region": "kr",
+        "thumb": "https://owcdn.net/img/640f5ae002674.png",
+        "url_path": "https://www.vlr.gg/event/2500/vct-2025-pacific-stage-2"
+      },
+      {
+        "title": "VCT 2025: China Stage 2",
+        "status": "ongoing",
+        "prize": "TBD",
+        "dates": "Jul 3—Aug 24",
+        "region": "cn",
+        "thumb": "https://owcdn.net/img/65dd97cea9a25.png",
+        "url_path": "https://www.vlr.gg/event/2499/vct-2025-china-stage-2"
+      }
+    ]
+  }
+}
+```
+
 ### `/health`
 
 - Method: `GET`

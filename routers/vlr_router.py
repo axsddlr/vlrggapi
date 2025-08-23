@@ -108,6 +108,34 @@ async def VLR_match(
         return {"error": "Invalid query parameter"}
 
 
+@router.get("/events")
+@limiter.limit("600/minute")
+async def VLR_events(
+    request: Request,
+    q: str = Query(None, description="Event type filter: 'upcoming' or 'completed' (default: shows both)")
+):
+    """
+    Get Valorant events from VLR.GG
+    
+    Parameters:
+    - q: Event type filter
+      - "upcoming": Show only upcoming events
+      - "completed": Show only completed events
+      - None or other values: Show both upcoming and completed events
+    
+    Examples:
+    - /events (shows both)
+    - /events?q=upcoming (shows only upcoming)
+    - /events?q=completed (shows only completed)
+    """
+    if q == "upcoming":
+        return vlr.vlr_events(upcoming=True, completed=False)
+    elif q == "completed":
+        return vlr.vlr_events(upcoming=False, completed=True)
+    else:
+        return vlr.vlr_events(upcoming=True, completed=True)
+
+
 @router.get("/health")
 def health():
     return vlr.check_health()
