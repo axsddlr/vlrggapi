@@ -7,6 +7,7 @@ from api.scrapers import (
     vlr_rankings,
     vlr_stats,
     vlr_upcoming_matches,
+    vlr_upcoming_matches_extended,
 )
 
 
@@ -34,6 +35,10 @@ class Vlr:
     @staticmethod
     def vlr_match_results(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
         return vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
+
+    @staticmethod
+    def vlr_upcoming_matches_extended(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
+        return vlr_upcoming_matches_extended(num_pages, from_page, to_page, max_retries, request_delay, timeout)
 
     @staticmethod
     def vlr_events(upcoming=True, completed=True, page=1):

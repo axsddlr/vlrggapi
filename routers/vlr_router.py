@@ -78,10 +78,11 @@ async def VLR_match(
 ):
     """
     query parameters:\n
-        "upcoming": upcoming matches,\n
+        "upcoming": upcoming matches (from homepage),\n
+        "upcoming_extended": upcoming matches (from paginated /matches page),\n
         "live_score": live match scores,\n
         "results": match results,\n
-    
+
     Page Range Options:
     - num_pages: Number of pages from page 1 (ignored if from_page/to_page specified)
     - from_page: Starting page number (1-based, optional)
@@ -93,12 +94,15 @@ async def VLR_match(
     - timeout: Request timeout in seconds (10-120, default: 30)
     
     Examples:
+    - /match?q=upcoming_extended&num_pages=3 (scrapes pages 1-3 of upcoming matches)
     - /match?q=results&num_pages=5 (scrapes pages 1-5)
     - /match?q=results&from_page=10&to_page=15 (scrapes pages 10-15)
     - /match?q=results&from_page=5&num_pages=3 (scrapes pages 5-7)
     """
     if q == "upcoming":
         return vlr.vlr_upcoming_matches(num_pages, from_page, to_page)
+    elif q == "upcoming_extended":
+        return vlr.vlr_upcoming_matches_extended(num_pages, from_page, to_page, max_retries, request_delay, timeout)
     elif q == "live_score":
         return vlr.vlr_live_score(num_pages, from_page, to_page)
     elif q == "results":
