@@ -2,17 +2,25 @@ from fastapi import APIRouter, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from api.scrape import Vlr
+from api.scrapers import (
+    vlr_events,
+    vlr_live_score,
+    vlr_match_results,
+    vlr_news,
+    vlr_rankings,
+    vlr_stats,
+    vlr_upcoming_matches,
+    check_health
+)
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-vlr = Vlr()
 
 
 @router.get("/news")
 @limiter.limit("600/minute")
 async def VLR_news(request: Request):
-    return vlr.vlr_news()
+    return vlr_news()
 
 
 @router.get("/stats")
@@ -34,7 +42,7 @@ async def VLR_stats(
         "oce": "oceania",\n
         "mn": "mena"\n
     """
-    return vlr.vlr_stats(region, timespan)
+    return vlr_stats(region, timespan)
 
 
 @router.get("/rankings")
@@ -61,7 +69,7 @@ async def VLR_ranks(
         "jp": "japan",\n
         "col": "collegiate",\n
     """
-    return vlr.vlr_rankings(region)
+    return vlr_rankings(region)
 
 
 @router.get("/match")
@@ -98,11 +106,11 @@ async def VLR_match(
     - /match?q=results&from_page=5&num_pages=3 (scrapes pages 5-7)
     """
     if q == "upcoming":
-        return vlr.vlr_upcoming_matches(num_pages, from_page, to_page)
+        return vlr_upcoming_matches(num_pages, from_page, to_page)
     elif q == "live_score":
-        return vlr.vlr_live_score(num_pages, from_page, to_page)
+        return vlr_live_score(num_pages, from_page, to_page)
     elif q == "results":
-        return vlr.vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
+        return vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
 
     else:
         return {"error": "Invalid query parameter"}
@@ -151,13 +159,13 @@ async def VLR_events(
     Returns event details including title, status, prize pool, dates, region, thumbnail, and event URL.
     """
     if q == "upcoming":
-        return vlr.vlr_events(upcoming=True, completed=False, page=page)
+        return vlr_events(upcoming=True, completed=False, page=page)
     elif q == "completed":
-        return vlr.vlr_events(upcoming=False, completed=True, page=page)
+        return vlr_events(upcoming=False, completed=True, page=page)
     else:
-        return vlr.vlr_events(upcoming=True, completed=True, page=page)
+        return vlr_events(upcoming=True, completed=True, page=page)
 
 
 @router.get("/health")
 def health():
-    return vlr.check_health()
+    return check_health()
