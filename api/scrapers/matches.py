@@ -195,6 +195,283 @@ def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     return data
 
 
+def vlr_upcoming_matches_extended(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
+    """
+    Scrape upcoming matches from the paginated matches page with robust error handling.
+
+    Args:
+        num_pages (int): Number of pages to scrape from page 1 (ignored if from_page/to_page specified)
+        from_page (int, optional): Starting page number (1-based)
+        to_page (int, optional): Ending page number (1-based, inclusive)
+        max_retries (int): Maximum retry attempts per page
+        request_delay (float): Delay between requests in seconds
+        timeout (int): Request timeout in seconds
+
+    Returns:
+        dict: API response with match data
+    """
+
+    result = []
+    status = 200
+    failed_pages = []
+
+    # Determine page range
+    if from_page is not None and to_page is not None:
+        if from_page < 1:
+            raise ValueError("from_page must be >= 1")
+        if to_page < from_page:
+            raise ValueError("to_page must be >= from_page")
+        start_page = from_page
+        end_page = to_page
+        total_pages = end_page - start_page + 1
+    elif from_page is not None:
+        if from_page < 1:
+            raise ValueError("from_page must be >= 1")
+        start_page = from_page
+        end_page = from_page + num_pages - 1
+        total_pages = num_pages
+    elif to_page is not None:
+        if to_page < 1:
+            raise ValueError("to_page must be >= 1")
+        start_page = max(1, to_page - num_pages + 1)
+        end_page = to_page
+        total_pages = end_page - start_page + 1
+    else:
+        # Default behavior: scrape from page 1
+        start_page = 1
+        end_page = num_pages
+        total_pages = num_pages
+
+    # Create a session for connection pooling and efficiency
+    session = requests.Session()
+    session.headers.update(headers)
+
+    print(f"Starting to scrape pages {start_page}-{end_page} ({total_pages} pages) with {request_delay}s delay between requests...")
+
+    for page in range(start_page, end_page + 1):
+        page_success = False
+        retry_count = 0
+
+        while not page_success and retry_count < max_retries:
+            try:
+                if page == 1:
+                    url = "https://www.vlr.gg/matches"
+                else:
+                    url = f"https://www.vlr.gg/matches/?page={page}"
+
+                current_page_num = page - start_page + 1
+                print(f"Scraping page {page} ({current_page_num}/{total_pages}) (attempt {retry_count + 1}/{max_retries})")
+
+                # Add timeout and handle potential connection issues
+                resp = session.get(url, timeout=timeout)
+                html = HTMLParser(resp.text)
+                current_status = resp.status_code
+
+                if current_status != 200:
+                    print(f"Warning: Page {page} returned status {current_status}")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        time.sleep(request_delay * (2 ** retry_count))  # Exponential backoff
+                    continue
+
+                page_results = []
+                items = html.css("a.wf-module-item")
+
+                if not items:
+                    print(f"Warning: No match items found on page {page}")
+                    page_success = True  # Consider empty page as success
+                    break
+
+                for item in items:
+                    try:
+                        # Skip completed matches - only get upcoming/live matches
+                        eta_element = item.css_first(".ml-eta")
+                        if eta_element and "ago" in eta_element.text():
+                            continue
+
+                        href = item.attributes.get("href", "")
+                        url_path = "https://www.vlr.gg" + href if href else ""
+
+                        # Get match status/eta
+                        eta = item.css_first(".ml-status").text().strip() if item.css_first(".ml-status") else ""
+
+                        # If no ml-status, check for time until match
+                        if not eta:
+                            eta_elem = item.css_first(".ml-eta")
+                            if eta_elem:
+                                eta_text = eta_elem.text().strip()
+                                if eta_text and "ago" not in eta_text:
+                                    eta = eta_text
+
+                        # Get teams
+                        teams = []
+                        flags = []
+                        scores = []
+
+                        team_divs = item.css(".match-item-vs-team")
+                        for team_div in team_divs:
+                            team_name_elem = team_div.css_first(".match-item-vs-team-name")
+                            if team_name_elem:
+                                teams.append(team_name_elem.text().strip())
+                            else:
+                                teams.append("TBD")
+
+                            # Get flag
+                            flag_elem = team_div.css_first(".flag")
+                            if flag_elem:
+                                flag_class = flag_elem.attributes.get("class")
+                                if flag_class:
+                                    flag = flag_class.replace("flag ", "").replace(" mod-", "_")
+                                    flags.append(flag)
+                                else:
+                                    flags.append("")
+                            else:
+                                flags.append("")
+
+                            # Get score (usually 0 for upcoming)
+                            score_elem = team_div.css_first(".match-item-vs-team-score")
+                            if score_elem:
+                                scores.append(score_elem.text().strip())
+                            else:
+                                scores.append("")
+
+                        # Handle case where teams list might be incomplete
+                        while len(teams) < 2:
+                            teams.append("TBD")
+                        while len(flags) < 2:
+                            flags.append("")
+                        while len(scores) < 2:
+                            scores.append("")
+
+                        # Get match event and series info
+                        match_event_elem = item.css_first(".match-item-event-series")
+                        match_series = ""
+
+                        if match_event_elem:
+                            event_text = match_event_elem.text().replace("\n", "").replace("\t", "").strip()
+                            # Try to split event and series
+                            parts = event_text.split()
+                            if parts:
+                                match_series = " ".join(parts)
+
+                        # Get tournament name
+                        tourney_elem = item.css_first(".match-item-event")
+                        tourney = ""
+                        if tourney_elem:
+                            tourney_lines = [line.strip() for line in tourney_elem.text().split("\n") if line.strip()]
+                            tourney = tourney_lines[-1] if tourney_lines else ""
+
+                        # Get tournament icon
+                        tourney_icon_elem = item.css_first(".match-item-icon img")
+                        tourney_icon_url = ""
+                        if tourney_icon_elem:
+                            icon_src = tourney_icon_elem.attributes.get("src", "")
+                            if icon_src:
+                                tourney_icon_url = f"https:{icon_src}" if icon_src.startswith("//") else icon_src
+
+                        # Get timestamp if available
+                        timestamp_elem = item.css_first(".moment-tz-convert")
+                        timestamp = ""
+                        if timestamp_elem:
+                            unix_ts = timestamp_elem.attributes.get("data-utc-ts")
+                            if unix_ts:
+                                timestamp = datetime.fromtimestamp(
+                                    int(unix_ts),
+                                    tz=timezone.utc,
+                                ).strftime("%Y-%m-%d %H:%M:%S")
+
+                        page_results.append(
+                            {
+                                "team1": teams[0],
+                                "team2": teams[1],
+                                "flag1": flags[0],
+                                "flag2": flags[1],
+                                "score1": scores[0],
+                                "score2": scores[1],
+                                "time_until_match": eta,
+                                "match_series": match_series,
+                                "match_event": tourney,
+                                "unix_timestamp": timestamp,
+                                "match_page": url_path,
+                                "tournament_icon": tourney_icon_url,
+                                "page_number": page,  # Track which page this came from
+                            }
+                        )
+                    except Exception as e:
+                        print(f"Warning: Failed to parse match item on page {page}: {str(e)}")
+                        continue
+
+                result.extend(page_results)
+                print(f"Successfully scraped page {page}: {len(page_results)} matches")
+                page_success = True
+
+                # Rate limiting between successful requests
+                if page < end_page:
+                    time.sleep(request_delay)
+
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                print(f"Timeout error on page {page}, attempt {retry_count}/{max_retries}")
+                if retry_count < max_retries:
+                    backoff_time = request_delay * (2 ** retry_count)
+                    print(f"Retrying page {page} in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)
+
+            except requests.exceptions.ConnectionError:
+                retry_count += 1
+                print(f"Connection error on page {page}, attempt {retry_count}/{max_retries}")
+                if retry_count < max_retries:
+                    backoff_time = request_delay * (2 ** retry_count)
+                    print(f"Retrying page {page} in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)
+
+            except Exception as e:
+                retry_count += 1
+                print(f"Unexpected error on page {page}: {str(e)}")
+                if retry_count < max_retries:
+                    backoff_time = request_delay * (2 ** retry_count)
+                    print(f"Retrying page {page} in {backoff_time:.1f} seconds...")
+                    time.sleep(backoff_time)
+
+        if not page_success:
+            failed_pages.append(page)
+            print(f"Failed to scrape page {page} after {max_retries} attempts")
+
+    # Close the session
+    session.close()
+
+    # Report results
+    total_matches = len(result)
+    successful_pages = total_pages - len(failed_pages)
+
+    print(f"\nScraping completed:")
+    print(f"  Page range: {start_page}-{end_page}")
+    print(f"  Total matches: {total_matches}")
+    print(f"  Successful pages: {successful_pages}/{total_pages}")
+
+    if failed_pages:
+        print(f"  Failed pages: {failed_pages}")
+        print(f"  Consider retrying failed pages or adjusting parameters")
+
+    segments = {
+        "status": status,
+        "segments": result,
+        "meta": {
+            "page_range": f"{start_page}-{end_page}",
+            "total_pages_requested": total_pages,
+            "successful_pages": successful_pages,
+            "failed_pages": failed_pages,
+            "total_matches": total_matches
+        }
+    }
+    data = {"data": segments}
+
+    if not result:
+        raise Exception(f"No data retrieved. Failed pages: {failed_pages}")
+
+    return data
+
+
 def vlr_match_results(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
     """
     Scrape match results with robust error handling for large page counts.
