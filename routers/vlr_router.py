@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from utils.constants import RATE_LIMIT
 
 from api.scrapers import (
     vlr_events,
@@ -19,13 +20,13 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/news")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_news(request: Request):
     return vlr_news()
 
 
 @router.get("/stats")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_stats(
     request: Request,
     region: str = Query(..., description="Region shortname"),
@@ -47,7 +48,7 @@ async def VLR_stats(
 
 
 @router.get("/rankings")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_ranks(
     request: Request, region: str = Query(..., description="Region shortname")
 ):
@@ -74,7 +75,7 @@ async def VLR_ranks(
 
 
 @router.get("/match")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_match(
     request: Request, 
     q: str,
@@ -122,7 +123,7 @@ async def VLR_match(
 
 
 @router.get("/events")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_events(
     request: Request,
     q: str = Query(

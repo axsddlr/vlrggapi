@@ -2,17 +2,23 @@ import requests
 from selectolax.parser import HTMLParser
 
 from utils.utils import headers
+from utils.constants import VLR_BASE_URL
 
 
 def vlr_stats(region: str, timespan: str):
-    base_url = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200&min_rating=1550&agent=all&map_id=all"
-    url = (
-        f"{base_url}&timespan=all"
-        if timespan.lower() == "all"
-        else f"{base_url}&timespan={timespan}d"
-    )
+    params = {
+        "event_group_id": "all",
+        "event_id": "all",
+        "region": region,
+        "country": "all",
+        "min_rounds": 200,
+        "min_rating": 1550,
+        "agent": "all",
+        "map_id": "all",
+        "timespan": "all" if timespan.lower() == "all" else f"{timespan}d",
+    }
 
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(f"{VLR_BASE_URL}/stats/", params=params, headers=headers)
     html = HTMLParser(resp.text)
     status = resp.status_code
 

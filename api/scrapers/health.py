@@ -1,10 +1,10 @@
 import requests
+from utils.constants import VLR_BASE_URL, API_BASEURL
 
 
 def check_health():
-    sites = ["https://vlrggapi.vercel.app", "https://vlr.gg"]
     results = {}
-    for site in sites:
+    for site in [VLR_BASE_URL, API_BASEURL]:
         try:
             response = requests.get(site, timeout=5)
             results[site] = {

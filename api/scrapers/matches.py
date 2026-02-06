@@ -6,6 +6,7 @@ import requests
 from selectolax.parser import HTMLParser
 
 from utils.utils import headers
+from utils.constants import VLR_BASE_URL
 
 
 def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
@@ -19,8 +20,7 @@ def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
     """
     # Note: VLR.GG upcoming matches are typically only on the homepage
     # Page range parameters are included for API consistency but may not apply
-    url = "https://www.vlr.gg"
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(VLR_BASE_URL, headers=headers)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -86,8 +86,7 @@ def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     """
     # Note: VLR.GG live matches are typically only on the homepage
     # Page range parameters are included for API consistency but may not apply
-    url = "https://www.vlr.gg"
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(VLR_BASE_URL, headers=headers)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -255,9 +254,9 @@ def vlr_upcoming_matches_extended(num_pages=1, from_page=None, to_page=None, max
         while not page_success and retry_count < max_retries:
             try:
                 if page == 1:
-                    url = "https://www.vlr.gg/matches"
+                    url = f"{VLR_BASE_URL}/matches"
                 else:
-                    url = f"https://www.vlr.gg/matches/?page={page}"
+                    url = f"{VLR_BASE_URL}/matches/?page={page}"
 
                 current_page_num = page - start_page + 1
                 print(f"Scraping page {page} ({current_page_num}/{total_pages}) (attempt {retry_count + 1}/{max_retries})")
@@ -532,9 +531,9 @@ def vlr_match_results(num_pages=1, from_page=None, to_page=None, max_retries=3, 
         while not page_success and retry_count < max_retries:
             try:
                 if page == 1:
-                    url = "https://www.vlr.gg/matches/results"
+                    url = f"{VLR_BASE_URL}/matches/results"
                 else:
-                    url = f"https://www.vlr.gg/matches/results/?page={page}"
+                    url = f"{VLR_BASE_URL}/matches/results/?page={page}"
                 
                 current_page_num = page - start_page + 1
                 print(f"Scraping page {page} ({current_page_num}/{total_pages}) (attempt {retry_count + 1}/{max_retries})")

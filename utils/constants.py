@@ -13,6 +13,7 @@ RATE_LIMIT = "600/minute"
 API_TITLE = "vlrggapi"
 API_DESCRIPTION = "An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage. Made by [axsddlr](https://github.com/axsddlr)"
 API_PORT = 3001
+API_BASEURL = 'https://vlrggapi.vercel.app'
 
 # Pagination limits
 MAX_PAGE_LIMIT = 100

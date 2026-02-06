@@ -2,10 +2,11 @@ import requests
 from selectolax.parser import HTMLParser
 
 from utils.utils import headers
+from utils.constants import VLR_BASE_URL
 
 
 def vlr_news():
-    url = "https://www.vlr.gg/news"
+    url = f"{VLR_BASE_URL}/news"
     resp = requests.get(url, headers=headers)
     html = HTMLParser(resp.text)
     status = resp.status_code
