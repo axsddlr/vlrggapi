@@ -1,14 +1,27 @@
+import logging
 import re
 
-import requests
 from selectolax.parser import HTMLParser
 
-from utils.utils import headers, region
+from utils.http_client import get_http_client
+from utils.constants import VLR_RANKINGS_URL, CACHE_TTL_RANKINGS
+from utils.cache_manager import cache_manager
+from utils.error_handling import handle_scraper_errors, validate_region
+
+logger = logging.getLogger(__name__)
 
 
-def vlr_rankings(region_key):
-    url = "https://www.vlr.gg/rankings/" + region[str(region_key)]
-    resp = requests.get(url, headers=headers)
+@handle_scraper_errors
+async def vlr_rankings(region_key):
+    cached = cache_manager.get(CACHE_TTL_RANKINGS, "rankings", region_key)
+    if cached is not None:
+        return cached
+
+    region_name = validate_region(region_key)
+    url = f"{VLR_RANKINGS_URL}/{region_name}"
+
+    client = get_http_client()
+    resp = await client.get(url)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -64,8 +77,11 @@ def vlr_rankings(region_key):
             }
         )
 
-    data = {"status": status, "data": result}
+    # Consistent response shape (v2). V1 router reshapes for backwards compat.
+    data = {"data": {"status": status, "segments": result}}
 
     if status != 200:
         raise Exception("API response: {}".format(status))
+
+    cache_manager.set(CACHE_TTL_RANKINGS, data, "rankings", region_key)
     return data

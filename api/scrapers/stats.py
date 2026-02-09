@@ -1,18 +1,37 @@
-import requests
+import logging
+
 from selectolax.parser import HTMLParser
 
-from utils.utils import headers
+from utils.http_client import get_http_client
+from utils.constants import VLR_STATS_URL, CACHE_TTL_STATS
+from utils.cache_manager import cache_manager
+from utils.error_handling import handle_scraper_errors, validate_region, validate_timespan
+
+logger = logging.getLogger(__name__)
 
 
-def vlr_stats(region: str, timespan: str):
-    base_url = f"https://www.vlr.gg/stats/?event_group_id=all&event_id=all&region={region}&country=all&min_rounds=200&min_rating=1550&agent=all&map_id=all"
+@handle_scraper_errors
+async def vlr_stats(region_key: str, timespan: str):
+    cached = cache_manager.get(CACHE_TTL_STATS, "stats", region_key, timespan)
+    if cached is not None:
+        return cached
+
+    validate_region(region_key)
+    validate_timespan(timespan)
+
+    base_url = (
+        f"{VLR_STATS_URL}/?event_group_id=all&event_id=all"
+        f"&region={region_key}&country=all&min_rounds=200"
+        f"&min_rating=1550&agent=all&map_id=all"
+    )
     url = (
         f"{base_url}&timespan=all"
         if timespan.lower() == "all"
         else f"{base_url}&timespan={timespan}d"
     )
 
-    resp = requests.get(url, headers=headers)
+    client = get_http_client()
+    resp = await client.get(url)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -49,9 +68,10 @@ def vlr_stats(region: str, timespan: str):
             }
         )
 
-    segments = {"status": status, "segments": result}
-    data = {"data": segments}
+    data = {"data": {"status": status, "segments": result}}
 
     if status != 200:
         raise Exception("API response: {}".format(status))
+
+    cache_manager.set(CACHE_TTL_STATS, data, "stats", region_key, timespan)
     return data

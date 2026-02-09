@@ -1,7 +1,7 @@
 version: "3"
 
 services:
-  bot:
+  api:
     container_name: "vlrggapi"
     ports:
       - "3001:3001"
