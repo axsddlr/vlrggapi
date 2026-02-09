@@ -1,6 +1,7 @@
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 from selectolax.parser import HTMLParser
@@ -195,6 +196,203 @@ def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     return data
 
 
+def _parse_eta_to_timedelta(eta_text):
+    """Parse '4h 1m' / '1d 2h' / '30m' into timedelta. Returns None for LIVE/ago/unparseable."""
+    if not eta_text:
+        return None
+    eta_text = eta_text.strip()
+    if not eta_text or "LIVE" in eta_text.upper() or "ago" in eta_text.lower():
+        return None
+    pattern = re.findall(r"(\d+)\s*([dhm])", eta_text.lower())
+    if not pattern:
+        return None
+    total = timedelta()
+    for value, unit in pattern:
+        value = int(value)
+        if unit == "d":
+            total += timedelta(days=value)
+        elif unit == "h":
+            total += timedelta(hours=value)
+        elif unit == "m":
+            total += timedelta(minutes=value)
+    return total if total > timedelta() else None
+
+
+def _combine_date_and_time(date_str, time_text):
+    """Parse 'Mon, February 9, 2026' + '4:00 AM' -> UTC timestamp string.
+
+    Interprets times as US Eastern. Returns '' on failure.
+    """
+    if not date_str or not time_text:
+        return ""
+    time_text = time_text.strip()
+    if not time_text or time_text.upper() in ("TBD", "LIVE", "-"):
+        return ""
+
+    eastern = ZoneInfo("America/New_York")
+
+    # Clean up date_str: remove day-of-week prefix like "Mon, "
+    cleaned_date = re.sub(r"^[A-Za-z]+,\s*", "", date_str.strip())
+    # Handle "Today" / "Tomorrow" by skipping date parse
+    if cleaned_date.lower() in ("today", "tomorrow"):
+        now_eastern = datetime.now(eastern)
+        if cleaned_date.lower() == "tomorrow":
+            now_eastern += timedelta(days=1)
+        cleaned_date = now_eastern.strftime("%B %d, %Y")
+
+    # Parse time: "4:00 AM" or "16:00"
+    time_text = time_text.strip()
+    parsed_time = None
+    for fmt in ("%I:%M %p", "%H:%M"):
+        try:
+            parsed_time = datetime.strptime(time_text, fmt).time()
+            break
+        except ValueError:
+            continue
+    if parsed_time is None:
+        return ""
+
+    # Parse date: "February 9, 2026"
+    parsed_date = None
+    for fmt in ("%B %d, %Y", "%b %d, %Y"):
+        try:
+            parsed_date = datetime.strptime(cleaned_date, fmt).date()
+            break
+        except ValueError:
+            continue
+    if parsed_date is None:
+        return ""
+
+    local_dt = datetime.combine(parsed_date, parsed_time, tzinfo=eastern)
+    utc_dt = local_dt.astimezone(timezone.utc)
+    return utc_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_match_timestamp(item, date_str):
+    """Multi-strategy timestamp extraction for a match item.
+
+    1. .moment-tz-convert[data-utc-ts] (future-proofing)
+    2. .ml-eta countdown -> utcnow() + delta
+    3. date header + .match-item-time -> Eastern -> UTC
+    4. '' if all fail
+    """
+    # Strategy 1: direct UTC timestamp element
+    ts_elem = item.css_first(".moment-tz-convert")
+    if ts_elem:
+        unix_ts = ts_elem.attributes.get("data-utc-ts")
+        if unix_ts:
+            try:
+                return datetime.fromtimestamp(
+                    int(unix_ts), tz=timezone.utc
+                ).strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, OSError):
+                pass
+
+    # Strategy 2: ETA countdown
+    eta_elem = item.css_first(".ml-eta")
+    if eta_elem:
+        delta = _parse_eta_to_timedelta(eta_elem.text())
+        if delta is not None:
+            utc_dt = datetime.now(timezone.utc) + delta
+            return utc_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Strategy 3: date header + match time
+    time_elem = item.css_first(".match-item-time")
+    if time_elem:
+        time_text = time_elem.text().strip()
+        result = _combine_date_and_time(date_str, time_text)
+        if result:
+            return result
+
+    return ""
+
+
+def _parse_single_match(item, date_str, page):
+    """Extract all match fields from one <a> element. Returns dict or None."""
+    # Skip completed matches
+    eta_element = item.css_first(".ml-eta")
+    if eta_element and "ago" in eta_element.text():
+        return None
+
+    href = item.attributes.get("href", "")
+    url_path = "https://www.vlr.gg" + href if href else ""
+
+    # Get match status/eta
+    eta = item.css_first(".ml-status").text().strip() if item.css_first(".ml-status") else ""
+    if not eta:
+        eta_elem = item.css_first(".ml-eta")
+        if eta_elem:
+            eta_text = eta_elem.text().strip()
+            if eta_text and "ago" not in eta_text:
+                eta = eta_text
+
+    # Get teams
+    teams = []
+    flags = []
+    scores = []
+    for team_div in item.css(".match-item-vs-team"):
+        team_name_elem = team_div.css_first(".match-item-vs-team-name")
+        teams.append(team_name_elem.text().strip() if team_name_elem else "TBD")
+
+        flag_elem = team_div.css_first(".flag")
+        if flag_elem:
+            flag_class = flag_elem.attributes.get("class")
+            flags.append(flag_class.replace("flag ", "").replace(" mod-", "_") if flag_class else "")
+        else:
+            flags.append("")
+
+        score_elem = team_div.css_first(".match-item-vs-team-score")
+        scores.append(score_elem.text().strip() if score_elem else "")
+
+    while len(teams) < 2:
+        teams.append("TBD")
+    while len(flags) < 2:
+        flags.append("")
+    while len(scores) < 2:
+        scores.append("")
+
+    # Get match event and series info
+    match_event_elem = item.css_first(".match-item-event-series")
+    match_series = ""
+    if match_event_elem:
+        event_text = match_event_elem.text().replace("\n", "").replace("\t", "").strip()
+        parts = event_text.split()
+        if parts:
+            match_series = " ".join(parts)
+
+    tourney_elem = item.css_first(".match-item-event")
+    tourney = ""
+    if tourney_elem:
+        tourney_lines = [line.strip() for line in tourney_elem.text().split("\n") if line.strip()]
+        tourney = tourney_lines[-1] if tourney_lines else ""
+
+    tourney_icon_elem = item.css_first(".match-item-icon img")
+    tourney_icon_url = ""
+    if tourney_icon_elem:
+        icon_src = tourney_icon_elem.attributes.get("src", "")
+        if icon_src:
+            tourney_icon_url = f"https:{icon_src}" if icon_src.startswith("//") else icon_src
+
+    # Get timestamp using multi-strategy approach
+    timestamp = _parse_match_timestamp(item, date_str)
+
+    return {
+        "team1": teams[0],
+        "team2": teams[1],
+        "flag1": flags[0],
+        "flag2": flags[1],
+        "score1": scores[0],
+        "score2": scores[1],
+        "time_until_match": eta,
+        "match_series": match_series,
+        "match_event": tourney,
+        "unix_timestamp": timestamp,
+        "match_page": url_path,
+        "tournament_icon": tourney_icon_url,
+        "page_number": page,
+    }
+
+
 def vlr_upcoming_matches_extended(num_pages=1, from_page=None, to_page=None, max_retries=3, request_delay=1.0, timeout=30):
     """
     Scrape upcoming matches from the paginated matches page with robust error handling.
@@ -275,131 +473,49 @@ def vlr_upcoming_matches_extended(num_pages=1, from_page=None, to_page=None, max
                     continue
 
                 page_results = []
-                items = html.css("a.wf-module-item")
 
-                if not items:
-                    print(f"Warning: No match items found on page {page}")
-                    page_success = True  # Consider empty page as success
-                    break
+                # Try date-section-based iteration first
+                date_labels = html.css(".wf-label.mod-large")
 
-                for item in items:
-                    try:
-                        # Skip completed matches - only get upcoming/live matches
-                        eta_element = item.css_first(".ml-eta")
-                        if eta_element and "ago" in eta_element.text():
+                if date_labels:
+                    for label in date_labels:
+                        date_str = label.text().strip()
+                        # Traverse to the next sibling .wf-card
+                        sibling = label.next
+                        card = None
+                        while sibling is not None:
+                            if hasattr(sibling, 'tag') and sibling.tag and sibling.attributes:
+                                classes = sibling.attributes.get("class", "")
+                                if "wf-card" in classes:
+                                    card = sibling
+                                    break
+                            sibling = sibling.next
+                        if card is None:
                             continue
-
-                        href = item.attributes.get("href", "")
-                        url_path = "https://www.vlr.gg" + href if href else ""
-
-                        # Get match status/eta
-                        eta = item.css_first(".ml-status").text().strip() if item.css_first(".ml-status") else ""
-
-                        # If no ml-status, check for time until match
-                        if not eta:
-                            eta_elem = item.css_first(".ml-eta")
-                            if eta_elem:
-                                eta_text = eta_elem.text().strip()
-                                if eta_text and "ago" not in eta_text:
-                                    eta = eta_text
-
-                        # Get teams
-                        teams = []
-                        flags = []
-                        scores = []
-
-                        team_divs = item.css(".match-item-vs-team")
-                        for team_div in team_divs:
-                            team_name_elem = team_div.css_first(".match-item-vs-team-name")
-                            if team_name_elem:
-                                teams.append(team_name_elem.text().strip())
-                            else:
-                                teams.append("TBD")
-
-                            # Get flag
-                            flag_elem = team_div.css_first(".flag")
-                            if flag_elem:
-                                flag_class = flag_elem.attributes.get("class")
-                                if flag_class:
-                                    flag = flag_class.replace("flag ", "").replace(" mod-", "_")
-                                    flags.append(flag)
-                                else:
-                                    flags.append("")
-                            else:
-                                flags.append("")
-
-                            # Get score (usually 0 for upcoming)
-                            score_elem = team_div.css_first(".match-item-vs-team-score")
-                            if score_elem:
-                                scores.append(score_elem.text().strip())
-                            else:
-                                scores.append("")
-
-                        # Handle case where teams list might be incomplete
-                        while len(teams) < 2:
-                            teams.append("TBD")
-                        while len(flags) < 2:
-                            flags.append("")
-                        while len(scores) < 2:
-                            scores.append("")
-
-                        # Get match event and series info
-                        match_event_elem = item.css_first(".match-item-event-series")
-                        match_series = ""
-
-                        if match_event_elem:
-                            event_text = match_event_elem.text().replace("\n", "").replace("\t", "").strip()
-                            # Try to split event and series
-                            parts = event_text.split()
-                            if parts:
-                                match_series = " ".join(parts)
-
-                        # Get tournament name
-                        tourney_elem = item.css_first(".match-item-event")
-                        tourney = ""
-                        if tourney_elem:
-                            tourney_lines = [line.strip() for line in tourney_elem.text().split("\n") if line.strip()]
-                            tourney = tourney_lines[-1] if tourney_lines else ""
-
-                        # Get tournament icon
-                        tourney_icon_elem = item.css_first(".match-item-icon img")
-                        tourney_icon_url = ""
-                        if tourney_icon_elem:
-                            icon_src = tourney_icon_elem.attributes.get("src", "")
-                            if icon_src:
-                                tourney_icon_url = f"https:{icon_src}" if icon_src.startswith("//") else icon_src
-
-                        # Get timestamp if available
-                        timestamp_elem = item.css_first(".moment-tz-convert")
-                        timestamp = ""
-                        if timestamp_elem:
-                            unix_ts = timestamp_elem.attributes.get("data-utc-ts")
-                            if unix_ts:
-                                timestamp = datetime.fromtimestamp(
-                                    int(unix_ts),
-                                    tz=timezone.utc,
-                                ).strftime("%Y-%m-%d %H:%M:%S")
-
-                        page_results.append(
-                            {
-                                "team1": teams[0],
-                                "team2": teams[1],
-                                "flag1": flags[0],
-                                "flag2": flags[1],
-                                "score1": scores[0],
-                                "score2": scores[1],
-                                "time_until_match": eta,
-                                "match_series": match_series,
-                                "match_event": tourney,
-                                "unix_timestamp": timestamp,
-                                "match_page": url_path,
-                                "tournament_icon": tourney_icon_url,
-                                "page_number": page,  # Track which page this came from
-                            }
-                        )
-                    except Exception as e:
-                        print(f"Warning: Failed to parse match item on page {page}: {str(e)}")
-                        continue
+                        items = card.css("a.wf-module-item")
+                        for item in items:
+                            try:
+                                match_data = _parse_single_match(item, date_str, page)
+                                if match_data is not None:
+                                    page_results.append(match_data)
+                            except Exception as e:
+                                print(f"Warning: Failed to parse match item on page {page}: {str(e)}")
+                                continue
+                else:
+                    # Fallback: flat iteration (no date labels found)
+                    items = html.css("a.wf-module-item")
+                    if not items:
+                        print(f"Warning: No match items found on page {page}")
+                        page_success = True
+                        break
+                    for item in items:
+                        try:
+                            match_data = _parse_single_match(item, "", page)
+                            if match_data is not None:
+                                page_results.append(match_data)
+                        except Exception as e:
+                            print(f"Warning: Failed to parse match item on page {page}: {str(e)}")
+                            continue
 
                 result.extend(page_results)
                 print(f"Successfully scraped page {page}: {len(page_results)} matches")
