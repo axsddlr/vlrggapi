@@ -1,3 +1,6 @@
+"""
+Original unversioned API router — preserved for backwards compatibility.
+"""
 from fastapi import APIRouter, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -11,21 +14,22 @@ from api.scrapers import (
     vlr_stats,
     vlr_upcoming_matches,
     vlr_upcoming_matches_extended,
-    check_health
+    check_health,
 )
+from utils.constants import RATE_LIMIT
 
-router = APIRouter()
+router = APIRouter(tags=["Default"])
 limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/news")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_news(request: Request):
-    return vlr_news()
+    return await vlr_news()
 
 
 @router.get("/stats")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_stats(
     request: Request,
     region: str = Query(..., description="Region shortname"),
@@ -43,11 +47,11 @@ async def VLR_stats(
         "oce": "oceania",\n
         "mn": "mena"\n
     """
-    return vlr_stats(region, timespan)
+    return await vlr_stats(region, timespan)
 
 
 @router.get("/rankings")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_ranks(
     request: Request, region: str = Query(..., description="Region shortname")
 ):
@@ -70,13 +74,20 @@ async def VLR_ranks(
         "jp": "japan",\n
         "col": "collegiate",\n
     """
-    return vlr_rankings(region)
+    data = await vlr_rankings(region)
+    # Return old shape: {"status": int, "data": [...]}
+    if "data" in data and "segments" in data["data"]:
+        return {
+            "status": data["data"]["status"],
+            "data": data["data"]["segments"],
+        }
+    return data
 
 
 @router.get("/match")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_match(
-    request: Request, 
+    request: Request,
     q: str,
     num_pages: int = Query(1, description="Number of pages to scrape (default: 1)", ge=1, le=600),
     from_page: int = Query(None, description="Starting page number (1-based, optional)", ge=1, le=600),
@@ -96,81 +107,48 @@ async def VLR_match(
     - num_pages: Number of pages from page 1 (ignored if from_page/to_page specified)
     - from_page: Starting page number (1-based, optional)
     - to_page: Ending page number (1-based, inclusive, optional)
-    
-    Additional parameters for robust scraping:
-    - max_retries: Maximum retry attempts per failed page (1-5, default: 3)
-    - request_delay: Delay between requests in seconds (0.5-5.0, default: 1.0)
-    - timeout: Request timeout in seconds (10-120, default: 30)
-    
-    Examples:
-    - /match?q=upcoming_extended&num_pages=3 (scrapes pages 1-3 of upcoming matches)
-    - /match?q=results&num_pages=5 (scrapes pages 1-5)
-    - /match?q=results&from_page=10&to_page=15 (scrapes pages 10-15)
-    - /match?q=results&from_page=5&num_pages=3 (scrapes pages 5-7)
     """
     if q == "upcoming":
-        return vlr_upcoming_matches(num_pages, from_page, to_page)
+        return await vlr_upcoming_matches(num_pages, from_page, to_page)
     elif q == "upcoming_extended":
-        return vlr_upcoming_matches_extended(num_pages, from_page, to_page, max_retries, request_delay, timeout)
+        return await vlr_upcoming_matches_extended(num_pages, from_page, to_page, max_retries, request_delay, timeout)
     elif q == "live_score":
-        return vlr_live_score(num_pages, from_page, to_page)
+        return await vlr_live_score(num_pages, from_page, to_page)
     elif q == "results":
-        return vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
-
+        return await vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
     else:
         return {"error": "Invalid query parameter"}
 
 
 @router.get("/events")
-@limiter.limit("600/minute")
+@limiter.limit(RATE_LIMIT)
 async def VLR_events(
     request: Request,
     q: str = Query(
-        None, 
+        None,
         description="Event type filter",
         example="completed",
         enum=["upcoming", "completed"]
     ),
     page: int = Query(
-        1, 
+        1,
         description="Page number for pagination (only applies to completed events)",
         example=1,
-        ge=1, 
+        ge=1,
         le=100
     )
 ):
     """
     Get Valorant events from VLR.GG with optional filtering and pagination.
-    
-    ## Event Types:
-    - **upcoming**: Currently active or scheduled future events
-    - **completed**: Historical events that have finished
-    - **default**: Both upcoming and completed events (when q parameter is omitted)
-    
-    ## Pagination:
-    - Only applies to **completed events**
-    - Upcoming events are always from the first page
-    - Page numbers range from 1 to 100
-    - Each page contains approximately 25-30 events
-    
-    ## Usage Examples:
-    - `GET /events` - All events (upcoming + completed page 1)
-    - `GET /events?q=upcoming` - Only upcoming events
-    - `GET /events?q=completed` - Only completed events (page 1)
-    - `GET /events?q=completed&page=3` - Completed events from page 3
-    - `GET /events?page=2` - All events (upcoming + completed page 2)
-    
-    ## Response Format:
-    Returns event details including title, status, prize pool, dates, region, thumbnail, and event URL.
     """
     if q == "upcoming":
-        return vlr_events(upcoming=True, completed=False, page=page)
+        return await vlr_events(upcoming=True, completed=False, page=page)
     elif q == "completed":
-        return vlr_events(upcoming=False, completed=True, page=page)
+        return await vlr_events(upcoming=False, completed=True, page=page)
     else:
-        return vlr_events(upcoming=True, completed=True, page=page)
+        return await vlr_events(upcoming=True, completed=True, page=page)
 
 
 @router.get("/health")
-def health():
-    return check_health()
+async def health():
+    return await check_health()
