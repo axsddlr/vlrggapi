@@ -225,18 +225,226 @@ GET /v2/health
 
 ## Original Endpoints
 
-These endpoints are preserved for backwards compatibility. See the Swagger docs at `/` for full details.
+These endpoints are preserved for backwards compatibility. Most return `{"data": {"status": int, "segments": [...]}}`. The `/rankings` endpoint returns `{"status": int, "data": [...]}` instead.
 
-| Route | Query Params | Notes |
-|---|---|---|
-| `GET /news` | — | |
-| `GET /match` | `q` (upcoming/upcoming_extended/live_score/results), pagination params | |
-| `GET /stats` | `region`, `timespan` | |
-| `GET /rankings` | `region` | Returns `{"status": int, "data": [...]}` (different shape) |
-| `GET /events` | `q` (upcoming/completed), `page` | |
-| `GET /health` | — | |
+| Route | Query Params |
+|---|---|
+| `GET /news` | — |
+| `GET /match` | `q` (upcoming/upcoming_extended/live_score/results), pagination params |
+| `GET /stats` | `region`, `timespan` |
+| `GET /rankings` | `region` |
+| `GET /events` | `q` (upcoming/completed), `page` |
+| `GET /health` | — |
 
-Most original endpoints return `{"data": {"status": int, "segments": [...]}}`. The `/rankings` endpoint returns `{"status": int, "data": [...]}` instead.
+<details>
+<summary><code>GET /news</code> — response example</summary>
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "title": "Riot introduces changes to Premier, adds new Invite Division",
+        "description": "Riot looks to streamline Premier promotions and Challengers qualification with upcoming changes.",
+        "date": "April 23, 2024",
+        "author": "thothgow",
+        "url_path": "https://vlr.gg/336099/riot-introduces-changes-to-premier-adds-new-invite-division"
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /match?q=upcoming</code> — response example</summary>
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "team1": "G2 Esports",
+        "team2": "Leviatán",
+        "flag1": "flag_us",
+        "flag2": "flag_cl",
+        "time_until_match": "51m from now",
+        "match_series": "Regular Season: Week 3",
+        "match_event": "Champions Tour 2024: Americas Stage 1",
+        "unix_timestamp": "2024-04-24 21:00:00",
+        "match_page": "https://www.vlr.gg/..."
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /match?q=live_score</code> — response example</summary>
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "team1": "Team 1",
+        "team2": "Team 2",
+        "flag1": "flag_xx",
+        "flag2": "flag_xx",
+        "team1_logo": "https://...",
+        "team2_logo": "https://...",
+        "score1": "1",
+        "score2": "0",
+        "team1_round_ct": "7",
+        "team1_round_t": "6",
+        "team2_round_ct": "5",
+        "team2_round_t": "4",
+        "map_number": "1",
+        "current_map": "Ascent",
+        "time_until_match": "LIVE",
+        "match_event": "Event name",
+        "match_series": "Series name",
+        "unix_timestamp": "1713996000",
+        "match_page": "https://www.vlr.gg/..."
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /match?q=results</code> — response example</summary>
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "team1": "Team Vitality",
+        "team2": "Gentle Mates",
+        "score1": "0",
+        "score2": "2",
+        "flag1": "flag_eu",
+        "flag2": "flag_fr",
+        "time_completed": "2h 44m ago",
+        "round_info": "Regular Season-Week 4",
+        "tournament_name": "Champions Tour 2024: EMEA Stage 1",
+        "match_page": "/318931/team-vitality-vs-gentle-mates-...",
+        "tournament_icon": "https://owcdn.net/img/..."
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /stats?region=na&timespan=30</code> — response example</summary>
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "player": "corey",
+        "org": "TTR",
+        "rating": "1.18",
+        "average_combat_score": "235.2",
+        "kill_deaths": "1.19",
+        "kill_assists_survived_traded": "72%",
+        "average_damage_per_round": "158.4",
+        "kills_per_round": "0.81",
+        "assists_per_round": "0.29",
+        "first_kills_per_round": "0.19",
+        "first_deaths_per_round": "0.13",
+        "headshot_percentage": "26%",
+        "clutch_success_percentage": "28%"
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /rankings?region=na</code> — response example</summary>
+
+Note: `/rankings` uses a different response shape than other endpoints.
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "rank": "1",
+      "team": "Sentinels",
+      "country": "United States",
+      "last_played": "22h ago",
+      "last_played_team": "vs. Evil Geniuses",
+      "last_played_team_logo": "//owcdn.net/img/...",
+      "record": "7-3",
+      "earnings": "$295,500",
+      "logo": "//owcdn.net/img/..."
+    }
+  ]
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /events?q=upcoming</code> — response example</summary>
+
+```json
+{
+  "data": {
+    "status": 200,
+    "segments": [
+      {
+        "title": "VCT 2025: Pacific Stage 2",
+        "status": "ongoing",
+        "prize": "$250,000",
+        "dates": "Jul 15—Aug 31",
+        "region": "kr",
+        "thumb": "https://owcdn.net/img/...",
+        "url_path": "https://www.vlr.gg/event/..."
+      }
+    ]
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><code>GET /health</code> — response example</summary>
+
+```json
+{
+  "https://vlrggapi.vercel.app": {
+    "status": "Healthy",
+    "status_code": 200
+  },
+  "https://vlr.gg": {
+    "status": "Healthy",
+    "status_code": 200
+  }
+}
+```
+
+</details>
 
 ## Region Codes
 
