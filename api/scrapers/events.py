@@ -1,19 +1,25 @@
-import requests
+import logging
+
 from selectolax.parser import HTMLParser
 
-from utils.utils import headers
-from utils.constants import VLR_EVENTS_URL
+from utils.http_client import get_http_client
+from utils.constants import VLR_EVENTS_URL, CACHE_TTL_EVENTS
+from utils.cache_manager import cache_manager
+from utils.error_handling import handle_scraper_errors
 from utils.html_parsers import (
     extract_text_content,
     extract_prize_value,
     extract_date_range,
     extract_region_from_flag,
     normalize_image_url,
-    build_full_url
+    build_full_url,
 )
 
+logger = logging.getLogger(__name__)
 
-def vlr_events(upcoming=True, completed=True, page=1):
+
+@handle_scraper_errors
+async def vlr_events(upcoming=True, completed=True, page=1):
     """
     Get Valorant events from VLR.GG
 
@@ -25,13 +31,19 @@ def vlr_events(upcoming=True, completed=True, page=1):
     Returns:
         dict: Response with status code and events data
     """
+    cache_key = ("events", upcoming, completed, page)
+    cached = cache_manager.get(CACHE_TTL_EVENTS, *cache_key)
+    if cached is not None:
+        return cached
+
     # Build URL with pagination for completed events
     if completed and page > 1:
         url = f"{VLR_EVENTS_URL}/?page={page}"
     else:
         url = VLR_EVENTS_URL
-    
-    resp = requests.get(url, headers=headers)
+
+    client = get_http_client()
+    resp = await client.get(url)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -45,16 +57,13 @@ def vlr_events(upcoming=True, completed=True, page=1):
     def parse_events(container):
         """Helper function to parse event cards"""
         for event_item in container.css("a.event-item"):
-            # Extract basic information using utility functions
             title = extract_text_content(event_item.css_first(".event-item-title"))
             event_status = extract_text_content(event_item.css_first(".event-item-desc-item-status"))
-            
-            # Extract complex parsed data
+
             prize = extract_prize_value(event_item.css_first(".event-item-desc-item.mod-prize"))
             dates = extract_date_range(event_item.css_first(".event-item-desc-item.mod-dates"))
             region = extract_region_from_flag(event_item.css_first(".event-item-desc-item.mod-location .flag"))
-            
-            # Extract and normalize URLs
+
             img_elem = event_item.css_first(".event-item-thumb img")
             thumb = normalize_image_url(img_elem.attributes.get("src", "") if img_elem else "")
             full_url = build_full_url(event_item.attributes.get("href", ""))
@@ -85,4 +94,6 @@ def vlr_events(upcoming=True, completed=True, page=1):
             if parent and parent.css("a.event-item"):
                 parse_events(parent)
 
-    return {"data": {"status": status, "segments": events}}
+    data = {"data": {"status": status, "segments": events}}
+    cache_manager.set(CACHE_TTL_EVENTS, data, *cache_key)
+    return data
