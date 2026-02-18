@@ -7,11 +7,18 @@ from slowapi.util import get_remote_address
 
 from api.scrapers import (
     vlr_events,
+    vlr_event_matches,
     vlr_live_score,
     vlr_match_results,
+    vlr_match_detail,
     vlr_news,
+    vlr_player,
+    vlr_player_matches,
     vlr_rankings,
     vlr_stats,
+    vlr_team,
+    vlr_team_matches,
+    vlr_team_transactions,
     vlr_upcoming_matches,
     vlr_upcoming_matches_extended,
     check_health,
@@ -147,6 +154,79 @@ async def VLR_events(
         return await vlr_events(upcoming=False, completed=True, page=page)
     else:
         return await vlr_events(upcoming=True, completed=True, page=page)
+
+
+@router.get("/match/details")
+@limiter.limit(RATE_LIMIT)
+async def VLR_match_detail(
+    request: Request,
+    match_id: str = Query(..., description="VLR.GG match ID"),
+):
+    """Get detailed match data including per-map stats, rounds, and head-to-head."""
+    return await vlr_match_detail(match_id)
+
+
+@router.get("/player")
+@limiter.limit(RATE_LIMIT)
+async def VLR_player(
+    request: Request,
+    id: str = Query(..., description="VLR.GG player ID"),
+    timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
+):
+    """Get player profile with agent stats, event placements, and team history."""
+    return await vlr_player(id, timespan)
+
+
+@router.get("/player/matches")
+@limiter.limit(RATE_LIMIT)
+async def VLR_player_matches(
+    request: Request,
+    id: str = Query(..., description="VLR.GG player ID"),
+    page: int = Query(1, description="Page number", ge=1, le=100),
+):
+    """Get paginated match history for a player."""
+    return await vlr_player_matches(id, page)
+
+
+@router.get("/team")
+@limiter.limit(RATE_LIMIT)
+async def VLR_team(
+    request: Request,
+    id: str = Query(..., description="VLR.GG team ID"),
+):
+    """Get team profile with roster, rating, and event placements."""
+    return await vlr_team(id)
+
+
+@router.get("/team/matches")
+@limiter.limit(RATE_LIMIT)
+async def VLR_team_matches(
+    request: Request,
+    id: str = Query(..., description="VLR.GG team ID"),
+    page: int = Query(1, description="Page number", ge=1, le=100),
+):
+    """Get paginated match history for a team."""
+    return await vlr_team_matches(id, page)
+
+
+@router.get("/team/transactions")
+@limiter.limit(RATE_LIMIT)
+async def VLR_team_transactions(
+    request: Request,
+    id: str = Query(..., description="VLR.GG team ID"),
+):
+    """Get roster transaction history for a team."""
+    return await vlr_team_transactions(id)
+
+
+@router.get("/events/matches")
+@limiter.limit(RATE_LIMIT)
+async def VLR_event_matches(
+    request: Request,
+    event_id: str = Query(..., description="VLR.GG event ID"),
+):
+    """Get match list for a specific event."""
+    return await vlr_event_matches(event_id)
 
 
 @router.get("/health")

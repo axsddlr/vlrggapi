@@ -7,17 +7,29 @@ from slowapi.util import get_remote_address
 
 from api.scrapers import (
     vlr_events,
+    vlr_event_matches,
     vlr_live_score,
     vlr_match_results,
+    vlr_match_detail,
     vlr_news,
+    vlr_player,
+    vlr_player_matches,
     vlr_rankings,
     vlr_stats,
+    vlr_team,
+    vlr_team_matches,
+    vlr_team_transactions,
     vlr_upcoming_matches,
     vlr_upcoming_matches_extended,
     check_health,
 )
 from utils.constants import RATE_LIMIT
-from utils.error_handling import validate_match_query, validate_event_query
+from utils.error_handling import (
+    validate_match_query,
+    validate_event_query,
+    validate_player_timespan,
+    validate_id_param,
+)
 
 router = APIRouter(prefix="/v2", tags=["v2"])
 limiter = Limiter(key_func=get_remote_address)
@@ -130,6 +142,108 @@ async def v2_events(
     else:
         result = await vlr_events(upcoming=True, completed=True, page=page)
 
+    return _wrap_v2(result)
+
+
+@router.get("/match/details")
+@limiter.limit(RATE_LIMIT)
+async def v2_match_detail(
+    request: Request,
+    match_id: str = Query(..., description="VLR.GG match ID"),
+):
+    """
+    Get detailed match data.
+
+    Includes per-map stats (player K/D/A, ACS, rating), round-by-round data,
+    head-to-head history, performance tab (kill matrix, advanced stats),
+    and economy tab data.
+    """
+    validate_id_param(match_id, "match_id")
+    result = await vlr_match_detail(match_id)
+    return _wrap_v2(result)
+
+
+@router.get("/player")
+@limiter.limit(RATE_LIMIT)
+async def v2_player(
+    request: Request,
+    id: str = Query(..., description="VLR.GG player ID"),
+    timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
+):
+    """
+    Get player profile.
+
+    Includes agent stats, current/past teams, event placements, news, and total winnings.
+    """
+    validate_id_param(id)
+    validate_player_timespan(timespan)
+    result = await vlr_player(id, timespan)
+    return _wrap_v2(result)
+
+
+@router.get("/player/matches")
+@limiter.limit(RATE_LIMIT)
+async def v2_player_matches(
+    request: Request,
+    id: str = Query(..., description="VLR.GG player ID"),
+    page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
+):
+    """Get paginated match history for a player."""
+    validate_id_param(id)
+    result = await vlr_player_matches(id, page)
+    return _wrap_v2(result)
+
+
+@router.get("/team")
+@limiter.limit(RATE_LIMIT)
+async def v2_team(
+    request: Request,
+    id: str = Query(..., description="VLR.GG team ID"),
+):
+    """
+    Get team profile.
+
+    Includes roster, rating/ranking info, event placements, and total winnings.
+    """
+    validate_id_param(id)
+    result = await vlr_team(id)
+    return _wrap_v2(result)
+
+
+@router.get("/team/matches")
+@limiter.limit(RATE_LIMIT)
+async def v2_team_matches(
+    request: Request,
+    id: str = Query(..., description="VLR.GG team ID"),
+    page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
+):
+    """Get paginated match history for a team."""
+    validate_id_param(id)
+    result = await vlr_team_matches(id, page)
+    return _wrap_v2(result)
+
+
+@router.get("/team/transactions")
+@limiter.limit(RATE_LIMIT)
+async def v2_team_transactions(
+    request: Request,
+    id: str = Query(..., description="VLR.GG team ID"),
+):
+    """Get roster transaction history for a team (joins, leaves, benchings)."""
+    validate_id_param(id)
+    result = await vlr_team_transactions(id)
+    return _wrap_v2(result)
+
+
+@router.get("/events/matches")
+@limiter.limit(RATE_LIMIT)
+async def v2_event_matches(
+    request: Request,
+    event_id: str = Query(..., description="VLR.GG event ID"),
+):
+    """Get match list for a specific event with scores and VOD links."""
+    validate_id_param(event_id, "event_id")
+    result = await vlr_event_matches(event_id)
     return _wrap_v2(result)
 
 

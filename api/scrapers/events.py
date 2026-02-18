@@ -3,7 +3,7 @@ import logging
 from selectolax.parser import HTMLParser
 
 from utils.http_client import get_http_client
-from utils.constants import VLR_EVENTS_URL, CACHE_TTL_EVENTS
+from utils.constants import VLR_BASE_URL, VLR_EVENTS_URL, CACHE_TTL_EVENTS, CACHE_TTL_EVENT_MATCHES
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors
 from utils.html_parsers import (
@@ -13,6 +13,7 @@ from utils.html_parsers import (
     extract_region_from_flag,
     normalize_image_url,
     build_full_url,
+    parse_href_id_slug,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,4 +97,99 @@ async def vlr_events(upcoming=True, completed=True, page=1):
 
     data = {"data": {"status": status, "segments": events}}
     cache_manager.set(CACHE_TTL_EVENTS, data, *cache_key)
+    return data
+
+
+@handle_scraper_errors
+async def vlr_event_matches(event_id: str):
+    """Get match list for a specific event from VLR.GG.
+
+    Args:
+        event_id: The numeric event ID from vlr.gg
+
+    Returns:
+        dict: Response with status code and match list data
+    """
+    cache_key = ("event_matches", event_id)
+    cached = cache_manager.get(CACHE_TTL_EVENT_MATCHES, *cache_key)
+    if cached is not None:
+        return cached
+
+    url = f"{VLR_BASE_URL}/event/matches/{event_id}"
+    client = get_http_client()
+    resp = await client.get(url)
+    html = HTMLParser(resp.text)
+    status = resp.status_code
+
+    matches = []
+    current_date = ""
+
+    # Iterate through date labels and their associated match cards
+    for elem in html.css(".wf-label.mod-large, a.wf-module-item.match-item"):
+        classes = elem.attributes.get("class", "")
+
+        if "wf-label" in classes:
+            current_date = elem.text(strip=True)
+            continue
+
+        # It's a match item
+        href = elem.attributes.get("href", "")
+        match_id, _ = parse_href_id_slug(href)
+        match_url = build_full_url(href)
+
+        # Teams
+        team_elems = elem.css(".match-item-vs-team")
+        teams = []
+        for te in team_elems:
+            name_el = te.css_first(".match-item-vs-team-name")
+            score_el = te.css_first(".match-item-vs-team-score")
+            name = name_el.text(strip=True) if name_el else "TBD"
+            score = score_el.text(strip=True) if score_el else ""
+            is_winner = "mod-winner" in te.attributes.get("class", "")
+            teams.append({"name": name, "score": score, "is_winner": is_winner})
+
+        while len(teams) < 2:
+            teams.append({"name": "TBD", "score": "", "is_winner": False})
+
+        # Event series
+        series_el = elem.css_first(".match-item-event-series")
+        event_series = series_el.text(strip=True) if series_el else ""
+
+        # Status
+        status_el = elem.css_first(".ml-status")
+        eta_el = elem.css_first(".ml-eta")
+        match_status = ""
+        if status_el:
+            match_status = status_el.text(strip=True)
+        elif eta_el:
+            match_status = eta_el.text(strip=True)
+
+        # VOD tags
+        vods = []
+        for vod_el in elem.css(".match-item-vod .wf-tag"):
+            vod_text = vod_el.text(strip=True)
+            vod_link_el = vod_el if vod_el.tag == "a" else vod_el.parent
+            vod_href = vod_link_el.attributes.get("href", "") if vod_link_el else ""
+            if vod_href:
+                vod_href = build_full_url(vod_href) if vod_href.startswith("/") else vod_href
+            vods.append({"label": vod_text, "url": vod_href})
+
+        # Note (e.g. "Bo3")
+        note_el = elem.css_first(".match-item-note")
+        note = note_el.text(strip=True) if note_el else ""
+
+        matches.append({
+            "match_id": match_id,
+            "url": match_url,
+            "date": current_date,
+            "status": match_status,
+            "note": note,
+            "event_series": event_series,
+            "team1": teams[0],
+            "team2": teams[1],
+            "vods": vods,
+        })
+
+    data = {"data": {"status": status, "segments": matches}}
+    cache_manager.set(CACHE_TTL_EVENT_MATCHES, data, *cache_key)
     return data

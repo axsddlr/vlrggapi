@@ -13,6 +13,7 @@ from utils.utils import region
 logger = logging.getLogger(__name__)
 
 VALID_TIMESPANS = {"30", "60", "90", "all"}
+VALID_PLAYER_TIMESPANS = {"30d", "60d", "90d", "all"}
 VALID_MATCH_QUERIES = {"upcoming", "upcoming_extended", "live_score", "results"}
 VALID_EVENT_QUERIES = {"upcoming", "completed", None}
 
@@ -107,6 +108,24 @@ def validate_event_query(q: str | None):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid event query '{q}'. Valid values: upcoming, completed",
+        )
+
+
+def validate_player_timespan(ts: str):
+    """Validate player timespan value. Raises 400 on invalid."""
+    if ts not in VALID_PLAYER_TIMESPANS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid timespan '{ts}'. Valid values: {', '.join(sorted(VALID_PLAYER_TIMESPANS))}",
+        )
+
+
+def validate_id_param(value: str, name: str = "id"):
+    """Validate that an ID parameter is a positive integer string. Raises 400 on invalid."""
+    if not value or not value.isdigit():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {name} '{value}'. Must be a numeric ID.",
         )
 
 

@@ -4,7 +4,18 @@ An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Es
 
 Built by [Andre Saddler](https://github.com/axsddlr/)
 
-## What's New in V2
+## What's New
+
+### Match Details, Player Profiles & Team Profiles
+
+New endpoints provide deep coverage of individual matches, players, and teams:
+
+- **Match details** — per-map player stats (K/D/A, ACS, rating), round-by-round data, kill matrix, economy breakdown, head-to-head history
+- **Player profiles** — agent stats (17 metrics), current/past teams, event placements, total winnings, match history
+- **Team profiles** — roster with roles/captain status, VLR rating/rank, event placements, total winnings, match history, roster transactions
+- **Event matches** — full match list for any event with scores and VOD links
+
+### V2 API
 
 - **Standardized responses** — all V2 endpoints return `{"status": "success", "data": {...}}`
 - **Input validation** — invalid parameters return HTTP 400 with clear error messages
@@ -196,6 +207,289 @@ GET /v2/events?q=upcoming
 }
 ```
 
+### `GET /v2/match/details`
+
+Fetches detailed data for a specific match.
+
+- **Params:**
+  - `match_id` (required) — VLR.GG match ID
+- **Cache:** 5 minutes (30s for live matches)
+
+```
+GET /v2/match/details?match_id=595657
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "event": { "name": "Champions Tour 2024: Americas Stage 1", "series": "Regular Season: Week 3" },
+    "teams": [
+      { "name": "Sentinels", "score": 2, "logo": "//owcdn.net/img/..." },
+      { "name": "Cloud9", "score": 1, "logo": "//owcdn.net/img/..." }
+    ],
+    "maps": [
+      {
+        "map_name": "Ascent",
+        "picked_by": "Sentinels",
+        "duration": "28:41",
+        "score": { "team1": { "total": 13, "ct": 8, "t": 5 }, "team2": { "total": 9, "ct": 4, "t": 5 } },
+        "players": [
+          {
+            "team": "Sentinels",
+            "player": "TenZ",
+            "agent": "Jett",
+            "rating": "1.32",
+            "acs": "267",
+            "kills": "24",
+            "deaths": "15",
+            "assists": "3",
+            "kast": "77%",
+            "adr": "172.3",
+            "hs_pct": "32%",
+            "fk": "4",
+            "fd": "2"
+          }
+        ]
+      }
+    ],
+    "rounds": [
+      { "round_number": 1, "team1_win": true, "team2_win": false, "team1_side": "ct", "team2_side": "t" }
+    ],
+    "head_to_head": [
+      { "event": "VCT Americas", "match": "Sentinels vs Cloud9", "score": "2-1" }
+    ],
+    "streams": [{ "name": "English", "link": "https://twitch.tv/..." }],
+    "performance": {
+      "kill_matrix": [{ "player": "TenZ", "kills_against": { "opponent1": 5 } }],
+      "advanced_stats": [{ "player": "TenZ", "2k": 3, "3k": 1, "4k": 0, "5k": 0, "clutch_1v1": 1 }]
+    },
+    "economy": [
+      { "team": "Sentinels", "pistol": "50%", "eco": "33%", "semi_buy": "60%", "full_buy": "72%" }
+    ]
+  }
+}
+```
+
+### `GET /v2/player`
+
+Fetches a player profile.
+
+- **Params:**
+  - `id` (required) — VLR.GG player ID
+  - `timespan` — `30d`, `60d`, `90d`, or `all` (default: `90d`)
+- **Cache:** 30 minutes
+
+```
+GET /v2/player?id=9&timespan=all
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "info": {
+      "name": "TenZ",
+      "real_name": "Tyson Ngo",
+      "avatar": "https://owcdn.net/img/...",
+      "country": "Canada",
+      "socials": [{ "platform": "twitter", "url": "https://twitter.com/TenZOfficial" }]
+    },
+    "current_teams": [{ "name": "Sentinels", "tag": "SEN", "status": "Active" }],
+    "past_teams": [{ "name": "Cloud9", "tag": "C9", "dates": "2020–2021" }],
+    "agent_stats": [
+      {
+        "agent": "Jett",
+        "use_count": 150,
+        "use_pct": "42%",
+        "rounds": 3200,
+        "rating": "1.15",
+        "acs": "245.3",
+        "kd": "1.18",
+        "adr": "162.1",
+        "kast": "71%",
+        "kpr": "0.82",
+        "apr": "0.28",
+        "fkpr": "0.20",
+        "fdpr": "0.14",
+        "kills": 2624,
+        "deaths": 2224,
+        "assists": 896,
+        "fk": 640,
+        "fd": 448
+      }
+    ],
+    "event_placements": [
+      { "event": "Champions 2024", "placement": "1st", "prize": "$100,000", "team": "Sentinels" }
+    ],
+    "total_winnings": "$177,650"
+  }
+}
+```
+
+### `GET /v2/player/matches`
+
+Fetches paginated match history for a player.
+
+- **Params:**
+  - `id` (required) — VLR.GG player ID
+  - `page` — page number (default: 1)
+- **Cache:** 10 minutes
+
+```
+GET /v2/player/matches?id=9&page=1
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "matches": [
+      {
+        "match_id": "595657",
+        "event": "Champions Tour 2024: Americas Stage 1",
+        "teams": { "team1": "Sentinels", "team2": "Cloud9" },
+        "score": "2-1",
+        "date": "Apr 24, 2024"
+      }
+    ],
+    "page": 1
+  }
+}
+```
+
+### `GET /v2/team`
+
+Fetches a team profile.
+
+- **Params:**
+  - `id` (required) — VLR.GG team ID
+- **Cache:** 30 minutes
+
+```
+GET /v2/team?id=2
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "info": {
+      "name": "Sentinels",
+      "tag": "SEN",
+      "logo": "https://owcdn.net/img/...",
+      "country": "United States",
+      "socials": [{ "platform": "twitter", "url": "https://twitter.com/Sentinels" }]
+    },
+    "rating": { "vlr_rating": "1850", "rank": "1", "region": "na" },
+    "roster": [
+      {
+        "alias": "TenZ",
+        "real_name": "Tyson Ngo",
+        "role": "Duelist",
+        "is_captain": false,
+        "avatar": "https://owcdn.net/img/..."
+      }
+    ],
+    "event_placements": [
+      { "event": "Champions 2024", "placement": "1st", "prize": "$100,000" }
+    ],
+    "total_winnings": "$1,194,000"
+  }
+}
+```
+
+### `GET /v2/team/matches`
+
+Fetches paginated match history for a team.
+
+- **Params:**
+  - `id` (required) — VLR.GG team ID
+  - `page` — page number (default: 1)
+- **Cache:** 10 minutes
+
+```
+GET /v2/team/matches?id=2&page=1
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "matches": [
+      {
+        "match_id": "595657",
+        "event": "Champions Tour 2024: Americas Stage 1",
+        "teams": { "team1": "Sentinels", "team2": "Cloud9" },
+        "score": "2-1",
+        "date": "Apr 24, 2024"
+      }
+    ],
+    "page": 1
+  }
+}
+```
+
+### `GET /v2/team/transactions`
+
+Fetches roster transaction history for a team.
+
+- **Params:**
+  - `id` (required) — VLR.GG team ID
+- **Cache:** 1 hour
+
+```
+GET /v2/team/transactions?id=2
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "transactions": [
+      {
+        "date": "Jan 15, 2024",
+        "action": "join",
+        "player": "TenZ",
+        "position": "Duelist"
+      }
+    ]
+  }
+}
+```
+
+### `GET /v2/events/matches`
+
+Fetches the match list for a specific event.
+
+- **Params:**
+  - `event_id` (required) — VLR.GG event ID
+- **Cache:** 10 minutes
+
+```
+GET /v2/events/matches?event_id=2095
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "matches": [
+      {
+        "match_id": "595657",
+        "teams": [
+          { "name": "Sentinels", "score": "2", "is_winner": true },
+          { "name": "Cloud9", "score": "1", "is_winner": false }
+        ],
+        "event_series": "Grand Final",
+        "vods": [{ "name": "VOD", "url": "https://youtube.com/..." }],
+        "date": "Apr 24, 2024"
+      }
+    ]
+  }
+}
+```
+
 ### `GET /v2/health`
 
 Returns health status of the API and vlr.gg.
@@ -231,9 +525,16 @@ These endpoints are preserved for backwards compatibility. Most return `{"data":
 |---|---|
 | `GET /news` | — |
 | `GET /match` | `q` (upcoming/upcoming_extended/live_score/results), pagination params |
+| `GET /match/details` | `match_id` |
 | `GET /stats` | `region`, `timespan` |
 | `GET /rankings` | `region` |
 | `GET /events` | `q` (upcoming/completed), `page` |
+| `GET /events/matches` | `event_id` |
+| `GET /player` | `id`, `timespan` |
+| `GET /player/matches` | `id`, `page` |
+| `GET /team` | `id` |
+| `GET /team/matches` | `id`, `page` |
+| `GET /team/transactions` | `id` |
 | `GET /health` | — |
 
 <details>
@@ -471,8 +772,10 @@ V2 endpoints validate input and return HTTP 400 with descriptive error messages:
 
 - **Invalid region** — must be one of the codes listed above
 - **Invalid timespan** — must be `30`, `60`, `90`, or `all`
+- **Invalid player timespan** — must be `30d`, `60d`, `90d`, or `all`
 - **Invalid match query** — must be `upcoming`, `upcoming_extended`, `live_score`, or `results`
 - **Invalid event query** — must be `upcoming` or `completed`
+- **Invalid ID** — `match_id`, `event_id`, player `id`, and team `id` must be positive integers
 
 ```json
 {
@@ -489,12 +792,20 @@ V2 endpoints use an in-memory TTL cache to reduce load on vlr.gg. Cache duration
 | Data | TTL |
 |---|---|
 | Live scores | 30 seconds |
+| Match detail (live) | 30 seconds |
 | Upcoming matches | 5 minutes |
+| Match detail | 5 minutes |
 | News | 10 minutes |
+| Player matches | 10 minutes |
+| Team matches | 10 minutes |
+| Event matches | 10 minutes |
 | Stats | 30 minutes |
 | Events | 30 minutes |
+| Player profile | 30 minutes |
+| Team profile | 30 minutes |
 | Rankings | 1 hour |
 | Results | 1 hour |
+| Team transactions | 1 hour |
 
 Original endpoints are not cached.
 
