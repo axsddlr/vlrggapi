@@ -6,4 +6,4 @@ lxml==6.0.2
 slowapi==0.1.9
 selectolax==0.4.6
 pytest==8.3.5
-pytest-asyncio==0.25.3
+pytest-asyncio==1.2.0
