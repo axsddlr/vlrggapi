@@ -125,13 +125,13 @@ async def VLR_events(
     q: str = Query(
         None,
         description="Event type filter",
-        example="completed",
+        examples=["completed"],
         enum=["upcoming", "completed"]
     ),
     page: int = Query(
         1,
         description="Page number for pagination (only applies to completed events)",
-        example=1,
+        examples=[1],
         ge=1,
         le=100
     )
