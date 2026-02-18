@@ -5,25 +5,24 @@ from fastapi import APIRouter, Query, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from api.scrapers import (
-    vlr_events,
-    vlr_event_matches,
-    vlr_live_score,
-    vlr_match_results,
-    vlr_match_detail,
-    vlr_news,
-    vlr_player,
-    vlr_player_matches,
-    vlr_rankings,
-    vlr_stats,
-    vlr_team,
-    vlr_team_matches,
-    vlr_team_transactions,
-    vlr_upcoming_matches,
-    vlr_upcoming_matches_extended,
-    check_health,
+from routers.shared_handlers import (
+    get_event_matches_data,
+    get_events_data,
+    get_health_data,
+    get_match_data,
+    get_match_detail_data,
+    get_news_data,
+    get_player_data,
+    get_player_matches_data,
+    get_rankings_data,
+    get_stats_data,
+    get_team_data,
+    get_team_matches_data,
+    get_team_transactions_data,
+    to_legacy_rankings_shape,
 )
-from utils.constants import RATE_LIMIT
+from utils.constants import RATE_LIMIT, MAX_MATCH_QUERY_BOUND
+from utils.error_handling import validate_match_workload
 
 router = APIRouter(tags=["Default"])
 limiter = Limiter(key_func=get_remote_address)
@@ -32,7 +31,7 @@ limiter = Limiter(key_func=get_remote_address)
 @router.get("/news")
 @limiter.limit(RATE_LIMIT)
 async def VLR_news(request: Request):
-    return await vlr_news()
+    return await get_news_data()
 
 
 @router.get("/stats")
@@ -54,7 +53,7 @@ async def VLR_stats(
         "oce": "oceania",\n
         "mn": "mena"\n
     """
-    return await vlr_stats(region, timespan)
+    return await get_stats_data(region, timespan)
 
 
 @router.get("/rankings")
@@ -81,14 +80,7 @@ async def VLR_ranks(
         "jp": "japan",\n
         "col": "collegiate",\n
     """
-    data = await vlr_rankings(region)
-    # Return old shape: {"status": int, "data": [...]}
-    if "data" in data and "segments" in data["data"]:
-        return {
-            "status": data["data"]["status"],
-            "data": data["data"]["segments"],
-        }
-    return data
+    return to_legacy_rankings_shape(await get_rankings_data(region))
 
 
 @router.get("/match")
@@ -96,9 +88,9 @@ async def VLR_ranks(
 async def VLR_match(
     request: Request,
     q: str,
-    num_pages: int = Query(1, description="Number of pages to scrape (default: 1)", ge=1, le=600),
-    from_page: int = Query(None, description="Starting page number (1-based, optional)", ge=1, le=600),
-    to_page: int = Query(None, description="Ending page number (1-based, inclusive, optional)", ge=1, le=600),
+    num_pages: int = Query(1, description="Number of pages to scrape (default: 1)", ge=1, le=MAX_MATCH_QUERY_BOUND),
+    from_page: int = Query(None, description="Starting page number (1-based, optional)", ge=1, le=MAX_MATCH_QUERY_BOUND),
+    to_page: int = Query(None, description="Ending page number (1-based, inclusive, optional)", ge=1, le=MAX_MATCH_QUERY_BOUND),
     max_retries: int = Query(3, description="Maximum retry attempts per page (default: 3)", ge=1, le=5),
     request_delay: float = Query(1.0, description="Delay between requests in seconds (default: 1.0)", ge=0.5, le=5.0),
     timeout: int = Query(30, description="Request timeout in seconds (default: 30)", ge=10, le=120)
@@ -115,16 +107,15 @@ async def VLR_match(
     - from_page: Starting page number (1-based, optional)
     - to_page: Ending page number (1-based, inclusive, optional)
     """
-    if q == "upcoming":
-        return await vlr_upcoming_matches(num_pages, from_page, to_page)
-    elif q == "upcoming_extended":
-        return await vlr_upcoming_matches_extended(num_pages, from_page, to_page, max_retries, request_delay, timeout)
-    elif q == "live_score":
-        return await vlr_live_score(num_pages, from_page, to_page)
-    elif q == "results":
-        return await vlr_match_results(num_pages, from_page, to_page, max_retries, request_delay, timeout)
-    else:
+    if q not in {"upcoming", "upcoming_extended", "live_score", "results"}:
         return {"error": "Invalid query parameter"}
+
+    if q in {"upcoming_extended", "results"}:
+        validate_match_workload(num_pages, from_page, to_page, max_retries, timeout)
+
+    return await get_match_data(
+        q, num_pages, from_page, to_page, max_retries, request_delay, timeout
+    )
 
 
 @router.get("/events")
@@ -148,12 +139,7 @@ async def VLR_events(
     """
     Get Valorant events from VLR.GG with optional filtering and pagination.
     """
-    if q == "upcoming":
-        return await vlr_events(upcoming=True, completed=False, page=page)
-    elif q == "completed":
-        return await vlr_events(upcoming=False, completed=True, page=page)
-    else:
-        return await vlr_events(upcoming=True, completed=True, page=page)
+    return await get_events_data(q, page)
 
 
 @router.get("/match/details")
@@ -163,7 +149,7 @@ async def VLR_match_detail(
     match_id: str = Query(..., description="VLR.GG match ID"),
 ):
     """Get detailed match data including per-map stats, rounds, and head-to-head."""
-    return await vlr_match_detail(match_id)
+    return await get_match_detail_data(match_id)
 
 
 @router.get("/player")
@@ -174,7 +160,7 @@ async def VLR_player(
     timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
 ):
     """Get player profile with agent stats, event placements, and team history."""
-    return await vlr_player(id, timespan)
+    return await get_player_data(id, timespan)
 
 
 @router.get("/player/matches")
@@ -185,7 +171,7 @@ async def VLR_player_matches(
     page: int = Query(1, description="Page number", ge=1, le=100),
 ):
     """Get paginated match history for a player."""
-    return await vlr_player_matches(id, page)
+    return await get_player_matches_data(id, page)
 
 
 @router.get("/team")
@@ -195,7 +181,7 @@ async def VLR_team(
     id: str = Query(..., description="VLR.GG team ID"),
 ):
     """Get team profile with roster, rating, and event placements."""
-    return await vlr_team(id)
+    return await get_team_data(id)
 
 
 @router.get("/team/matches")
@@ -206,7 +192,7 @@ async def VLR_team_matches(
     page: int = Query(1, description="Page number", ge=1, le=100),
 ):
     """Get paginated match history for a team."""
-    return await vlr_team_matches(id, page)
+    return await get_team_matches_data(id, page)
 
 
 @router.get("/team/transactions")
@@ -216,7 +202,7 @@ async def VLR_team_transactions(
     id: str = Query(..., description="VLR.GG team ID"),
 ):
     """Get roster transaction history for a team."""
-    return await vlr_team_transactions(id)
+    return await get_team_transactions_data(id)
 
 
 @router.get("/events/matches")
@@ -226,9 +212,9 @@ async def VLR_event_matches(
     event_id: str = Query(..., description="VLR.GG event ID"),
 ):
     """Get match list for a specific event."""
-    return await vlr_event_matches(event_id)
+    return await get_event_matches_data(event_id)
 
 
 @router.get("/health")
 async def health():
-    return await check_health()
+    return await get_health_data()
