@@ -6,10 +6,18 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, List
 
+from fastapi import HTTPException
 from selectolax.parser import HTMLParser
 
 from utils.http_client import get_http_client
-from utils.constants import DEFAULT_RETRIES, DEFAULT_REQUEST_DELAY, DEFAULT_TIMEOUT
+from utils.constants import (
+    DEFAULT_RETRIES,
+    DEFAULT_REQUEST_DELAY,
+    DEFAULT_TIMEOUT,
+    MAX_MATCH_PAGE_WINDOW,
+    MAX_MATCH_RETRIES,
+    MAX_MATCH_TIMEOUT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +73,31 @@ async def scrape_multiple_pages(
         dict in the standard response shape.
     """
     start_page, end_page, total_pages = config.get_page_range()
+    if total_pages > MAX_MATCH_PAGE_WINDOW:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Requested page window ({total_pages}) exceeds the maximum allowed "
+                f"({MAX_MATCH_PAGE_WINDOW})."
+            ),
+        )
+    if config.max_retries > MAX_MATCH_RETRIES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Max retries ({config.max_retries}) exceeds the maximum allowed "
+                f"({MAX_MATCH_RETRIES})."
+            ),
+        )
+    if config.timeout > MAX_MATCH_TIMEOUT:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Timeout ({config.timeout}s) exceeds the maximum allowed "
+                f"({MAX_MATCH_TIMEOUT}s)."
+            ),
+        )
+
     client = get_http_client()
     result: list[dict] = []
     failed_pages: list[int] = []

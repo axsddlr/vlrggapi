@@ -69,3 +69,20 @@ async def test_original_invalid_match_returns_error(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "error" in data
+
+
+@pytest.mark.anyio
+async def test_v2_wrap_propagates_scraper_error_status(client, monkeypatch):
+    async def fake_news():
+        return {"data": {"status": 502, "error": "upstream failure", "segments": []}}
+
+    monkeypatch.setattr("routers.v2_router.get_news_data", fake_news)
+    resp = await client.get("/v2/news")
+    assert resp.status_code == 502
+    assert "detail" in resp.json()
+
+
+@pytest.mark.anyio
+async def test_v2_match_rejects_oversized_workload(client):
+    resp = await client.get("/v2/match?q=results&num_pages=21")
+    assert resp.status_code == 400

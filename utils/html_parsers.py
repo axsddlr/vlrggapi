@@ -4,6 +4,7 @@ Common HTML parsing utilities for VLR.GG scrapers
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 from zoneinfo import ZoneInfo
 
@@ -263,3 +264,106 @@ def parse_match_timestamp(item, date_str: str) -> str:
             return result
 
     return ""
+
+
+# --- Shared helpers for new scrapers ---
+
+def parse_href_id_slug(href: str) -> tuple[str, str]:
+    """Extract numeric ID and slug from VLR hrefs like '/player/1234/tenz'.
+
+    Returns (id, slug). Either may be '' if not found.
+    """
+    if not href:
+        return "", ""
+    parts = href.strip("/").split("/")
+    for i, part in enumerate(parts):
+        if part.isdigit():
+            slug = parts[i + 1] if i + 1 < len(parts) else ""
+            return part, slug
+    return "", ""
+
+
+_PLATFORM_PATTERNS = {
+    "twitter": ("twitter.com", "x.com"),
+    "twitch": ("twitch.tv",),
+    "instagram": ("instagram.com",),
+    "youtube": ("youtube.com", "youtu.be"),
+    "discord": ("discord.gg", "discord.com"),
+    "facebook": ("facebook.com",),
+    "vk": ("vk.com",),
+}
+
+
+def infer_platform(url: str) -> str:
+    """Detect social platform from URL. Returns lowercase name or 'other'."""
+    if not url:
+        return "other"
+    host = urlparse(url).netloc.lower().lstrip("www.")
+    for platform, domains in _PLATFORM_PATTERNS.items():
+        if any(d in host for d in domains):
+            return platform
+    return "other"
+
+
+def parse_match_items(html, container_selector: str = "a.wf-module-item.match-item") -> list[dict]:
+    """Parse match list items shared by player/team match history pages.
+
+    Returns list of dicts with: url, teams, scores, event, date, status.
+    """
+    items = html.css(container_selector)
+    results = []
+    for item in items:
+        href = item.attributes.get("href", "")
+        match_id, _ = parse_href_id_slug(href)
+        url = build_full_url(href)
+
+        # Teams
+        team_elems = item.css(".match-item-vs-team")
+        teams = []
+        for te in team_elems:
+            name_el = te.css_first(".match-item-vs-team-name")
+            score_el = te.css_first(".match-item-vs-team-score")
+            name = name_el.text(strip=True) if name_el else "TBD"
+            score = score_el.text(strip=True) if score_el else ""
+            teams.append({"name": name, "score": score})
+        while len(teams) < 2:
+            teams.append({"name": "TBD", "score": ""})
+
+        # Event
+        event_el = item.css_first(".match-item-event")
+        event_text = ""
+        if event_el:
+            lines = [l.strip() for l in event_el.text().split("\n") if l.strip()]
+            event_text = lines[-1] if lines else ""
+        series_el = item.css_first(".match-item-event-series")
+        event_series = " ".join(series_el.text().split()) if series_el else ""
+
+        # ETA / status
+        eta_el = item.css_first(".ml-status") or item.css_first(".ml-eta")
+        status = eta_el.text(strip=True) if eta_el else ""
+
+        # Timestamp
+        ts_el = item.css_first(".moment-tz-convert")
+        timestamp = ""
+        if ts_el:
+            unix_ts = ts_el.attributes.get("data-utc-ts")
+            if unix_ts:
+                try:
+                    timestamp = datetime.fromtimestamp(
+                        int(unix_ts), tz=timezone.utc
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                except (ValueError, OSError):
+                    pass
+
+        results.append({
+            "match_id": match_id,
+            "url": url,
+            "team1": teams[0],
+            "team2": teams[1],
+            "event": event_text,
+            "event_series": event_series,
+            "status": status,
+            "timestamp": timestamp,
+        })
+
+    return results
