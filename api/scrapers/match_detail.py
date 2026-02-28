@@ -125,7 +125,7 @@ def _parse_teams(html: HTMLParser) -> list[dict]:
     winner_idx = -1
 
     for span in score_elems:
-        cls = span.attributes.get("class", "")
+        cls = span.attributes.get("class") or ""
         if "match-header-vs-score-winner" in cls:
             winner_score = span.text(strip=True)
         elif "match-header-vs-score-loser" in cls:
@@ -135,7 +135,7 @@ def _parse_teams(html: HTMLParser) -> list[dict]:
     # VLR renders winner/loser spans in DOM order: left team first, right team second.
     # Collect all score spans in order to figure out which side won.
     scored_spans = [
-        (span.attributes.get("class", ""), span.text(strip=True))
+        (span.attributes.get("class") or "", span.text(strip=True))
         for span in score_elems
         if span.text(strip=True).isdigit()
     ]
