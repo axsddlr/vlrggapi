@@ -26,7 +26,7 @@ from utils.html_parsers import (
     normalize_image_url,
     parse_href_id_slug,
 )
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -596,7 +596,7 @@ async def vlr_team(team_id: str) -> dict:
 
     url = f"{VLR_BASE_URL}/team/{team_id}"
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
     if status != 200:
@@ -655,7 +655,7 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
 
     url = f"{VLR_BASE_URL}/team/matches/{team_id}/?page={page}"
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
     if status != 200:
@@ -734,7 +734,7 @@ async def vlr_team_transactions(team_id: str) -> dict:
 
     url = f"{VLR_BASE_URL}/team/transactions/{team_id}/"
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
     if status != 200:

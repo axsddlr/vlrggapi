@@ -2,7 +2,7 @@ import logging
 
 from selectolax.parser import HTMLParser
 
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_BASE_URL, VLR_EVENTS_URL, CACHE_TTL_EVENTS, CACHE_TTL_EVENT_MATCHES
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors
@@ -44,7 +44,7 @@ async def vlr_events(upcoming=True, completed=True, page=1):
         url = VLR_EVENTS_URL
 
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -117,7 +117,7 @@ async def vlr_event_matches(event_id: str):
 
     url = f"{VLR_BASE_URL}/event/matches/{event_id}"
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     html = HTMLParser(resp.text)
     status = resp.status_code
 

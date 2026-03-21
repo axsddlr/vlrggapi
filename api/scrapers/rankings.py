@@ -3,7 +3,7 @@ import re
 
 from selectolax.parser import HTMLParser
 
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_RANKINGS_URL, CACHE_TTL_RANKINGS
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors, validate_region
@@ -108,7 +108,7 @@ async def vlr_rankings(region_key):
     url = f"{VLR_RANKINGS_URL}/{region_name}"
 
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     html = HTMLParser(resp.text)
     status = resp.status_code
 

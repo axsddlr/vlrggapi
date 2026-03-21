@@ -1,10 +1,12 @@
 """Tests for utility modules: pagination, html_parsers, error_handling, cache_manager."""
 import pytest
+import httpx
 from datetime import timedelta
 
 from fastapi import HTTPException
 
 from utils.pagination import PaginationConfig, scrape_multiple_pages
+from utils.http_client import fetch_with_retries
 from utils.html_parsers import parse_eta_to_timedelta
 from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
 from utils.cache_manager import CacheManager, cache_manager
@@ -228,7 +230,12 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
     cache_manager.clear_all()
     client = FakeAsyncClient(
         {
-            "https://www.vlr.gg/events": [FakeResponse(503), FakeResponse(200)],
+            "https://www.vlr.gg/events": [
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(200),
+            ],
         }
     )
 
@@ -242,6 +249,8 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
     assert client.calls == [
         ("https://www.vlr.gg/events", None),
         ("https://www.vlr.gg/events", None),
+        ("https://www.vlr.gg/events", None),
+        ("https://www.vlr.gg/events", None),
     ]
     assert cache_manager.get(CACHE_TTL_EVENTS, "events", True, True, 1) == second
     cache_manager.clear_all()
@@ -252,7 +261,12 @@ async def test_vlr_match_detail_does_not_cache_non_200_responses(monkeypatch):
     cache_manager.clear_all()
     client = FakeAsyncClient(
         {
-            "https://www.vlr.gg/123": [FakeResponse(503), FakeResponse(200)],
+            "https://www.vlr.gg/123": [
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(200),
+            ],
         }
     )
 
@@ -266,6 +280,65 @@ async def test_vlr_match_detail_does_not_cache_non_200_responses(monkeypatch):
     assert client.calls == [
         ("https://www.vlr.gg/123", None),
         ("https://www.vlr.gg/123", None),
+        ("https://www.vlr.gg/123", None),
+        ("https://www.vlr.gg/123", None),
     ]
     assert cache_manager.get(CACHE_TTL_MATCH_DETAIL, "match_detail", "123") == second
     cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_retries_retryable_status_codes(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [FakeResponse(503), FakeResponse(200)],
+        }
+    )
+
+    async def fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=0.1,
+    )
+
+    assert response.status_code == 200
+    assert client.calls == [
+        ("https://example.test/resource", None),
+        ("https://example.test/resource", None),
+    ]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_retries_request_errors(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [
+                httpx.ReadTimeout("timed out"),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    async def fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=0.1,
+    )
+
+    assert response.status_code == 200
+    assert client.calls == [
+        ("https://example.test/resource", None),
+        ("https://example.test/resource", None),
+    ]

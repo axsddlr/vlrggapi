@@ -16,7 +16,7 @@ from utils.constants import (
 )
 from utils.error_handling import handle_scraper_errors
 from utils.html_parsers import build_full_url, normalize_image_url, parse_href_id_slug
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -661,7 +661,7 @@ async def vlr_match_detail(match_id: str) -> dict:
     client = get_http_client()
 
     # 1. Fetch the base page
-    base_resp = await client.get(base_url)
+    base_resp = await fetch_with_retries(base_url, client=client)
     base_html = HTMLParser(base_resp.text)
     http_status = base_resp.status_code
 
@@ -679,7 +679,7 @@ async def vlr_match_detail(match_id: str) -> dict:
 
         async def _safe_fetch(url: str) -> HTMLParser | None:
             try:
-                resp = await client.get(url)
+                resp = await fetch_with_retries(url, client=client)
                 return HTMLParser(resp.text)
             except Exception as exc:
                 logger.warning("Failed to fetch tab page %s: %s", url, exc)

@@ -70,8 +70,8 @@ class FakeAsyncClient:
         self.response = response
         self.calls = []
 
-    async def get(self, url: str):
-        self.calls.append(url)
+    async def get(self, url: str, timeout=None):
+        self.calls.append((url, timeout))
         return self.response
 
 
@@ -102,7 +102,7 @@ async def test_vlr_rankings_preserves_current_output_shape(monkeypatch):
             ],
         }
     }
-    assert client.calls == ["https://www.vlr.gg/rankings/north-america"]
+    assert client.calls == [("https://www.vlr.gg/rankings/north-america", None)]
     cache_manager.clear_all()
 
 

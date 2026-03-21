@@ -16,7 +16,7 @@ from utils.html_parsers import (
     normalize_image_url,
     parse_href_id_slug,
 )
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -477,7 +477,7 @@ async def vlr_player(player_id: str, timespan: str = "90d") -> dict:
 
     url = f"{VLR_BASE_URL}/player/{player_id}/?timespan={timespan}"
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
     html = HTMLParser(resp.text)
@@ -528,7 +528,7 @@ async def vlr_player_matches(player_id: str, page: int = 1) -> dict:
 
     url = f"{VLR_BASE_URL}/player/matches/{player_id}/?page={page}"
     client = get_http_client()
-    resp = await client.get(url)
+    resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
     html = HTMLParser(resp.text)

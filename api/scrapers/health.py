@@ -2,7 +2,7 @@ import logging
 
 import httpx
 
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_HEALTH_UPSTREAM
 
@@ -14,7 +14,7 @@ async def _check_upstream_sites(client: httpx.AsyncClient) -> dict:
     results: dict[str, dict] = {}
     for site in sites:
         try:
-            response = await client.get(site, timeout=5)
+            response = await fetch_with_retries(site, client=client, timeout=5)
             results[site] = {
                 "status": "Healthy" if response.status_code == 200 else "Unhealthy",
                 "status_code": response.status_code,

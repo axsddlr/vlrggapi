@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from selectolax.parser import HTMLParser
 
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import (
     VLR_BASE_URL,
     VLR_MATCHES_URL,
@@ -35,7 +35,7 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
         return cached
 
     client = get_http_client()
-    resp = await client.get(VLR_BASE_URL)
+    resp = await fetch_with_retries(VLR_BASE_URL, client=client)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -90,7 +90,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
         return cached
 
     client = get_http_client()
-    resp = await client.get(VLR_BASE_URL)
+    resp = await fetch_with_retries(VLR_BASE_URL, client=client)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
@@ -142,7 +142,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     # Fetch all match detail pages concurrently (fix N+1)
     async def fetch_match_detail(url):
         try:
-            return await client.get(url)
+            return await fetch_with_retries(url, client=client)
         except Exception as e:
             logger.warning("Failed to fetch match detail %s: %s", url, e)
             return None

@@ -2,7 +2,7 @@ import logging
 
 from selectolax.parser import HTMLParser
 
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_NEWS_URL, CACHE_TTL_NEWS
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors
@@ -17,7 +17,7 @@ async def vlr_news():
         return cached
 
     client = get_http_client()
-    resp = await client.get(VLR_NEWS_URL)
+    resp = await fetch_with_retries(VLR_NEWS_URL, client=client)
     html = HTMLParser(resp.text)
     status = resp.status_code
 
