@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 
 from api.scrapers.news import vlr_news
@@ -125,5 +126,24 @@ async def test_vlr_news_parses_live_like_markup_without_raw_text_splitting(monke
             ],
         }
     }
+    assert client.calls == [("https://www.vlr.gg/news", None)]
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_vlr_news_coalesces_concurrent_cache_misses(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(FakeResponse(200, NEWS_HTML))
+
+    async def delayed_get(url: str, timeout=None):
+        await asyncio.sleep(0)
+        return await FakeAsyncClient.get(client, url, timeout)
+
+    monkeypatch.setattr("api.scrapers.news.get_http_client", lambda: client)
+    monkeypatch.setattr(client, "get", delayed_get)
+
+    first, second = await asyncio.gather(vlr_news(), vlr_news())
+
+    assert first == second
     assert client.calls == [("https://www.vlr.gg/news", None)]
     cache_manager.clear_all()

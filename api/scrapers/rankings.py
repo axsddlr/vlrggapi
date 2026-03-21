@@ -100,50 +100,49 @@ def _extract_last_played_summary(item) -> tuple[str, str, str]:
 
 @handle_scraper_errors
 async def vlr_rankings(region_key):
-    cached = cache_manager.get(CACHE_TTL_RANKINGS, "rankings", region_key)
-    if cached is not None:
-        return cached
+    async def build():
+        region_name = validate_region(region_key)
+        url = f"{VLR_RANKINGS_URL}/{region_name}"
 
-    region_name = validate_region(region_key)
-    url = f"{VLR_RANKINGS_URL}/{region_name}"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
-    client = get_http_client()
-    resp = await fetch_with_retries(url, client=client)
-    html = HTMLParser(resp.text)
-    status = resp.status_code
+        result = []
+        for item in html.css("div.rank-item"):
+            rank = _normalize_text(item.css_first("div.rank-item-rank-num").text())
+            team = _extract_ranked_team_name(item)
+            team_link = item.css_first("a.rank-item-team")
+            team_logo = team_link.css_first("img") if team_link else None
+            logo = team_logo.attributes.get("src", "") if team_logo else ""
+            logo = re.sub(r"\/img\/vlr\/tmp\/vlr.png", "", logo)
+            country = _normalize_text(item.css_first("div.rank-item-team-country").text())
+            last_played, last_played_team, last_played_team_logo = _extract_last_played_summary(item)
+            record = _normalize_text(item.css_first("div.rank-item-record").text())
+            earnings = _normalize_text(item.css_first("div.rank-item-earnings").text())
 
-    result = []
-    for item in html.css("div.rank-item"):
-        rank = _normalize_text(item.css_first("div.rank-item-rank-num").text())
-        team = _extract_ranked_team_name(item)
-        team_link = item.css_first("a.rank-item-team")
-        team_logo = team_link.css_first("img") if team_link else None
-        logo = team_logo.attributes.get("src", "") if team_logo else ""
-        logo = re.sub(r"\/img\/vlr\/tmp\/vlr.png", "", logo)
-        country = _normalize_text(item.css_first("div.rank-item-team-country").text())
-        last_played, last_played_team, last_played_team_logo = _extract_last_played_summary(item)
-        record = _normalize_text(item.css_first("div.rank-item-record").text())
-        earnings = _normalize_text(item.css_first("div.rank-item-earnings").text())
+            result.append(
+                {
+                    "rank": rank,
+                    "team": team,
+                    "country": country,
+                    "last_played": last_played,
+                    "last_played_team": last_played_team,
+                    "last_played_team_logo": last_played_team_logo,
+                    "record": record,
+                    "earnings": earnings,
+                    "logo": logo,
+                }
+            )
 
-        result.append(
-            {
-                "rank": rank,
-                "team": team,
-                "country": country,
-                "last_played": last_played,
-                "last_played_team": last_played_team,
-                "last_played_team_logo": last_played_team_logo,
-                "record": record,
-                "earnings": earnings,
-                "logo": logo,
-            }
-        )
+        data = {"data": {"status": status, "segments": result}}
 
-    # Consistent response shape (v2). V1 router reshapes for backwards compat.
-    data = {"data": {"status": status, "segments": result}}
+        if status != 200:
+            raise Exception("API response: {}".format(status))
 
-    if status != 200:
-        raise Exception("API response: {}".format(status))
+        return data
 
-    cache_manager.set(CACHE_TTL_RANKINGS, data, "rankings", region_key)
-    return data
+    return await cache_manager.get_or_create_async(
+        CACHE_TTL_RANKINGS, build, "rankings", region_key
+    )

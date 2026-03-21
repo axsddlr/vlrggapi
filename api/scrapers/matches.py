@@ -72,194 +72,188 @@ def _safe_match_page(item) -> str:
 @handle_scraper_errors
 async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
     """Get upcoming matches from VLR.GG homepage."""
-    cached = cache_manager.get(CACHE_TTL_UPCOMING, "upcoming")
-    if cached is not None:
-        return cached
+    async def build():
+        client = get_http_client()
+        resp = await fetch_with_retries(VLR_BASE_URL, client=client)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
-    client = get_http_client()
-    resp = await fetch_with_retries(VLR_BASE_URL, client=client)
-    html = HTMLParser(resp.text)
-    status = resp.status_code
+        result = []
+        for item in html.css(".js-home-matches-upcoming a.wf-module-item"):
+            is_upcoming = item.css_first(".h-match-eta.mod-upcoming")
+            if not is_upcoming:
+                continue
 
-    result = []
-    for item in html.css(".js-home-matches-upcoming a.wf-module-item"):
-        is_upcoming = item.css_first(".h-match-eta.mod-upcoming")
-        if not is_upcoming:
-            continue
+            team1, team2 = extract_match_teams(item, ".h-match-team")
 
-        team1, team2 = extract_match_teams(item, ".h-match-team")
+            eta = _safe_text(item.css_first(".h-match-eta"))
+            if eta != "LIVE":
+                eta = eta + " from now"
 
-        eta = _safe_text(item.css_first(".h-match-eta"))
-        if eta != "LIVE":
-            eta = eta + " from now"
+            match_event = _safe_text(item.css_first(".h-match-preview-event"))
+            match_series = _safe_text(item.css_first(".h-match-preview-series"))
+            timestamp = _safe_timestamp(item)
+            url_path = _safe_match_page(item)
 
-        match_event = _safe_text(item.css_first(".h-match-preview-event"))
-        match_series = _safe_text(item.css_first(".h-match-preview-series"))
-        timestamp = _safe_timestamp(item)
-        url_path = _safe_match_page(item)
+            result.append(
+                {
+                    "team1": team1["name"],
+                    "team2": team2["name"],
+                    "flag1": team1["flag"],
+                    "flag2": team2["flag"],
+                    "time_until_match": eta,
+                    "match_series": match_series,
+                    "match_event": match_event,
+                    "unix_timestamp": timestamp,
+                    "match_page": url_path,
+                }
+            )
 
-        result.append(
-            {
-                "team1": team1["name"],
-                "team2": team2["name"],
-                "flag1": team1["flag"],
-                "flag2": team2["flag"],
-                "time_until_match": eta,
-                "match_series": match_series,
-                "match_event": match_event,
-                "unix_timestamp": timestamp,
-                "match_page": url_path,
-            }
-        )
+        data = {"data": {"status": status, "segments": result}}
 
-    data = {"data": {"status": status, "segments": result}}
+        if status != 200:
+            raise Exception("API response: {}".format(status))
 
-    if status != 200:
-        raise Exception("API response: {}".format(status))
+        return data
 
-    cache_manager.set(CACHE_TTL_UPCOMING, data, "upcoming")
-    return data
+    return await cache_manager.get_or_create_async(CACHE_TTL_UPCOMING, build, "upcoming")
 
 
 @handle_scraper_errors
 async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     """Get live match scores from VLR.GG. Fetches match detail pages concurrently."""
-    cached = cache_manager.get(CACHE_TTL_LIVE, "live_score")
-    if cached is not None:
-        return cached
+    async def build():
+        client = get_http_client()
+        resp = await fetch_with_retries(VLR_BASE_URL, client=client)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
-    client = get_http_client()
-    resp = await fetch_with_retries(VLR_BASE_URL, client=client)
-    html = HTMLParser(resp.text)
-    status = resp.status_code
+        matches = html.css(".js-home-matches-upcoming a.wf-module-item")
+        live_matches = []
+        for match in matches:
+            is_live = match.css_first(".h-match-eta.mod-live")
+            if not is_live:
+                continue
 
-    matches = html.css(".js-home-matches-upcoming a.wf-module-item")
-    live_matches = []
-    for match in matches:
-        is_live = match.css_first(".h-match-eta.mod-live")
-        if not is_live:
-            continue
+            teams = []
+            flags = []
+            scores = []
+            round_texts = []
+            for team in match.css(".h-match-team"):
+                teams.append(_safe_text(team.css_first(".h-match-team-name")) or "TBD")
+                flags.append(_safe_flag(team))
+                scores.append(_safe_text(team.css_first(".h-match-team-score")))
+                round_info_ct = team.css(".h-match-team-rounds .mod-ct")
+                round_info_t = team.css(".h-match-team-rounds .mod-t")
+                round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
+                round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
+                round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
-        teams = []
-        flags = []
-        scores = []
-        round_texts = []
-        for team in match.css(".h-match-team"):
-            teams.append(_safe_text(team.css_first(".h-match-team-name")) or "TBD")
-            flags.append(_safe_flag(team))
-            scores.append(_safe_text(team.css_first(".h-match-team-score")))
-            round_info_ct = team.css(".h-match-team-rounds .mod-ct")
-            round_info_t = team.css(".h-match-team-rounds .mod-t")
-            round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
-            round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
-            round_texts.append({"ct": round_text_ct, "t": round_text_t})
+            while len(teams) < 2:
+                teams.append("TBD")
+            while len(flags) < 2:
+                flags.append("")
+            while len(scores) < 2:
+                scores.append("")
+            while len(round_texts) < 2:
+                round_texts.append({"ct": "N/A", "t": "N/A"})
 
-        while len(teams) < 2:
-            teams.append("TBD")
-        while len(flags) < 2:
-            flags.append("")
-        while len(scores) < 2:
-            scores.append("")
-        while len(round_texts) < 2:
-            round_texts.append({"ct": "N/A", "t": "N/A"})
+            match_event = _safe_text(match.css_first(".h-match-preview-event"))
+            match_series = _safe_text(match.css_first(".h-match-preview-series"))
+            timestamp = _safe_timestamp(match)
+            url_path = _safe_match_page(match)
 
-        match_event = _safe_text(match.css_first(".h-match-preview-event"))
-        match_series = _safe_text(match.css_first(".h-match-preview-series"))
-        timestamp = _safe_timestamp(match)
-        url_path = _safe_match_page(match)
+            live_matches.append({
+                "teams": teams,
+                "flags": flags,
+                "scores": scores,
+                "round_texts": round_texts,
+                "match_event": match_event,
+                "match_series": match_series,
+                "timestamp": timestamp,
+                "url_path": url_path,
+            })
 
-        live_matches.append({
-            "teams": teams,
-            "flags": flags,
-            "scores": scores,
-            "round_texts": round_texts,
-            "match_event": match_event,
-            "match_series": match_series,
-            "timestamp": timestamp,
-            "url_path": url_path,
-        })
+        detail_fetch_semaphore = asyncio.Semaphore(LIVE_DETAIL_FETCH_CONCURRENCY)
 
-    # Fetch live match detail pages with bounded concurrency so spikes in
-    # active matches do not saturate the shared client connection pool.
-    detail_fetch_semaphore = asyncio.Semaphore(LIVE_DETAIL_FETCH_CONCURRENCY)
+        async def fetch_match_detail(url):
+            try:
+                async with detail_fetch_semaphore:
+                    return await fetch_with_retries(
+                        url,
+                        client=client,
+                        timeout=LIVE_DETAIL_FETCH_TIMEOUT,
+                        max_retries=1,
+                    )
+            except Exception as e:
+                logger.warning("Failed to fetch match detail %s: %s", url, e)
+                return None
 
-    async def fetch_match_detail(url):
-        try:
-            async with detail_fetch_semaphore:
-                return await fetch_with_retries(
-                    url,
-                    client=client,
-                    timeout=LIVE_DETAIL_FETCH_TIMEOUT,
-                    max_retries=1,
-                )
-        except Exception as e:
-            logger.warning("Failed to fetch match detail %s: %s", url, e)
-            return None
-
-    detail_responses = await asyncio.gather(
-        *[fetch_match_detail(m["url_path"]) for m in live_matches]
-    )
-
-    result = []
-    for match_data, detail_resp in zip(live_matches, detail_responses):
-        team_logos = ["", ""]
-        current_map = "Unknown"
-        map_number = "Unknown"
-
-        if detail_resp is not None:
-            match_html = HTMLParser(detail_resp.text)
-
-            logos = []
-            for img in match_html.css(".match-header-vs img"):
-                logo_url = "https:" + img.attributes.get("src", "")
-                logos.append(logo_url)
-            if len(logos) >= 2:
-                team_logos = logos[:2]
-
-            current_map_element = match_html.css_first(
-                ".vm-stats-gamesnav-item.js-map-switch.mod-active.mod-live"
-            )
-            if current_map_element:
-                map_text = (
-                    current_map_element.css_first("div", default="Unknown")
-                    .text().strip().replace("\n", "").replace("\t", "")
-                )
-                current_map = re.sub(r"^\d+", "", map_text)
-                map_number_match = re.search(r"^\d+", map_text)
-                map_number = map_number_match.group(0) if map_number_match else "Unknown"
-
-        rt = match_data["round_texts"]
-        result.append(
-            {
-                "team1": match_data["teams"][0],
-                "team2": match_data["teams"][1],
-                "flag1": match_data["flags"][0],
-                "flag2": match_data["flags"][1],
-                "team1_logo": team_logos[0],
-                "team2_logo": team_logos[1],
-                "score1": match_data["scores"][0],
-                "score2": match_data["scores"][1],
-                "team1_round_ct": rt[0]["ct"] if len(rt) > 0 else "N/A",
-                "team1_round_t": rt[0]["t"] if len(rt) > 0 else "N/A",
-                "team2_round_ct": rt[1]["ct"] if len(rt) > 1 else "N/A",
-                "team2_round_t": rt[1]["t"] if len(rt) > 1 else "N/A",
-                "map_number": map_number,
-                "current_map": current_map,
-                "time_until_match": "LIVE",
-                "match_event": match_data["match_event"],
-                "match_series": match_data["match_series"],
-                "unix_timestamp": match_data["timestamp"],
-                "match_page": match_data["url_path"],
-            }
+        detail_responses = await asyncio.gather(
+            *[fetch_match_detail(m["url_path"]) for m in live_matches]
         )
 
-    data = {"data": {"status": status, "segments": result}}
+        result = []
+        for match_data, detail_resp in zip(live_matches, detail_responses):
+            team_logos = ["", ""]
+            current_map = "Unknown"
+            map_number = "Unknown"
 
-    if status != 200:
-        raise Exception("API response: {}".format(status))
+            if detail_resp is not None:
+                match_html = HTMLParser(detail_resp.text)
 
-    cache_manager.set(CACHE_TTL_LIVE, data, "live_score")
-    return data
+                logos = []
+                for img in match_html.css(".match-header-vs img"):
+                    logo_url = "https:" + img.attributes.get("src", "")
+                    logos.append(logo_url)
+                if len(logos) >= 2:
+                    team_logos = logos[:2]
+
+                current_map_element = match_html.css_first(
+                    ".vm-stats-gamesnav-item.js-map-switch.mod-active.mod-live"
+                )
+                if current_map_element:
+                    map_text = (
+                        current_map_element.css_first("div", default="Unknown")
+                        .text().strip().replace("\n", "").replace("\t", "")
+                    )
+                    current_map = re.sub(r"^\d+", "", map_text)
+                    map_number_match = re.search(r"^\d+", map_text)
+                    map_number = map_number_match.group(0) if map_number_match else "Unknown"
+
+            rt = match_data["round_texts"]
+            result.append(
+                {
+                    "team1": match_data["teams"][0],
+                    "team2": match_data["teams"][1],
+                    "flag1": match_data["flags"][0],
+                    "flag2": match_data["flags"][1],
+                    "team1_logo": team_logos[0],
+                    "team2_logo": team_logos[1],
+                    "score1": match_data["scores"][0],
+                    "score2": match_data["scores"][1],
+                    "team1_round_ct": rt[0]["ct"] if len(rt) > 0 else "N/A",
+                    "team1_round_t": rt[0]["t"] if len(rt) > 0 else "N/A",
+                    "team2_round_ct": rt[1]["ct"] if len(rt) > 1 else "N/A",
+                    "team2_round_t": rt[1]["t"] if len(rt) > 1 else "N/A",
+                    "map_number": map_number,
+                    "current_map": current_map,
+                    "time_until_match": "LIVE",
+                    "match_event": match_data["match_event"],
+                    "match_series": match_data["match_series"],
+                    "unix_timestamp": match_data["timestamp"],
+                    "match_page": match_data["url_path"],
+                }
+            )
+
+        data = {"data": {"status": status, "segments": result}}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+
+        return data
+
+    return await cache_manager.get_or_create_async(CACHE_TTL_LIVE, build, "live_score")
 
 
 def _parse_single_match(item, date_str, page):
@@ -469,17 +463,15 @@ async def vlr_upcoming_matches_extended(
         max_retries=max_retries, request_delay=request_delay, timeout=timeout,
     )
     cache_key = ("upcoming_ext", num_pages, from_page, to_page)
-    cached = cache_manager.get(CACHE_TTL_UPCOMING, *cache_key)
-    if cached is not None:
-        return cached
 
-    data = await scrape_multiple_pages(
-        base_url=VLR_MATCHES_URL,
-        parse_func=_parse_upcoming_page,
-        config=config,
-    )
-    cache_manager.set(CACHE_TTL_UPCOMING, data, *cache_key)
-    return data
+    async def build():
+        return await scrape_multiple_pages(
+            base_url=VLR_MATCHES_URL,
+            parse_func=_parse_upcoming_page,
+            config=config,
+        )
+
+    return await cache_manager.get_or_create_async(CACHE_TTL_UPCOMING, build, *cache_key)
 
 
 @handle_scraper_errors
@@ -493,14 +485,12 @@ async def vlr_match_results(
         max_retries=max_retries, request_delay=request_delay, timeout=timeout,
     )
     cache_key = ("results", num_pages, from_page, to_page)
-    cached = cache_manager.get(CACHE_TTL_RESULTS, *cache_key)
-    if cached is not None:
-        return cached
 
-    data = await scrape_multiple_pages(
-        base_url=f"{VLR_MATCHES_URL}/results",
-        parse_func=_parse_results_page,
-        config=config,
-    )
-    cache_manager.set(CACHE_TTL_RESULTS, data, *cache_key)
-    return data
+    async def build():
+        return await scrape_multiple_pages(
+            base_url=f"{VLR_MATCHES_URL}/results",
+            parse_func=_parse_results_page,
+            config=config,
+        )
+
+    return await cache_manager.get_or_create_async(CACHE_TTL_RESULTS, build, *cache_key)

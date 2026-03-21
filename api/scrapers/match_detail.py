@@ -674,94 +674,102 @@ async def vlr_match_detail(match_id: str) -> dict:
     if cached is not None:
         return cached
 
-    client = get_http_client()
-
-    # 1. Fetch the base page
-    base_resp = await fetch_with_retries(base_url, client=client)
-    base_html = HTMLParser(base_resp.text)
-    http_status = base_resp.status_code
-
-    # 2. Discover game IDs for tab fetches
-    game_ids = _extract_game_ids(base_html)
-    first_game_id = game_ids[0] if game_ids else None
-
-    # 3. Concurrently fetch performance and economy tabs for each game
-    performance_by_game: dict[str, dict] = {}
-    economy_by_game: dict[str, list[dict]] = {}
-
-    if game_ids:
-        tab_results = await asyncio.gather(
-            *[
-                _fetch_game_tab_html(client, base_url, game_id, tab)
-                for game_id in game_ids
-                for tab in ("performance", "economy")
-            ]
+    async def build():
+        cached_live = cache_manager.get(
+            CACHE_TTL_MATCH_DETAIL_LIVE, "match_detail", match_id
         )
+        if cached_live is not None:
+            return cached_live
 
-        for game_id, tab, tab_html in tab_results:
-            if tab_html is None:
-                continue
-            if tab == "performance":
-                performance_by_game[game_id] = {
-                    "kill_matrix": _parse_kill_matrix(tab_html),
-                    "advanced_stats": _parse_advanced_stats(tab_html),
-                }
-            elif tab == "economy":
-                economy_by_game[game_id] = _parse_economy(tab_html)
-
-    # 4. Parse all sections from the base page
-    event_info = _parse_event_info(base_html)
-    header_info = _parse_match_header(base_html)
-    teams = _parse_teams(base_html)
-    streams, vods = _parse_streams_vods(base_html)
-    maps = _parse_maps(base_html)
-    h2h = _parse_head_to_head(base_html)
-
-    # 5. Attach performance and economy tabs to their corresponding maps
-    for index, map_data in enumerate(maps):
-        game_id = game_ids[index] if index < len(game_ids) else ""
-        map_data["performance"] = performance_by_game.get(
-            game_id, {"kill_matrix": [], "advanced_stats": []}
+        cached_complete = cache_manager.get(
+            CACHE_TTL_MATCH_DETAIL, "match_detail", match_id
         )
-        map_data["economy"] = economy_by_game.get(game_id, [])
+        if cached_complete is not None:
+            return cached_complete
 
-    first_game_performance = performance_by_game.get(
-        first_game_id or "", {"kill_matrix": [], "advanced_stats": []}
-    )
-    first_game_economy = economy_by_game.get(first_game_id or "", [])
+        client = get_http_client()
 
-    # 6. Assemble the response
-    segment = {
-        "match_id": match_id,
-        "event": event_info,
-        "date": header_info["date"],
-        "patch": header_info["patch"],
-        "status": header_info["status"],
-        "teams": teams,
-        "streams": streams,
-        "vods": vods,
-        "maps": maps,
-        "head_to_head": h2h,
-        "performance": {
-            "kill_matrix": first_game_performance["kill_matrix"],
-            "advanced_stats": first_game_performance["advanced_stats"],
-            "by_map": [
-                {"game_id": game_id, **performance_by_game.get(game_id, {"kill_matrix": [], "advanced_stats": []})}
+        base_resp = await fetch_with_retries(base_url, client=client)
+        base_html = HTMLParser(base_resp.text)
+        http_status = base_resp.status_code
+
+        game_ids = _extract_game_ids(base_html)
+        first_game_id = game_ids[0] if game_ids else None
+
+        performance_by_game: dict[str, dict] = {}
+        economy_by_game: dict[str, list[dict]] = {}
+
+        if game_ids:
+            tab_results = await asyncio.gather(
+                *[
+                    _fetch_game_tab_html(client, base_url, game_id, tab)
+                    for game_id in game_ids
+                    for tab in ("performance", "economy")
+                ]
+            )
+
+            for game_id, tab, tab_html in tab_results:
+                if tab_html is None:
+                    continue
+                if tab == "performance":
+                    performance_by_game[game_id] = {
+                        "kill_matrix": _parse_kill_matrix(tab_html),
+                        "advanced_stats": _parse_advanced_stats(tab_html),
+                    }
+                elif tab == "economy":
+                    economy_by_game[game_id] = _parse_economy(tab_html)
+
+        event_info = _parse_event_info(base_html)
+        header_info = _parse_match_header(base_html)
+        teams = _parse_teams(base_html)
+        streams, vods = _parse_streams_vods(base_html)
+        maps = _parse_maps(base_html)
+        h2h = _parse_head_to_head(base_html)
+
+        for index, map_data in enumerate(maps):
+            game_id = game_ids[index] if index < len(game_ids) else ""
+            map_data["performance"] = performance_by_game.get(
+                game_id, {"kill_matrix": [], "advanced_stats": []}
+            )
+            map_data["economy"] = economy_by_game.get(game_id, [])
+
+        first_game_performance = performance_by_game.get(
+            first_game_id or "", {"kill_matrix": [], "advanced_stats": []}
+        )
+        first_game_economy = economy_by_game.get(first_game_id or "", [])
+
+        segment = {
+            "match_id": match_id,
+            "event": event_info,
+            "date": header_info["date"],
+            "patch": header_info["patch"],
+            "status": header_info["status"],
+            "teams": teams,
+            "streams": streams,
+            "vods": vods,
+            "maps": maps,
+            "head_to_head": h2h,
+            "performance": {
+                "kill_matrix": first_game_performance["kill_matrix"],
+                "advanced_stats": first_game_performance["advanced_stats"],
+                "by_map": [
+                    {"game_id": game_id, **performance_by_game.get(game_id, {"kill_matrix": [], "advanced_stats": []})}
+                    for game_id in game_ids
+                ],
+            },
+            "economy": first_game_economy,
+            "economy_by_map": [
+                {"game_id": game_id, "rows": economy_by_game.get(game_id, [])}
                 for game_id in game_ids
             ],
-        },
-        "economy": first_game_economy,
-        "economy_by_map": [
-            {"game_id": game_id, "rows": economy_by_game.get(game_id, [])}
-            for game_id in game_ids
-        ],
-    }
+        }
 
-    data = {"data": {"status": http_status, "segments": [segment]}}
+        data = {"data": {"status": http_status, "segments": [segment]}}
 
-    # 7. Cache with appropriate TTL
-    live = _is_live(base_html)
-    ttl = CACHE_TTL_MATCH_DETAIL_LIVE if live else CACHE_TTL_MATCH_DETAIL
-    cache_manager.set_if_cacheable(ttl, data, "match_detail", match_id)
+        live = _is_live(base_html)
+        ttl = CACHE_TTL_MATCH_DETAIL_LIVE if live else CACHE_TTL_MATCH_DETAIL
+        cache_manager.set_if_cacheable(ttl, data, "match_detail", match_id)
 
-    return data
+        return data
+
+    return await cache_manager.coalesce_async(f"match_detail:{match_id}", build)

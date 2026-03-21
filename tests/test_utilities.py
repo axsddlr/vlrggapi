@@ -1,4 +1,5 @@
 """Tests for utility modules: pagination, html_parsers, error_handling, cache_manager."""
+import asyncio
 import pytest
 import httpx
 from datetime import timedelta
@@ -161,6 +162,54 @@ class TestCacheManager:
         cm = CacheManager()
         stored = cm.set_if_cacheable(60, {"data": {"status": 200, "error": "bad gateway"}}, "key1")
         assert stored is False
+        assert cm.get(60, "key1") is None
+
+    @pytest.mark.anyio
+    async def test_get_or_create_async_coalesces_concurrent_calls(self):
+        cm = CacheManager()
+        calls = 0
+
+        async def producer():
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0)
+            return {"data": {"status": 200, "segments": ["ok"]}}
+
+        results = await asyncio.gather(
+            cm.get_or_create_async(60, producer, "key1"),
+            cm.get_or_create_async(60, producer, "key1"),
+            cm.get_or_create_async(60, producer, "key1"),
+        )
+
+        assert calls == 1
+        assert results == [
+            {"data": {"status": 200, "segments": ["ok"]}},
+            {"data": {"status": 200, "segments": ["ok"]}},
+            {"data": {"status": 200, "segments": ["ok"]}},
+        ]
+        assert cm.get(60, "key1") == {"data": {"status": 200, "segments": ["ok"]}}
+
+    @pytest.mark.anyio
+    async def test_get_or_create_async_does_not_cache_non_cacheable_results(self):
+        cm = CacheManager()
+        calls = 0
+
+        async def producer():
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0)
+            return {"data": {"status": 503, "segments": []}}
+
+        first, second = await asyncio.gather(
+            cm.get_or_create_async(60, producer, "key1"),
+            cm.get_or_create_async(60, producer, "key1"),
+        )
+        third = await cm.get_or_create_async(60, producer, "key1")
+
+        assert calls == 2
+        assert first == {"data": {"status": 503, "segments": []}}
+        assert second == {"data": {"status": 503, "segments": []}}
+        assert third == {"data": {"status": 503, "segments": []}}
         assert cm.get(60, "key1") is None
 
 

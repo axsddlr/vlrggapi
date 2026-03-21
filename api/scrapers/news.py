@@ -76,35 +76,33 @@ def _extract_news_meta(item) -> tuple[str, str]:
 
 @handle_scraper_errors
 async def vlr_news():
-    cached = cache_manager.get(CACHE_TTL_NEWS, "news")
-    if cached is not None:
-        return cached
+    async def build():
+        client = get_http_client()
+        resp = await fetch_with_retries(VLR_NEWS_URL, client=client)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
 
-    client = get_http_client()
-    resp = await fetch_with_retries(VLR_NEWS_URL, client=client)
-    html = HTMLParser(resp.text)
-    status = resp.status_code
+        result = []
+        for item in html.css("a.wf-module-item"):
+            title, desc = _extract_news_text(item)
+            date, author = _extract_news_meta(item)
+            url = item.attributes.get("href", "")
 
-    result = []
-    for item in html.css("a.wf-module-item"):
-        title, desc = _extract_news_text(item)
-        date, author = _extract_news_meta(item)
-        url = item.attributes.get("href", "")
+            result.append(
+                {
+                    "title": title,
+                    "description": desc,
+                    "date": date,
+                    "author": author,
+                    "url_path": f"https://www.vlr.gg{url}",
+                }
+            )
 
-        result.append(
-            {
-                "title": title,
-                "description": desc,
-                "date": date,
-                "author": author,
-                "url_path": f"https://www.vlr.gg{url}",
-            }
-        )
+        data = {"data": {"status": status, "segments": result}}
 
-    data = {"data": {"status": status, "segments": result}}
+        if status != 200:
+            raise Exception("API response: {}".format(status))
 
-    if status != 200:
-        raise Exception("API response: {}".format(status))
+        return data
 
-    cache_manager.set(CACHE_TTL_NEWS, data, "news")
-    return data
+    return await cache_manager.get_or_create_async(CACHE_TTL_NEWS, build, "news")

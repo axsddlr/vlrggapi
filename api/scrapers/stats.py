@@ -62,39 +62,39 @@ def _parse_stats_row(item) -> dict:
 
 @handle_scraper_errors
 async def vlr_stats(region_key: str, timespan: str):
-    cached = cache_manager.get(CACHE_TTL_STATS, "stats", region_key, timespan)
-    if cached is not None:
-        return cached
+    async def build():
+        validate_region(region_key)
+        validate_timespan(timespan)
 
-    validate_region(region_key)
-    validate_timespan(timespan)
+        base_url = (
+            f"{VLR_STATS_URL}/?event_group_id=all&event_id=all"
+            f"&region={region_key}&country=all&min_rounds=200"
+            f"&min_rating=1550&agent=all&map_id=all"
+        )
+        url = (
+            f"{base_url}&timespan=all"
+            if timespan.lower() == "all"
+            else f"{base_url}&timespan={timespan}d"
+        )
 
-    base_url = (
-        f"{VLR_STATS_URL}/?event_group_id=all&event_id=all"
-        f"&region={region_key}&country=all&min_rounds=200"
-        f"&min_rating=1550&agent=all&map_id=all"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        html = HTMLParser(resp.text)
+        status = resp.status_code
+
+        result = []
+        for item in html.css("tbody tr"):
+            parsed = _parse_stats_row(item)
+            if parsed["player"]:
+                result.append(parsed)
+
+        data = {"data": {"status": status, "segments": result}}
+
+        if status != 200:
+            raise Exception("API response: {}".format(status))
+
+        return data
+
+    return await cache_manager.get_or_create_async(
+        CACHE_TTL_STATS, build, "stats", region_key, timespan
     )
-    url = (
-        f"{base_url}&timespan=all"
-        if timespan.lower() == "all"
-        else f"{base_url}&timespan={timespan}d"
-    )
-
-    client = get_http_client()
-    resp = await fetch_with_retries(url, client=client)
-    html = HTMLParser(resp.text)
-    status = resp.status_code
-
-    result = []
-    for item in html.css("tbody tr"):
-        parsed = _parse_stats_row(item)
-        if parsed["player"]:
-            result.append(parsed)
-
-    data = {"data": {"status": status, "segments": result}}
-
-    if status != 200:
-        raise Exception("API response: {}".format(status))
-
-    cache_manager.set(CACHE_TTL_STATS, data, "stats", region_key, timespan)
-    return data
