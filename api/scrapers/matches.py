@@ -27,6 +27,46 @@ from utils.pagination import PaginationConfig, scrape_multiple_pages
 logger = logging.getLogger(__name__)
 
 
+def _safe_text(node) -> str:
+    """Safely extract stripped text from an HTML node."""
+    if not node:
+        return ""
+    return node.text().strip()
+
+
+def _safe_flag(team_node) -> str:
+    """Safely extract the homepage flag token from a team node."""
+    flag_elem = team_node.css_first(".flag") if team_node else None
+    if not flag_elem:
+        return ""
+    flag_class = flag_elem.attributes.get("class", "")
+    return flag_class.replace(" mod-", "").replace("16", "_")
+
+
+def _safe_timestamp(item) -> str:
+    """Extract a UTC timestamp string from a homepage match item."""
+    ts_elem = item.css_first(".moment-tz-convert")
+    if not ts_elem:
+        return ""
+
+    unix_ts = ts_elem.attributes.get("data-utc-ts", "")
+    if not unix_ts:
+        return ""
+
+    try:
+        return datetime.fromtimestamp(int(unix_ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError, OSError):
+        return ""
+
+
+def _safe_match_page(item) -> str:
+    """Build a homepage match URL when an href is present."""
+    href = item.attributes.get("href", "")
+    if not href:
+        return ""
+    return f"{VLR_BASE_URL}/{href.lstrip('/')}"
+
+
 @handle_scraper_errors
 async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
     """Get upcoming matches from VLR.GG homepage."""
@@ -47,17 +87,14 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
         team1, team2 = extract_match_teams(item, ".h-match-team")
 
-        eta = item.css_first(".h-match-eta").text().strip()
+        eta = _safe_text(item.css_first(".h-match-eta"))
         if eta != "LIVE":
             eta = eta + " from now"
 
-        match_event = item.css_first(".h-match-preview-event").text().strip()
-        match_series = item.css_first(".h-match-preview-series").text().strip()
-        timestamp = datetime.fromtimestamp(
-            int(item.css_first(".moment-tz-convert").attributes["data-utc-ts"]),
-            tz=timezone.utc,
-        ).strftime("%Y-%m-%d %H:%M:%S")
-        url_path = "https://www.vlr.gg/" + item.attributes["href"]
+        match_event = _safe_text(item.css_first(".h-match-preview-event"))
+        match_series = _safe_text(item.css_first(".h-match-preview-series"))
+        timestamp = _safe_timestamp(item)
+        url_path = _safe_match_page(item)
 
         result.append(
             {
@@ -106,27 +143,28 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
         scores = []
         round_texts = []
         for team in match.css(".h-match-team"):
-            teams.append(team.css_first(".h-match-team-name").text().strip())
-            flags.append(
-                team.css_first(".flag")
-                .attributes["class"]
-                .replace(" mod-", "")
-                .replace("16", "_")
-            )
-            scores.append(team.css_first(".h-match-team-score").text().strip())
+            teams.append(_safe_text(team.css_first(".h-match-team-name")) or "TBD")
+            flags.append(_safe_flag(team))
+            scores.append(_safe_text(team.css_first(".h-match-team-score")))
             round_info_ct = team.css(".h-match-team-rounds .mod-ct")
             round_info_t = team.css(".h-match-team-rounds .mod-t")
             round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
             round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
             round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
-        match_event = match.css_first(".h-match-preview-event").text().strip()
-        match_series = match.css_first(".h-match-preview-series").text().strip()
-        timestamp = datetime.fromtimestamp(
-            int(match.css_first(".moment-tz-convert").attributes["data-utc-ts"]),
-            tz=timezone.utc,
-        ).strftime("%Y-%m-%d %H:%M:%S")
-        url_path = "https://www.vlr.gg/" + match.attributes["href"]
+        while len(teams) < 2:
+            teams.append("TBD")
+        while len(flags) < 2:
+            flags.append("")
+        while len(scores) < 2:
+            scores.append("")
+        while len(round_texts) < 2:
+            round_texts.append({"ct": "N/A", "t": "N/A"})
+
+        match_event = _safe_text(match.css_first(".h-match-preview-event"))
+        match_series = _safe_text(match.css_first(".h-match-preview-series"))
+        timestamp = _safe_timestamp(match)
+        url_path = _safe_match_page(match)
 
         live_matches.append({
             "teams": teams,
