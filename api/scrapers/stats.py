@@ -10,6 +10,56 @@ from utils.error_handling import handle_scraper_errors, validate_region, validat
 logger = logging.getLogger(__name__)
 
 
+def _safe_text(node) -> str:
+    """Safely extract stripped text from an HTML node."""
+    if not node:
+        return ""
+    return node.text().strip()
+
+
+def _cell_text(cells: list, index: int) -> str:
+    """Read a table cell by index without raising on sparse rows."""
+    if index >= len(cells):
+        return ""
+    return _safe_text(cells[index])
+
+
+def _parse_stats_row(item) -> dict:
+    """Parse one stats table row using table-cell structure, not flattened text."""
+    cells = item.css("td")
+    player_cell = item.css_first("td.mod-player")
+
+    player_name = _safe_text(player_cell.css_first(".text-of")) if player_cell else ""
+    org = _safe_text(player_cell.css_first(".stats-player-country")) if player_cell else ""
+    if not org:
+        org = "N/A"
+
+    agents = []
+    for agent_img in item.css("td.mod-agents img"):
+        src = agent_img.attributes.get("src", "")
+        if not src:
+            continue
+        agents.append(src.split("/")[-1].split(".")[0])
+
+    return {
+        "player": player_name,
+        "org": org,
+        "agents": agents,
+        "rounds_played": _cell_text(cells, 2),
+        "rating": _cell_text(cells, 3),
+        "average_combat_score": _cell_text(cells, 4),
+        "kill_deaths": _cell_text(cells, 5),
+        "kill_assists_survived_traded": _cell_text(cells, 6),
+        "average_damage_per_round": _cell_text(cells, 7),
+        "kills_per_round": _cell_text(cells, 8),
+        "assists_per_round": _cell_text(cells, 9),
+        "first_kills_per_round": _cell_text(cells, 10),
+        "first_deaths_per_round": _cell_text(cells, 11),
+        "headshot_percentage": _cell_text(cells, 12),
+        "clutch_success_percentage": _cell_text(cells, 13),
+    }
+
+
 @handle_scraper_errors
 async def vlr_stats(region_key: str, timespan: str):
     cached = cache_manager.get(CACHE_TTL_STATS, "stats", region_key, timespan)
@@ -37,36 +87,9 @@ async def vlr_stats(region_key: str, timespan: str):
 
     result = []
     for item in html.css("tbody tr"):
-        player = item.text().replace("\t", "").replace("\n", " ").strip().split()
-        player_name = player[0]
-        org = player[1] if len(player) > 1 else "N/A"
-
-        agents = [
-            agents.attributes["src"].split("/")[-1].split(".")[0]
-            for agents in item.css("td.mod-agents img")
-        ]
-        color_sq = [stats.text() for stats in item.css("td.mod-color-sq")]
-        rnd = item.css_first("td.mod-rnd").text()
-
-        result.append(
-            {
-                "player": player_name,
-                "org": org,
-                "agents": agents,
-                "rounds_played": rnd,
-                "rating": color_sq[0],
-                "average_combat_score": color_sq[1],
-                "kill_deaths": color_sq[2],
-                "kill_assists_survived_traded": color_sq[3],
-                "average_damage_per_round": color_sq[4],
-                "kills_per_round": color_sq[5],
-                "assists_per_round": color_sq[6],
-                "first_kills_per_round": color_sq[7],
-                "first_deaths_per_round": color_sq[8],
-                "headshot_percentage": color_sq[9],
-                "clutch_success_percentage": color_sq[10],
-            }
-        )
+        parsed = _parse_stats_row(item)
+        if parsed["player"]:
+            result.append(parsed)
 
     data = {"data": {"status": status, "segments": result}}
 
