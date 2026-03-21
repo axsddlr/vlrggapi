@@ -6,22 +6,16 @@ from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_STATS_URL, CACHE_TTL_STATS
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors, validate_region, validate_timespan
+from utils.html_parsers import extract_text_content
 
 logger = logging.getLogger(__name__)
-
-
-def _safe_text(node) -> str:
-    """Safely extract stripped text from an HTML node."""
-    if not node:
-        return ""
-    return node.text().strip()
 
 
 def _cell_text(cells: list, index: int) -> str:
     """Read a table cell by index without raising on sparse rows."""
     if index >= len(cells):
         return ""
-    return _safe_text(cells[index])
+    return extract_text_content(cells[index])
 
 
 def _parse_stats_row(item) -> dict:
@@ -29,8 +23,8 @@ def _parse_stats_row(item) -> dict:
     cells = item.css("td")
     player_cell = item.css_first("td.mod-player")
 
-    player_name = _safe_text(player_cell.css_first(".text-of")) if player_cell else ""
-    org = _safe_text(player_cell.css_first(".stats-player-country")) if player_cell else ""
+    player_name = extract_text_content(player_cell.css_first(".text-of")) if player_cell else ""
+    org = extract_text_content(player_cell.css_first(".stats-player-country")) if player_cell else ""
     if not org:
         org = "N/A"
 

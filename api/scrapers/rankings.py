@@ -116,7 +116,7 @@ async def vlr_rankings(region_key):
             team_link = item.css_first("a.rank-item-team")
             team_logo = team_link.css_first("img") if team_link else None
             logo = team_logo.attributes.get("src", "") if team_logo else ""
-            logo = re.sub(r"\/img\/vlr\/tmp\/vlr.png", "", logo)
+            logo = re.sub(r"/img/vlr/tmp/vlr.png", "", logo)
             country = _normalize_text(item.css_first("div.rank-item-team-country").text())
             last_played, last_played_team, last_played_team_logo = _extract_last_played_summary(item)
             record = _normalize_text(item.css_first("div.rank-item-record").text())

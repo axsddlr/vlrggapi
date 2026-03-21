@@ -19,6 +19,30 @@ from utils.html_parsers import (
 logger = logging.getLogger(__name__)
 
 
+def _parse_event_cards(container) -> list:
+    """Parse all event cards from a section container."""
+    events = []
+    for event_item in container.css("a.event-item"):
+        title = extract_text_content(event_item.css_first(".event-item-title"))
+        event_status = extract_text_content(event_item.css_first(".event-item-desc-item-status"))
+        prize = extract_prize_value(event_item.css_first(".event-item-desc-item.mod-prize"))
+        dates = extract_date_range(event_item.css_first(".event-item-desc-item.mod-dates"))
+        region = extract_region_from_flag(event_item.css_first(".event-item-desc-item.mod-location .flag"))
+        img_elem = event_item.css_first(".event-item-thumb img")
+        thumb = normalize_image_url(img_elem.attributes.get("src", "") if img_elem else "")
+        full_url = build_full_url(event_item.attributes.get("href", ""))
+        events.append({
+            "title": title,
+            "status": event_status,
+            "prize": prize,
+            "dates": dates,
+            "region": region,
+            "thumb": thumb,
+            "url_path": full_url,
+        })
+    return events
+
+
 @handle_scraper_errors
 async def vlr_events(upcoming=True, completed=True, page=1):
     """
@@ -35,62 +59,31 @@ async def vlr_events(upcoming=True, completed=True, page=1):
     cache_key = ("events", upcoming, completed, page)
 
     async def build():
-        events_upcoming = upcoming
-        events_completed = completed
-
-        if events_completed and page > 1:
-            url = f"{VLR_EVENTS_URL}/?page={page}"
+        if not upcoming and not completed:
+            show_upcoming = show_completed = True
         else:
-            url = VLR_EVENTS_URL
+            show_upcoming, show_completed = upcoming, completed
+
+        url = f"{VLR_EVENTS_URL}/?page={page}" if show_completed and page > 1 else VLR_EVENTS_URL
 
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         html = HTMLParser(resp.text)
         status = resp.status_code
 
-        if not events_upcoming and not events_completed:
-            events_upcoming = True
-            events_completed = True
-
         events = []
 
-        def parse_events(container):
-            """Helper function to parse event cards"""
-            for event_item in container.css("a.event-item"):
-                title = extract_text_content(event_item.css_first(".event-item-title"))
-                event_status = extract_text_content(event_item.css_first(".event-item-desc-item-status"))
-
-                prize = extract_prize_value(event_item.css_first(".event-item-desc-item.mod-prize"))
-                dates = extract_date_range(event_item.css_first(".event-item-desc-item.mod-dates"))
-                region = extract_region_from_flag(event_item.css_first(".event-item-desc-item.mod-location .flag"))
-
-                img_elem = event_item.css_first(".event-item-thumb img")
-                thumb = normalize_image_url(img_elem.attributes.get("src", "") if img_elem else "")
-                full_url = build_full_url(event_item.attributes.get("href", ""))
-
-                events.append({
-                    "title": title,
-                    "status": event_status,
-                    "prize": prize,
-                    "dates": dates,
-                    "region": region,
-                    "thumb": thumb,
-                    "url_path": full_url,
-                })
-
-        if events_upcoming:
-            upcoming_sections = html.css("div.wf-label.mod-large.mod-upcoming")
-            for section in upcoming_sections:
+        if show_upcoming:
+            for section in html.css("div.wf-label.mod-large.mod-upcoming"):
                 parent = section.parent
                 if parent and parent.css("a.event-item"):
-                    parse_events(parent)
+                    events.extend(_parse_event_cards(parent))
 
-        if events_completed:
-            completed_sections = html.css("div.wf-label.mod-large.mod-completed")
-            for section in completed_sections:
+        if show_completed:
+            for section in html.css("div.wf-label.mod-large.mod-completed"):
                 parent = section.parent
                 if parent and parent.css("a.event-item"):
-                    parse_events(parent)
+                    events.extend(_parse_event_cards(parent))
 
         return {"data": {"status": status, "segments": events}}
 
@@ -160,7 +153,7 @@ async def vlr_event_matches(event_id: str):
                 vod_link_el = vod_el if vod_el.tag == "a" else vod_el.parent
                 vod_href = vod_link_el.attributes.get("href", "") if vod_link_el else ""
                 if vod_href:
-                    vod_href = build_full_url(vod_href) if vod_href.startswith("/") else vod_href
+                    vod_href = build_full_url(vod_href)
                 vods.append({"label": vod_text, "url": vod_href})
 
             note_el = elem.css_first(".match-item-note")

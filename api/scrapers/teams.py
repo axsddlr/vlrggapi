@@ -80,8 +80,7 @@ def _parse_team_header(html: HTMLParser, team_id: str) -> dict:
     # The visible country name sits as text next to the flag
     country_name = ""
     if country_block:
-        raw = _text(country_block)
-        country_name = raw.strip()
+        country_name = _text(country_block)
 
     # Social / external links
     social_links = _parse_social_links(html)

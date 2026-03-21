@@ -18,7 +18,9 @@ from utils.constants import (
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors
 from utils.html_parsers import (
+    build_full_url,
     extract_match_teams,
+    extract_text_content,
     normalize_image_url,
     parse_eta_to_timedelta,
     combine_date_and_time,
@@ -27,13 +29,6 @@ from utils.html_parsers import (
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 
 logger = logging.getLogger(__name__)
-
-
-def _safe_text(node) -> str:
-    """Safely extract stripped text from an HTML node."""
-    if not node:
-        return ""
-    return node.text().strip()
 
 
 def _safe_flag(team_node) -> str:
@@ -61,13 +56,6 @@ def _safe_timestamp(item) -> str:
         return ""
 
 
-def _safe_match_page(item) -> str:
-    """Build a homepage match URL when an href is present."""
-    href = item.attributes.get("href", "")
-    if not href:
-        return ""
-    return f"{VLR_BASE_URL}/{href.lstrip('/')}"
-
 
 @handle_scraper_errors
 async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
@@ -86,14 +74,14 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
             team1, team2 = extract_match_teams(item, ".h-match-team")
 
-            eta = _safe_text(item.css_first(".h-match-eta"))
+            eta = extract_text_content(item.css_first(".h-match-eta"))
             if eta != "LIVE":
                 eta = eta + " from now"
 
-            match_event = _safe_text(item.css_first(".h-match-preview-event"))
-            match_series = _safe_text(item.css_first(".h-match-preview-series"))
+            match_event = extract_text_content(item.css_first(".h-match-preview-event"))
+            match_series = extract_text_content(item.css_first(".h-match-preview-series"))
             timestamp = _safe_timestamp(item)
-            url_path = _safe_match_page(item)
+            url_path = build_full_url(item.attributes.get("href", ""))
 
             result.append(
                 {
@@ -140,9 +128,9 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
             scores = []
             round_texts = []
             for team in match.css(".h-match-team"):
-                teams.append(_safe_text(team.css_first(".h-match-team-name")) or "TBD")
+                teams.append(extract_text_content(team.css_first(".h-match-team-name")) or "TBD")
                 flags.append(_safe_flag(team))
-                scores.append(_safe_text(team.css_first(".h-match-team-score")))
+                scores.append(extract_text_content(team.css_first(".h-match-team-score")))
                 round_info_ct = team.css(".h-match-team-rounds .mod-ct")
                 round_info_t = team.css(".h-match-team-rounds .mod-t")
                 round_text_ct = round_info_ct[0].text().strip() if round_info_ct else "N/A"
@@ -158,10 +146,10 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
             while len(round_texts) < 2:
                 round_texts.append({"ct": "N/A", "t": "N/A"})
 
-            match_event = _safe_text(match.css_first(".h-match-preview-event"))
-            match_series = _safe_text(match.css_first(".h-match-preview-series"))
+            match_event = extract_text_content(match.css_first(".h-match-preview-event"))
+            match_series = extract_text_content(match.css_first(".h-match-preview-series"))
             timestamp = _safe_timestamp(match)
-            url_path = _safe_match_page(match)
+            url_path = build_full_url(match.attributes.get("href", ""))
 
             live_matches.append({
                 "teams": teams,
@@ -265,7 +253,6 @@ def _parse_single_match(item, date_str, page):
     href = item.attributes.get("href", "")
     url_path = "https://www.vlr.gg" + href if href else ""
 
-    # Get match status/eta
     eta = item.css_first(".ml-status").text().strip() if item.css_first(".ml-status") else ""
     if not eta:
         eta_elem = item.css_first(".ml-eta")
@@ -274,7 +261,6 @@ def _parse_single_match(item, date_str, page):
             if eta_text and "ago" not in eta_text:
                 eta = eta_text
 
-    # Get teams
     teams = []
     flags = []
     scores_list = []
@@ -299,7 +285,6 @@ def _parse_single_match(item, date_str, page):
     while len(scores_list) < 2:
         scores_list.append("")
 
-    # Get match event and series info
     match_event_elem = item.css_first(".match-item-event-series")
     match_series = ""
     if match_event_elem:
@@ -321,7 +306,6 @@ def _parse_single_match(item, date_str, page):
         if icon_src:
             tourney_icon_url = normalize_image_url(icon_src)
 
-    # Get timestamp using multi-strategy approach
     timestamp = parse_match_timestamp(item, date_str)
 
     return {

@@ -418,10 +418,7 @@ def _parse_maps(html: HTMLParser) -> list[dict]:
                 subtract += pick_elem.text(strip=True)
             if dur_elem:
                 subtract += dur_elem.text(strip=True)
-            map_name = full_text
-            for s in [subtract]:
-                map_name = map_name.replace(s, "")
-            map_name = re.sub(r"\s+", " ", map_name).strip()
+            map_name = re.sub(r"\s+", " ", full_text.replace(subtract, "")).strip()
 
         # Duration
         duration = ""
