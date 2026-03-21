@@ -506,6 +506,22 @@ def _extract_game_ids(html: HTMLParser) -> list[str]:
     return game_ids
 
 
+async def _fetch_game_tab_html(
+    client,
+    base_url: str,
+    game_id: str,
+    tab: str,
+) -> tuple[str, str, HTMLParser | None]:
+    """Fetch one game-tab page and return parsed HTML when available."""
+    url = f"{base_url}/?game={game_id}&tab={tab}"
+    try:
+        resp = await fetch_with_retries(url, client=client)
+        return game_id, tab, HTMLParser(resp.text)
+    except Exception as exc:
+        logger.warning("Failed to fetch %s tab for game %s: %s", tab, game_id, exc)
+        return game_id, tab, None
+
+
 # ---------------------------------------------------------------------------
 # Performance tab parsers
 # ---------------------------------------------------------------------------
@@ -669,28 +685,29 @@ async def vlr_match_detail(match_id: str) -> dict:
     game_ids = _extract_game_ids(base_html)
     first_game_id = game_ids[0] if game_ids else None
 
-    # 3. Concurrently fetch performance and economy tabs for the first game
-    performance_html: HTMLParser | None = None
-    economy_html: HTMLParser | None = None
+    # 3. Concurrently fetch performance and economy tabs for each game
+    performance_by_game: dict[str, dict] = {}
+    economy_by_game: dict[str, list[dict]] = {}
 
-    if first_game_id:
-        perf_url = f"{base_url}/?game={first_game_id}&tab=performance"
-        econ_url = f"{base_url}/?game={first_game_id}&tab=economy"
-
-        async def _safe_fetch(url: str) -> HTMLParser | None:
-            try:
-                resp = await fetch_with_retries(url, client=client)
-                return HTMLParser(resp.text)
-            except Exception as exc:
-                logger.warning("Failed to fetch tab page %s: %s", url, exc)
-                return None
-
-        perf_result, econ_result = await asyncio.gather(
-            _safe_fetch(perf_url),
-            _safe_fetch(econ_url),
+    if game_ids:
+        tab_results = await asyncio.gather(
+            *[
+                _fetch_game_tab_html(client, base_url, game_id, tab)
+                for game_id in game_ids
+                for tab in ("performance", "economy")
+            ]
         )
-        performance_html = perf_result
-        economy_html = econ_result
+
+        for game_id, tab, tab_html in tab_results:
+            if tab_html is None:
+                continue
+            if tab == "performance":
+                performance_by_game[game_id] = {
+                    "kill_matrix": _parse_kill_matrix(tab_html),
+                    "advanced_stats": _parse_advanced_stats(tab_html),
+                }
+            elif tab == "economy":
+                economy_by_game[game_id] = _parse_economy(tab_html)
 
     # 4. Parse all sections from the base page
     event_info = _parse_event_info(base_html)
@@ -700,17 +717,18 @@ async def vlr_match_detail(match_id: str) -> dict:
     maps = _parse_maps(base_html)
     h2h = _parse_head_to_head(base_html)
 
-    # 5. Parse performance and economy tabs
-    kill_matrix: list[dict] = []
-    advanced_stats: list[dict] = []
-    economy: list[dict] = []
+    # 5. Attach performance and economy tabs to their corresponding maps
+    for index, map_data in enumerate(maps):
+        game_id = game_ids[index] if index < len(game_ids) else ""
+        map_data["performance"] = performance_by_game.get(
+            game_id, {"kill_matrix": [], "advanced_stats": []}
+        )
+        map_data["economy"] = economy_by_game.get(game_id, [])
 
-    if performance_html is not None:
-        kill_matrix = _parse_kill_matrix(performance_html)
-        advanced_stats = _parse_advanced_stats(performance_html)
-
-    if economy_html is not None:
-        economy = _parse_economy(economy_html)
+    first_game_performance = performance_by_game.get(
+        first_game_id or "", {"kill_matrix": [], "advanced_stats": []}
+    )
+    first_game_economy = economy_by_game.get(first_game_id or "", [])
 
     # 6. Assemble the response
     segment = {
@@ -725,10 +743,18 @@ async def vlr_match_detail(match_id: str) -> dict:
         "maps": maps,
         "head_to_head": h2h,
         "performance": {
-            "kill_matrix": kill_matrix,
-            "advanced_stats": advanced_stats,
+            "kill_matrix": first_game_performance["kill_matrix"],
+            "advanced_stats": first_game_performance["advanced_stats"],
+            "by_map": [
+                {"game_id": game_id, **performance_by_game.get(game_id, {"kill_matrix": [], "advanced_stats": []})}
+                for game_id in game_ids
+            ],
         },
-        "economy": economy,
+        "economy": first_game_economy,
+        "economy_by_map": [
+            {"game_id": game_id, "rows": economy_by_game.get(game_id, [])}
+            for game_id in game_ids
+        ],
     }
 
     data = {"data": {"status": http_status, "segments": [segment]}}
