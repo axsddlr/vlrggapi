@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from fastapi import HTTPException
 
-from utils.pagination import PaginationConfig
+from utils.pagination import PaginationConfig, scrape_multiple_pages
 from utils.html_parsers import parse_eta_to_timedelta
 from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
 from utils.cache_manager import CacheManager
@@ -145,3 +145,64 @@ class TestCacheManager:
         key1 = CacheManager.make_cache_key("a")
         key2 = CacheManager.make_cache_key("b")
         assert key1 != key2
+
+
+class FakeResponse:
+    def __init__(self, status_code: int, text: str = "<html></html>"):
+        self.status_code = status_code
+        self.text = text
+
+
+class FakeAsyncClient:
+    def __init__(self, responses: dict[str, list[FakeResponse | Exception]]):
+        self._responses = responses
+        self.calls: list[tuple[str, int | None]] = []
+
+    async def get(self, url: str, timeout=None):
+        self.calls.append((url, timeout))
+        response = self._responses[url].pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+@pytest.mark.anyio
+async def test_scrape_multiple_pages_raises_when_any_page_exhausts_retries(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/page-1": [FakeResponse(200)],
+            "https://example.test/page-2": [FakeResponse(503), FakeResponse(503)],
+        }
+    )
+
+    async def fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr("utils.pagination.get_http_client", lambda: client)
+    monkeypatch.setattr("utils.pagination.asyncio.sleep", fake_sleep)
+
+    def parse_func(_html, page: int):
+        return [{"page": page}]
+
+    config = PaginationConfig(
+        num_pages=2,
+        max_retries=2,
+        request_delay=0.1,
+        timeout=5,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await scrape_multiple_pages(
+            base_url="https://example.test",
+            parse_func=parse_func,
+            config=config,
+            page_url_func=lambda _base, page: f"https://example.test/page-{page}",
+        )
+
+    assert exc_info.value.status_code == 502
+    assert "Pages with exhausted retries: 2" in exc_info.value.detail
+    assert client.calls == [
+        ("https://example.test/page-1", 5),
+        ("https://example.test/page-2", 5),
+        ("https://example.test/page-2", 5),
+    ]

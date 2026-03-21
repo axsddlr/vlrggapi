@@ -161,6 +161,16 @@ async def scrape_multiple_pages(
         len(result), successful_pages, total_pages,
     )
 
+    if failed_pages:
+        failed_pages_text = ", ".join(str(page) for page in failed_pages)
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Failed to fetch all requested pages from VLR.GG. "
+                f"Pages with exhausted retries: {failed_pages_text}."
+            ),
+        )
+
     return {
         "data": {
             "status": 200,
