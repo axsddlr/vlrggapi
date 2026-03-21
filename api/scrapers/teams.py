@@ -9,6 +9,7 @@ Provides three async scraper functions:
 import logging
 import re
 
+from fastapi import HTTPException
 from selectolax.parser import HTMLParser
 
 from utils.cache_manager import cache_manager
@@ -599,10 +600,12 @@ async def vlr_team(team_id: str) -> dict:
     resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
-    if status != 200:
+    if status >= 400:
         logger.warning("Non-200 response %d for team %s", status, team_id)
-        data = {"data": {"status": status, "segments": []}}
-        return data
+        raise HTTPException(
+            status_code=status,
+            detail=f"VLR.GG returned status {status} for team {team_id}",
+        )
 
     html = HTMLParser(resp.text)
 
@@ -620,7 +623,7 @@ async def vlr_team(team_id: str) -> dict:
     }
 
     data = {"data": {"status": status, "segments": [segment]}}
-    cache_manager.set(CACHE_TTL_TEAM, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_TEAM, data, *cache_key)
     return data
 
 
@@ -658,12 +661,17 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
     resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
-    if status != 200:
+    if status >= 400:
         logger.warning(
             "Non-200 response %d for team matches %s page %d", status, team_id, page
         )
-        data = {"data": {"status": status, "segments": [], "meta": {"page": page}}}
-        return data
+        raise HTTPException(
+            status_code=status,
+            detail=(
+                f"VLR.GG returned status {status} for team matches "
+                f"{team_id} page {page}"
+            ),
+        )
 
     html = HTMLParser(resp.text)
     matches: list[dict] = []
@@ -704,7 +712,7 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
             "meta": {"page": page},
         }
     }
-    cache_manager.set(CACHE_TTL_TEAM_MATCHES, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_TEAM_MATCHES, data, *cache_key)
     return data
 
 
@@ -737,12 +745,14 @@ async def vlr_team_transactions(team_id: str) -> dict:
     resp = await fetch_with_retries(url, client=client)
     status = resp.status_code
 
-    if status != 200:
+    if status >= 400:
         logger.warning(
             "Non-200 response %d for team transactions %s", status, team_id
         )
-        data = {"data": {"status": status, "segments": []}}
-        return data
+        raise HTTPException(
+            status_code=status,
+            detail=f"VLR.GG returned status {status} for team transactions {team_id}",
+        )
 
     html = HTMLParser(resp.text)
     transactions: list[dict] = []
@@ -788,5 +798,5 @@ async def vlr_team_transactions(team_id: str) -> dict:
             )
 
     data = {"data": {"status": status, "segments": transactions}}
-    cache_manager.set(CACHE_TTL_TEAM_TRANSACTIONS, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_TEAM_TRANSACTIONS, data, *cache_key)
     return data
