@@ -72,6 +72,24 @@ async def test_original_invalid_match_returns_error(client):
 
 
 @pytest.mark.anyio
+async def test_original_player_rejects_invalid_id(client):
+    resp = await client.get("/player?id=abc")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_original_player_rejects_invalid_timespan(client):
+    resp = await client.get("/player?id=9&timespan=45d")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_original_match_detail_rejects_invalid_id(client):
+    resp = await client.get("/match/details?match_id=abc")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
 async def test_v2_wrap_propagates_scraper_error_status(client, monkeypatch):
     async def fake_news():
         return {"data": {"status": 502, "error": "upstream failure", "segments": []}}
