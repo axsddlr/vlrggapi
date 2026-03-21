@@ -12,6 +12,8 @@ from utils.constants import (
     CACHE_TTL_UPCOMING,
     CACHE_TTL_LIVE,
     CACHE_TTL_RESULTS,
+    LIVE_DETAIL_FETCH_CONCURRENCY,
+    LIVE_DETAIL_FETCH_TIMEOUT,
 )
 from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors
@@ -177,10 +179,19 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
             "url_path": url_path,
         })
 
-    # Fetch all match detail pages concurrently (fix N+1)
+    # Fetch live match detail pages with bounded concurrency so spikes in
+    # active matches do not saturate the shared client connection pool.
+    detail_fetch_semaphore = asyncio.Semaphore(LIVE_DETAIL_FETCH_CONCURRENCY)
+
     async def fetch_match_detail(url):
         try:
-            return await fetch_with_retries(url, client=client)
+            async with detail_fetch_semaphore:
+                return await fetch_with_retries(
+                    url,
+                    client=client,
+                    timeout=LIVE_DETAIL_FETCH_TIMEOUT,
+                    max_retries=1,
+                )
         except Exception as e:
             logger.warning("Failed to fetch match detail %s: %s", url, e)
             return None
