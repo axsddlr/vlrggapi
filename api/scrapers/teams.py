@@ -227,20 +227,6 @@ def _parse_roster(html: HTMLParser) -> list[dict]:
 
     return roster
 
-
-def _iter_children_deep(node):
-    """
-    Yield every descendant node in document order.
-    selectolax's css("*") already returns in document order.
-    """
-    seen: set[int] = set()
-    for child in node.css("*"):
-        nid = id(child)
-        if nid not in seen:
-            seen.add(nid)
-            yield child
-
-
 def _parse_single_roster_item(item, is_staff: bool) -> dict:
     """Parse one .team-roster-item node into a player/staff dict."""
     anchor = item.css_first("a")
