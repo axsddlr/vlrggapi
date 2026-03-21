@@ -736,6 +736,6 @@ async def vlr_match_detail(match_id: str) -> dict:
     # 7. Cache with appropriate TTL
     live = _is_live(base_html)
     ttl = CACHE_TTL_MATCH_DETAIL_LIVE if live else CACHE_TTL_MATCH_DETAIL
-    cache_manager.set(ttl, data, "match_detail", match_id)
+    cache_manager.set_if_cacheable(ttl, data, "match_detail", match_id)
 
     return data

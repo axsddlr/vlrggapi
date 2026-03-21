@@ -505,7 +505,7 @@ async def vlr_player(player_id: str, timespan: str = "90d") -> dict:
     }
 
     data = {"data": {"status": status, "segments": [segment]}}
-    cache_manager.set(CACHE_TTL_PLAYER, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_PLAYER, data, *cache_key)
     return data
 
 
@@ -567,5 +567,5 @@ async def vlr_player_matches(player_id: str, page: int = 1) -> dict:
             "meta": {"page": page},
         }
     }
-    cache_manager.set(CACHE_TTL_PLAYER_MATCHES, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_PLAYER_MATCHES, data, *cache_key)
     return data

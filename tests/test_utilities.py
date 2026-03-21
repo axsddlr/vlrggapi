@@ -7,7 +7,10 @@ from fastapi import HTTPException
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 from utils.html_parsers import parse_eta_to_timedelta
 from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
-from utils.cache_manager import CacheManager
+from utils.cache_manager import CacheManager, cache_manager
+from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
+from api.scrapers.events import vlr_events
+from api.scrapers.match_detail import vlr_match_detail
 
 
 # --- PaginationConfig.get_page_range ---
@@ -146,6 +149,18 @@ class TestCacheManager:
         key2 = CacheManager.make_cache_key("b")
         assert key1 != key2
 
+    def test_set_if_cacheable_skips_error_statuses(self):
+        cm = CacheManager()
+        stored = cm.set_if_cacheable(60, {"data": {"status": 503, "segments": []}}, "key1")
+        assert stored is False
+        assert cm.get(60, "key1") is None
+
+    def test_set_if_cacheable_skips_error_payloads(self):
+        cm = CacheManager()
+        stored = cm.set_if_cacheable(60, {"data": {"status": 200, "error": "bad gateway"}}, "key1")
+        assert stored is False
+        assert cm.get(60, "key1") is None
+
 
 class FakeResponse:
     def __init__(self, status_code: int, text: str = "<html></html>"):
@@ -206,3 +221,51 @@ async def test_scrape_multiple_pages_raises_when_any_page_exhausts_retries(monke
         ("https://example.test/page-2", 5),
         ("https://example.test/page-2", 5),
     ]
+
+
+@pytest.mark.anyio
+async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            "https://www.vlr.gg/events": [FakeResponse(503), FakeResponse(200)],
+        }
+    )
+
+    monkeypatch.setattr("api.scrapers.events.get_http_client", lambda: client)
+
+    first = await vlr_events()
+    second = await vlr_events()
+
+    assert first["data"]["status"] == 503
+    assert second["data"]["status"] == 200
+    assert client.calls == [
+        ("https://www.vlr.gg/events", None),
+        ("https://www.vlr.gg/events", None),
+    ]
+    assert cache_manager.get(CACHE_TTL_EVENTS, "events", True, True, 1) == second
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_vlr_match_detail_does_not_cache_non_200_responses(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            "https://www.vlr.gg/123": [FakeResponse(503), FakeResponse(200)],
+        }
+    )
+
+    monkeypatch.setattr("api.scrapers.match_detail.get_http_client", lambda: client)
+
+    first = await vlr_match_detail("123")
+    second = await vlr_match_detail("123")
+
+    assert first["data"]["status"] == 503
+    assert second["data"]["status"] == 200
+    assert client.calls == [
+        ("https://www.vlr.gg/123", None),
+        ("https://www.vlr.gg/123", None),
+    ]
+    assert cache_manager.get(CACHE_TTL_MATCH_DETAIL, "match_detail", "123") == second
+    cache_manager.clear_all()

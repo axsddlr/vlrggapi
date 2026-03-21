@@ -40,6 +40,32 @@ class CacheManager:
         key = self.make_cache_key(*args, **kwargs)
         cache[key] = value
 
+    @staticmethod
+    def is_cacheable(value) -> bool:
+        """Return True when a response payload is safe to cache."""
+        if not isinstance(value, dict):
+            return True
+
+        payload = value.get("data", value)
+        if not isinstance(payload, dict):
+            return True
+
+        status = payload.get("status")
+        if isinstance(status, int) and status >= 400:
+            return False
+
+        if payload.get("error"):
+            return False
+
+        return True
+
+    def set_if_cacheable(self, ttl: int, value, *args, **kwargs) -> bool:
+        """Store a value only when it does not represent an upstream error."""
+        if not self.is_cacheable(value):
+            return False
+        self.set(ttl, value, *args, **kwargs)
+        return True
+
     def invalidate(self, ttl: int, *args, **kwargs):
         """Remove a specific entry."""
         cache = self._get_cache(ttl)

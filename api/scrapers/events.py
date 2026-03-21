@@ -96,7 +96,7 @@ async def vlr_events(upcoming=True, completed=True, page=1):
                 parse_events(parent)
 
     data = {"data": {"status": status, "segments": events}}
-    cache_manager.set(CACHE_TTL_EVENTS, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_EVENTS, data, *cache_key)
     return data
 
 
@@ -191,5 +191,5 @@ async def vlr_event_matches(event_id: str):
         })
 
     data = {"data": {"status": status, "segments": matches}}
-    cache_manager.set(CACHE_TTL_EVENT_MATCHES, data, *cache_key)
+    cache_manager.set_if_cacheable(CACHE_TTL_EVENT_MATCHES, data, *cache_key)
     return data
