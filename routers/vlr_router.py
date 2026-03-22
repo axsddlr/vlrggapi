@@ -22,7 +22,11 @@ from routers.shared_handlers import (
     to_legacy_rankings_shape,
 )
 from utils.constants import RATE_LIMIT, MAX_MATCH_QUERY_BOUND
-from utils.error_handling import validate_match_workload
+from utils.error_handling import (
+    validate_id_param,
+    validate_match_workload,
+    validate_player_timespan,
+)
 
 router = APIRouter(tags=["Default"])
 limiter = Limiter(key_func=get_remote_address)
@@ -149,6 +153,7 @@ async def VLR_match_detail(
     match_id: str = Query(..., description="VLR.GG match ID"),
 ):
     """Get detailed match data including per-map stats, rounds, and head-to-head."""
+    validate_id_param(match_id, "match_id")
     return await get_match_detail_data(match_id)
 
 
@@ -160,6 +165,8 @@ async def VLR_player(
     timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
 ):
     """Get player profile with agent stats, event placements, and team history."""
+    validate_id_param(id)
+    validate_player_timespan(timespan)
     return await get_player_data(id, timespan)
 
 
@@ -171,6 +178,7 @@ async def VLR_player_matches(
     page: int = Query(1, description="Page number", ge=1, le=100),
 ):
     """Get paginated match history for a player."""
+    validate_id_param(id)
     return await get_player_matches_data(id, page)
 
 
@@ -181,6 +189,7 @@ async def VLR_team(
     id: str = Query(..., description="VLR.GG team ID"),
 ):
     """Get team profile with roster, rating, and event placements."""
+    validate_id_param(id)
     return await get_team_data(id)
 
 
@@ -192,6 +201,7 @@ async def VLR_team_matches(
     page: int = Query(1, description="Page number", ge=1, le=100),
 ):
     """Get paginated match history for a team."""
+    validate_id_param(id)
     return await get_team_matches_data(id, page)
 
 
@@ -202,6 +212,7 @@ async def VLR_team_transactions(
     id: str = Query(..., description="VLR.GG team ID"),
 ):
     """Get roster transaction history for a team."""
+    validate_id_param(id)
     return await get_team_transactions_data(id)
 
 
@@ -212,6 +223,7 @@ async def VLR_event_matches(
     event_id: str = Query(..., description="VLR.GG event ID"),
 ):
     """Get match list for a specific event."""
+    validate_id_param(event_id, "event_id")
     return await get_event_matches_data(event_id)
 
 

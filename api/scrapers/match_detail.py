@@ -16,7 +16,7 @@ from utils.constants import (
 )
 from utils.error_handling import handle_scraper_errors
 from utils.html_parsers import build_full_url, normalize_image_url, parse_href_id_slug
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -418,10 +418,7 @@ def _parse_maps(html: HTMLParser) -> list[dict]:
                 subtract += pick_elem.text(strip=True)
             if dur_elem:
                 subtract += dur_elem.text(strip=True)
-            map_name = full_text
-            for s in [subtract]:
-                map_name = map_name.replace(s, "")
-            map_name = re.sub(r"\s+", " ", map_name).strip()
+            map_name = re.sub(r"\s+", " ", full_text.replace(subtract, "")).strip()
 
         # Duration
         duration = ""
@@ -504,6 +501,22 @@ def _extract_game_ids(html: HTMLParser) -> list[str]:
         if gid and gid != "all":
             game_ids.append(gid)
     return game_ids
+
+
+async def _fetch_game_tab_html(
+    client,
+    base_url: str,
+    game_id: str,
+    tab: str,
+) -> tuple[str, str, HTMLParser | None]:
+    """Fetch one game-tab page and return parsed HTML when available."""
+    url = f"{base_url}/?game={game_id}&tab={tab}"
+    try:
+        resp = await fetch_with_retries(url, client=client)
+        return game_id, tab, HTMLParser(resp.text)
+    except Exception as exc:
+        logger.warning("Failed to fetch %s tab for game %s: %s", tab, game_id, exc)
+        return game_id, tab, None
 
 
 # ---------------------------------------------------------------------------
@@ -658,84 +671,102 @@ async def vlr_match_detail(match_id: str) -> dict:
     if cached is not None:
         return cached
 
-    client = get_http_client()
-
-    # 1. Fetch the base page
-    base_resp = await client.get(base_url)
-    base_html = HTMLParser(base_resp.text)
-    http_status = base_resp.status_code
-
-    # 2. Discover game IDs for tab fetches
-    game_ids = _extract_game_ids(base_html)
-    first_game_id = game_ids[0] if game_ids else None
-
-    # 3. Concurrently fetch performance and economy tabs for the first game
-    performance_html: HTMLParser | None = None
-    economy_html: HTMLParser | None = None
-
-    if first_game_id:
-        perf_url = f"{base_url}/?game={first_game_id}&tab=performance"
-        econ_url = f"{base_url}/?game={first_game_id}&tab=economy"
-
-        async def _safe_fetch(url: str) -> HTMLParser | None:
-            try:
-                resp = await client.get(url)
-                return HTMLParser(resp.text)
-            except Exception as exc:
-                logger.warning("Failed to fetch tab page %s: %s", url, exc)
-                return None
-
-        perf_result, econ_result = await asyncio.gather(
-            _safe_fetch(perf_url),
-            _safe_fetch(econ_url),
+    async def build():
+        cached_live = cache_manager.get(
+            CACHE_TTL_MATCH_DETAIL_LIVE, "match_detail", match_id
         )
-        performance_html = perf_result
-        economy_html = econ_result
+        if cached_live is not None:
+            return cached_live
 
-    # 4. Parse all sections from the base page
-    event_info = _parse_event_info(base_html)
-    header_info = _parse_match_header(base_html)
-    teams = _parse_teams(base_html)
-    streams, vods = _parse_streams_vods(base_html)
-    maps = _parse_maps(base_html)
-    h2h = _parse_head_to_head(base_html)
+        cached_complete = cache_manager.get(
+            CACHE_TTL_MATCH_DETAIL, "match_detail", match_id
+        )
+        if cached_complete is not None:
+            return cached_complete
 
-    # 5. Parse performance and economy tabs
-    kill_matrix: list[dict] = []
-    advanced_stats: list[dict] = []
-    economy: list[dict] = []
+        client = get_http_client()
 
-    if performance_html is not None:
-        kill_matrix = _parse_kill_matrix(performance_html)
-        advanced_stats = _parse_advanced_stats(performance_html)
+        base_resp = await fetch_with_retries(base_url, client=client)
+        base_html = HTMLParser(base_resp.text)
+        http_status = base_resp.status_code
 
-    if economy_html is not None:
-        economy = _parse_economy(economy_html)
+        game_ids = _extract_game_ids(base_html)
+        first_game_id = game_ids[0] if game_ids else None
 
-    # 6. Assemble the response
-    segment = {
-        "match_id": match_id,
-        "event": event_info,
-        "date": header_info["date"],
-        "patch": header_info["patch"],
-        "status": header_info["status"],
-        "teams": teams,
-        "streams": streams,
-        "vods": vods,
-        "maps": maps,
-        "head_to_head": h2h,
-        "performance": {
-            "kill_matrix": kill_matrix,
-            "advanced_stats": advanced_stats,
-        },
-        "economy": economy,
-    }
+        performance_by_game: dict[str, dict] = {}
+        economy_by_game: dict[str, list[dict]] = {}
 
-    data = {"data": {"status": http_status, "segments": [segment]}}
+        if game_ids:
+            tab_results = await asyncio.gather(
+                *[
+                    _fetch_game_tab_html(client, base_url, game_id, tab)
+                    for game_id in game_ids
+                    for tab in ("performance", "economy")
+                ]
+            )
 
-    # 7. Cache with appropriate TTL
-    live = _is_live(base_html)
-    ttl = CACHE_TTL_MATCH_DETAIL_LIVE if live else CACHE_TTL_MATCH_DETAIL
-    cache_manager.set(ttl, data, "match_detail", match_id)
+            for game_id, tab, tab_html in tab_results:
+                if tab_html is None:
+                    continue
+                if tab == "performance":
+                    performance_by_game[game_id] = {
+                        "kill_matrix": _parse_kill_matrix(tab_html),
+                        "advanced_stats": _parse_advanced_stats(tab_html),
+                    }
+                elif tab == "economy":
+                    economy_by_game[game_id] = _parse_economy(tab_html)
 
-    return data
+        event_info = _parse_event_info(base_html)
+        header_info = _parse_match_header(base_html)
+        teams = _parse_teams(base_html)
+        streams, vods = _parse_streams_vods(base_html)
+        maps = _parse_maps(base_html)
+        h2h = _parse_head_to_head(base_html)
+
+        for index, map_data in enumerate(maps):
+            game_id = game_ids[index] if index < len(game_ids) else ""
+            map_data["performance"] = performance_by_game.get(
+                game_id, {"kill_matrix": [], "advanced_stats": []}
+            )
+            map_data["economy"] = economy_by_game.get(game_id, [])
+
+        first_game_performance = performance_by_game.get(
+            first_game_id or "", {"kill_matrix": [], "advanced_stats": []}
+        )
+        first_game_economy = economy_by_game.get(first_game_id or "", [])
+
+        segment = {
+            "match_id": match_id,
+            "event": event_info,
+            "date": header_info["date"],
+            "patch": header_info["patch"],
+            "status": header_info["status"],
+            "teams": teams,
+            "streams": streams,
+            "vods": vods,
+            "maps": maps,
+            "head_to_head": h2h,
+            "performance": {
+                "kill_matrix": first_game_performance["kill_matrix"],
+                "advanced_stats": first_game_performance["advanced_stats"],
+                "by_map": [
+                    {"game_id": game_id, **performance_by_game.get(game_id, {"kill_matrix": [], "advanced_stats": []})}
+                    for game_id in game_ids
+                ],
+            },
+            "economy": first_game_economy,
+            "economy_by_map": [
+                {"game_id": game_id, "rows": economy_by_game.get(game_id, [])}
+                for game_id in game_ids
+            ],
+        }
+
+        data = {"data": {"status": http_status, "segments": [segment]}}
+
+        live = _is_live(base_html)
+        ttl = CACHE_TTL_MATCH_DETAIL_LIVE if live else CACHE_TTL_MATCH_DETAIL
+        cache_manager.set_if_cacheable(ttl, data, "match_detail", match_id)
+
+        return data
+
+    return await cache_manager.coalesce_async(f"match_detail:{match_id}", build)

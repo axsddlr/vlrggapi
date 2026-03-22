@@ -16,7 +16,7 @@ from utils.html_parsers import (
     normalize_image_url,
     parse_href_id_slug,
 )
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -471,42 +471,40 @@ async def vlr_player(player_id: str, timespan: str = "90d") -> dict:
         Standard API envelope with a single-element segments list.
     """
     cache_key = ("player", player_id, timespan)
-    cached = cache_manager.get(CACHE_TTL_PLAYER, *cache_key)
-    if cached is not None:
-        return cached
 
-    url = f"{VLR_BASE_URL}/player/{player_id}/?timespan={timespan}"
-    client = get_http_client()
-    resp = await client.get(url)
-    status = resp.status_code
+    async def build():
+        url = f"{VLR_BASE_URL}/player/{player_id}/?timespan={timespan}"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        status = resp.status_code
 
-    html = HTMLParser(resp.text)
+        html = HTMLParser(resp.text)
 
-    player_info = _parse_player_info(html)
-    current_team, past_teams = _parse_teams(html)
-    agent_stats = _parse_agent_stats(html)
-    event_placements = _parse_event_placements(html)
-    news = _parse_news(html)
-    total_winnings = _parse_total_winnings(html)
+        player_info = _parse_player_info(html)
+        current_team, past_teams = _parse_teams(html)
+        agent_stats = _parse_agent_stats(html)
+        event_placements = _parse_event_placements(html)
+        news = _parse_news(html)
+        total_winnings = _parse_total_winnings(html)
 
-    segment = {
-        "id": player_id,
-        "name": player_info["name"],
-        "real_name": player_info["real_name"],
-        "avatar": player_info["avatar"],
-        "country": player_info["country"],
-        "social_links": player_info["social_links"],
-        "current_team": current_team,
-        "past_teams": past_teams,
-        "agent_stats": agent_stats,
-        "event_placements": event_placements,
-        "news": news,
-        "total_winnings": total_winnings,
-    }
+        segment = {
+            "id": player_id,
+            "name": player_info["name"],
+            "real_name": player_info["real_name"],
+            "avatar": player_info["avatar"],
+            "country": player_info["country"],
+            "social_links": player_info["social_links"],
+            "current_team": current_team,
+            "past_teams": past_teams,
+            "agent_stats": agent_stats,
+            "event_placements": event_placements,
+            "news": news,
+            "total_winnings": total_winnings,
+        }
 
-    data = {"data": {"status": status, "segments": [segment]}}
-    cache_manager.set(CACHE_TTL_PLAYER, data, *cache_key)
-    return data
+        return {"data": {"status": status, "segments": [segment]}}
+
+    return await cache_manager.get_or_create_async(CACHE_TTL_PLAYER, build, *cache_key)
 
 
 @handle_scraper_errors
@@ -522,50 +520,48 @@ async def vlr_player_matches(player_id: str, page: int = 1) -> dict:
         Standard API envelope with match segments and a meta block.
     """
     cache_key = ("player_matches", player_id, page)
-    cached = cache_manager.get(CACHE_TTL_PLAYER_MATCHES, *cache_key)
-    if cached is not None:
-        return cached
 
-    url = f"{VLR_BASE_URL}/player/matches/{player_id}/?page={page}"
-    client = get_http_client()
-    resp = await client.get(url)
-    status = resp.status_code
+    async def build():
+        url = f"{VLR_BASE_URL}/player/matches/{player_id}/?page={page}"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        status = resp.status_code
 
-    html = HTMLParser(resp.text)
+        html = HTMLParser(resp.text)
 
-    matches: list[dict] = []
+        matches: list[dict] = []
 
-    # Primary selector: anchor cards with the m-item pattern
-    for item in html.css("a.wf-card.m-item"):
-        try:
-            parsed = _parse_player_match_item(item)
-            if parsed is not None:
-                matches.append(parsed)
-        except Exception as exc:
-            logger.warning(
-                "Failed to parse player match item for player %s page %d: %s",
-                player_id, page, exc,
-            )
-
-    # Fallback: the page may use fc-flex on the card element
-    if not matches:
-        for item in html.css("a.wf-card.fc-flex.m-item"):
+        for item in html.css("a.wf-card.m-item"):
             try:
                 parsed = _parse_player_match_item(item)
                 if parsed is not None:
                     matches.append(parsed)
             except Exception as exc:
                 logger.warning(
-                    "Failed to parse player match item (fc-flex) for player %s page %d: %s",
+                    "Failed to parse player match item for player %s page %d: %s",
                     player_id, page, exc,
                 )
 
-    data = {
-        "data": {
-            "status": status,
-            "segments": matches,
-            "meta": {"page": page},
+        if not matches:
+            for item in html.css("a.wf-card.fc-flex.m-item"):
+                try:
+                    parsed = _parse_player_match_item(item)
+                    if parsed is not None:
+                        matches.append(parsed)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to parse player match item (fc-flex) for player %s page %d: %s",
+                        player_id, page, exc,
+                    )
+
+        return {
+            "data": {
+                "status": status,
+                "segments": matches,
+                "meta": {"page": page},
+            }
         }
-    }
-    cache_manager.set(CACHE_TTL_PLAYER_MATCHES, data, *cache_key)
-    return data
+
+    return await cache_manager.get_or_create_async(
+        CACHE_TTL_PLAYER_MATCHES, build, *cache_key
+    )

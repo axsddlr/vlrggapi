@@ -342,18 +342,7 @@ def parse_match_items(html, container_selector: str = "a.wf-module-item.match-it
         eta_el = item.css_first(".ml-status") or item.css_first(".ml-eta")
         status = eta_el.text(strip=True) if eta_el else ""
 
-        # Timestamp
-        ts_el = item.css_first(".moment-tz-convert")
-        timestamp = ""
-        if ts_el:
-            unix_ts = ts_el.attributes.get("data-utc-ts")
-            if unix_ts:
-                try:
-                    timestamp = datetime.fromtimestamp(
-                        int(unix_ts), tz=timezone.utc
-                    ).strftime("%Y-%m-%d %H:%M:%S")
-                except (ValueError, OSError):
-                    pass
+        timestamp = parse_match_timestamp(item, "")
 
         results.append({
             "match_id": match_id,

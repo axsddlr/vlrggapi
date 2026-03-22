@@ -72,6 +72,24 @@ async def test_original_invalid_match_returns_error(client):
 
 
 @pytest.mark.anyio
+async def test_original_player_rejects_invalid_id(client):
+    resp = await client.get("/player?id=abc")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_original_player_rejects_invalid_timespan(client):
+    resp = await client.get("/player?id=9&timespan=45d")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_original_match_detail_rejects_invalid_id(client):
+    resp = await client.get("/match/details?match_id=abc")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
 async def test_v2_wrap_propagates_scraper_error_status(client, monkeypatch):
     async def fake_news():
         return {"data": {"status": 502, "error": "upstream failure", "segments": []}}
@@ -85,4 +103,16 @@ async def test_v2_wrap_propagates_scraper_error_status(client, monkeypatch):
 @pytest.mark.anyio
 async def test_v2_match_rejects_oversized_workload(client):
     resp = await client.get("/v2/match?q=results&num_pages=21")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_v2_match_rejects_pagination_for_upcoming_query(client):
+    resp = await client.get("/v2/match?q=upcoming&num_pages=2")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_original_match_rejects_pagination_for_live_score_query(client):
+    resp = await client.get("/match?q=live_score&from_page=2")
     assert resp.status_code == 400

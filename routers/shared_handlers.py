@@ -1,6 +1,8 @@
 """
 Shared endpoint handler logic used by both legacy and V2 routers.
 """
+from fastapi import HTTPException
+
 from api.scrapers import (
     check_health,
     vlr_event_matches,
@@ -19,6 +21,26 @@ from api.scrapers import (
     vlr_upcoming_matches,
     vlr_upcoming_matches_extended,
 )
+
+
+def _validate_non_paginated_match_query(
+    q: str,
+    num_pages: int,
+    from_page: int | None,
+    to_page: int | None,
+) -> None:
+    """Reject page-range parameters for match queries that do not support them."""
+    if q not in {"upcoming", "live_score"}:
+        return
+
+    if num_pages != 1 or from_page is not None or to_page is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Pagination parameters are not supported for match query '{q}'. "
+                "Use the default homepage view without num_pages, from_page, or to_page."
+            ),
+        )
 
 
 async def get_news_data() -> dict:
@@ -52,6 +74,8 @@ async def get_match_data(
     request_delay: float,
     timeout: int,
 ) -> dict:
+    _validate_non_paginated_match_query(q, num_pages, from_page, to_page)
+
     if q == "upcoming":
         return await vlr_upcoming_matches(num_pages, from_page, to_page)
     if q == "upcoming_extended":

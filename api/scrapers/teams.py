@@ -9,6 +9,7 @@ Provides three async scraper functions:
 import logging
 import re
 
+from fastapi import HTTPException
 from selectolax.parser import HTMLParser
 
 from utils.cache_manager import cache_manager
@@ -26,7 +27,7 @@ from utils.html_parsers import (
     normalize_image_url,
     parse_href_id_slug,
 )
-from utils.http_client import get_http_client
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +80,7 @@ def _parse_team_header(html: HTMLParser, team_id: str) -> dict:
     # The visible country name sits as text next to the flag
     country_name = ""
     if country_block:
-        raw = _text(country_block)
-        country_name = raw.strip()
+        country_name = _text(country_block)
 
     # Social / external links
     social_links = _parse_social_links(html)
@@ -225,20 +225,6 @@ def _parse_roster(html: HTMLParser) -> list[dict]:
                 roster.append(player)
 
     return roster
-
-
-def _iter_children_deep(node):
-    """
-    Yield every descendant node in document order.
-    selectolax's css("*") already returns in document order.
-    """
-    seen: set[int] = set()
-    for child in node.css("*"):
-        nid = id(child)
-        if nid not in seen:
-            seen.add(nid)
-            yield child
-
 
 def _parse_single_roster_item(item, is_staff: bool) -> dict:
     """Parse one .team-roster-item node into a player/staff dict."""
@@ -590,38 +576,38 @@ async def vlr_team(team_id: str) -> dict:
         print(team["name"], team["roster"])
     """
     cache_key = ("team", team_id)
-    cached = cache_manager.get(CACHE_TTL_TEAM, *cache_key)
-    if cached is not None:
-        return cached
 
-    url = f"{VLR_BASE_URL}/team/{team_id}"
-    client = get_http_client()
-    resp = await client.get(url)
-    status = resp.status_code
+    async def build():
+        url = f"{VLR_BASE_URL}/team/{team_id}"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        status = resp.status_code
 
-    if status != 200:
-        logger.warning("Non-200 response %d for team %s", status, team_id)
-        data = {"data": {"status": status, "segments": []}}
-        return data
+        if status >= 400:
+            logger.warning("Non-200 response %d for team %s", status, team_id)
+            raise HTTPException(
+                status_code=status,
+                detail=f"VLR.GG returned status {status} for team {team_id}",
+            )
 
-    html = HTMLParser(resp.text)
+        html = HTMLParser(resp.text)
 
-    header_info = _parse_team_header(html, team_id)
-    rating = _parse_rating_info(html)
-    roster = _parse_roster(html)
-    event_placements, total_winnings = _parse_event_placements(html)
+        header_info = _parse_team_header(html, team_id)
+        rating = _parse_rating_info(html)
+        roster = _parse_roster(html)
+        event_placements, total_winnings = _parse_event_placements(html)
 
-    segment = {
-        **header_info,
-        "rating": rating,
-        "roster": roster,
-        "event_placements": event_placements,
-        "total_winnings": total_winnings,
-    }
+        segment = {
+            **header_info,
+            "rating": rating,
+            "roster": roster,
+            "event_placements": event_placements,
+            "total_winnings": total_winnings,
+        }
 
-    data = {"data": {"status": status, "segments": [segment]}}
-    cache_manager.set(CACHE_TTL_TEAM, data, *cache_key)
-    return data
+        return {"data": {"status": status, "segments": [segment]}}
+
+    return await cache_manager.get_or_create_async(CACHE_TTL_TEAM, build, *cache_key)
 
 
 @handle_scraper_errors
@@ -649,63 +635,65 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
     page = max(1, min(page, 100))
 
     cache_key = ("team_matches", team_id, page)
-    cached = cache_manager.get(CACHE_TTL_TEAM_MATCHES, *cache_key)
-    if cached is not None:
-        return cached
 
-    url = f"{VLR_BASE_URL}/team/matches/{team_id}/?page={page}"
-    client = get_http_client()
-    resp = await client.get(url)
-    status = resp.status_code
+    async def build():
+        url = f"{VLR_BASE_URL}/team/matches/{team_id}/?page={page}"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        status = resp.status_code
 
-    if status != 200:
-        logger.warning(
-            "Non-200 response %d for team matches %s page %d", status, team_id, page
-        )
-        data = {"data": {"status": status, "segments": [], "meta": {"page": page}}}
-        return data
-
-    html = HTMLParser(resp.text)
-    matches: list[dict] = []
-
-    # VLR team match pages use .wf-card elements that contain .m-item anchors.
-    # Try the most specific selector first, then progressively widen.
-    selectors = [
-        "a.wf-card.m-item",
-        ".wf-card a.m-item",
-        "a.m-item",
-    ]
-    items = []
-    for sel in selectors:
-        items = html.css(sel)
-        if items:
-            break
-
-    # If the above all fail, look for any card-anchors inside the main content
-    if not items:
-        content = html.css_first(".col.mod-1") or html.css_first(".col")
-        if content:
-            items = content.css("a[href*='/match/']") or content.css("a[href*='/matches/']")
-
-    for item in items:
-        try:
-            parsed = _parse_team_match_item(item)
-            if parsed is not None:
-                matches.append(parsed)
-        except Exception as exc:
+        if status >= 400:
             logger.warning(
-                "Failed to parse match item for team %s: %s", team_id, exc
+                "Non-200 response %d for team matches %s page %d", status, team_id, page
+            )
+            raise HTTPException(
+                status_code=status,
+                detail=(
+                    f"VLR.GG returned status {status} for team matches "
+                    f"{team_id} page {page}"
+                ),
             )
 
-    data = {
-        "data": {
-            "status": status,
-            "segments": matches,
-            "meta": {"page": page},
+        html = HTMLParser(resp.text)
+        matches: list[dict] = []
+
+        selectors = [
+            "a.wf-card.m-item",
+            ".wf-card a.m-item",
+            "a.m-item",
+        ]
+        items = []
+        for sel in selectors:
+            items = html.css(sel)
+            if items:
+                break
+
+        if not items:
+            content = html.css_first(".col.mod-1") or html.css_first(".col")
+            if content:
+                items = content.css("a[href*='/match/']") or content.css("a[href*='/matches/']")
+
+        for item in items:
+            try:
+                parsed = _parse_team_match_item(item)
+                if parsed is not None:
+                    matches.append(parsed)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse match item for team %s: %s", team_id, exc
+                )
+
+        return {
+            "data": {
+                "status": status,
+                "segments": matches,
+                "meta": {"page": page},
+            }
         }
-    }
-    cache_manager.set(CACHE_TTL_TEAM_MATCHES, data, *cache_key)
-    return data
+
+    return await cache_manager.get_or_create_async(
+        CACHE_TTL_TEAM_MATCHES, build, *cache_key
+    )
 
 
 @handle_scraper_errors
@@ -728,65 +716,64 @@ async def vlr_team_transactions(team_id: str) -> dict:
         txns = result["data"]["segments"]
     """
     cache_key = ("team_transactions", team_id)
-    cached = cache_manager.get(CACHE_TTL_TEAM_TRANSACTIONS, *cache_key)
-    if cached is not None:
-        return cached
 
-    url = f"{VLR_BASE_URL}/team/transactions/{team_id}/"
-    client = get_http_client()
-    resp = await client.get(url)
-    status = resp.status_code
+    async def build():
+        url = f"{VLR_BASE_URL}/team/transactions/{team_id}/"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        status = resp.status_code
 
-    if status != 200:
-        logger.warning(
-            "Non-200 response %d for team transactions %s", status, team_id
-        )
-        data = {"data": {"status": status, "segments": []}}
-        return data
-
-    html = HTMLParser(resp.text)
-    transactions: list[dict] = []
-
-    # Selector priority: table rows, then generic card items
-    selectors = [
-        "tr.txn-item",
-        ".txn-item",
-        ".wf-card .txn-item",
-    ]
-    items = []
-    for sel in selectors:
-        items = html.css(sel)
-        if items:
-            break
-
-    # Fallback: scan every table row that has a player link inside it
-    if not items:
-        items = [
-            row
-            for row in html.css("tr")
-            if row.css_first("a[href*='/player/']")
-        ]
-
-    # Second fallback: wf-card based layout (some older team pages)
-    if not items:
-        content = html.css_first(".col.mod-1") or html.css_first(".col")
-        if content:
-            items = [
-                card
-                for card in content.css(".wf-card")
-                if card.css_first("a[href*='/player/']")
-            ]
-
-    for item in items:
-        try:
-            parsed = _parse_transaction_item(item)
-            if parsed is not None:
-                transactions.append(parsed)
-        except Exception as exc:
+        if status >= 400:
             logger.warning(
-                "Failed to parse transaction item for team %s: %s", team_id, exc
+                "Non-200 response %d for team transactions %s", status, team_id
+            )
+            raise HTTPException(
+                status_code=status,
+                detail=f"VLR.GG returned status {status} for team transactions {team_id}",
             )
 
-    data = {"data": {"status": status, "segments": transactions}}
-    cache_manager.set(CACHE_TTL_TEAM_TRANSACTIONS, data, *cache_key)
-    return data
+        html = HTMLParser(resp.text)
+        transactions: list[dict] = []
+
+        selectors = [
+            "tr.txn-item",
+            ".txn-item",
+            ".wf-card .txn-item",
+        ]
+        items = []
+        for sel in selectors:
+            items = html.css(sel)
+            if items:
+                break
+
+        if not items:
+            items = [
+                row
+                for row in html.css("tr")
+                if row.css_first("a[href*='/player/']")
+            ]
+
+        if not items:
+            content = html.css_first(".col.mod-1") or html.css_first(".col")
+            if content:
+                items = [
+                    card
+                    for card in content.css(".wf-card")
+                    if card.css_first("a[href*='/player/']")
+                ]
+
+        for item in items:
+            try:
+                parsed = _parse_transaction_item(item)
+                if parsed is not None:
+                    transactions.append(parsed)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse transaction item for team %s: %s", team_id, exc
+                )
+
+        return {"data": {"status": status, "segments": transactions}}
+
+    return await cache_manager.get_or_create_async(
+        CACHE_TTL_TEAM_TRANSACTIONS, build, *cache_key
+    )

@@ -1,8 +1,39 @@
 # vlrggapi
 
+## Important Notice
+
+> **`https://vlrggapi.vercel.app/` is currently down because it exceeded free-tier limits.**
+> Please self-host the API for now, or wait while I look into another solution.
+
 An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage.
 
 Built by [Andre Saddler](https://github.com/axsddlr/)
+
+## Support
+
+If this API helps your projects, you can support ongoing maintenance and development on Ko-fi.
+
+<a href='https://ko-fi.com/J3J1IR40C' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
+## Quick Start
+
+- **Public base URL:** `https://vlrggapi.vercel.app`
+- **Local base URL:** `http://127.0.0.1:3001`
+- **Interactive docs:** `/`
+- **Version info:** `/version`
+
+```bash
+curl https://vlrggapi.vercel.app/v2/news
+curl "https://vlrggapi.vercel.app/v2/match?q=live_score"
+curl "http://127.0.0.1:3001/v2/player?id=9&timespan=all"
+```
+
+## Highlights
+
+- **V2-first API** - consistent response envelopes, validation, and per-endpoint caching
+- **Backwards compatibility** - original unversioned endpoints are still available
+- **Deep match coverage** - detailed match, player, team, and event match endpoints
+- **Operational guardrails** - async HTTP, rate limiting, and bounded expensive scrapes
 
 ## What's New
 
@@ -33,6 +64,29 @@ Both the original and V2 endpoints coexist. The original endpoints (`/news`, `/m
 | Caching | None | Per-endpoint TTL cache |
 
 Interactive Swagger docs are available at `/`.
+
+## Operational Notes
+
+- **Recommended base path** - use `/v2` for new integrations
+- **Current version endpoint** - `GET /version` returns the current API version and default API
+- **Rate limit** - requests are limited to `600/minute`
+- **Error handling** - V2 returns HTTP 400 for invalid input and propagates upstream failures with HTTP error codes
+- **Deployment targets** - Vercel for the hosted API, Docker for containerized self-hosting
+
+## V2 Endpoint Overview
+
+| Area | Route | Purpose |
+|---|---|---|
+| News | `GET /v2/news` | Latest Valorant esports news |
+| Matches | `GET /v2/match` | Upcoming, live, extended upcoming, and results feeds |
+| Match detail | `GET /v2/match/details` | Per-map stats, rounds, performance, economy, streams |
+| Rankings | `GET /v2/rankings` | Regional team rankings |
+| Stats | `GET /v2/stats` | Regional player stats by timespan |
+| Events | `GET /v2/events` | Upcoming and completed events |
+| Event matches | `GET /v2/events/matches` | Match list for a specific event |
+| Players | `GET /v2/player`, `GET /v2/player/matches` | Player profile and match history |
+| Teams | `GET /v2/team`, `GET /v2/team/matches`, `GET /v2/team/transactions` | Team profile, match history, roster changes |
+| Health | `GET /v2/health` | Runtime and upstream health status |
 
 ## V2 Endpoints
 
@@ -811,9 +865,30 @@ Original endpoints are not cached.
 
 ## Installation
 
+### Requirements
+
+- Python `3.11` (matches `.python-version`, CI, and the Docker image)
+- `pip`
+
 ```bash
 git clone https://github.com/axsddlr/vlrggapi/
 cd vlrggapi
+python -m venv .venv
+```
+
+Activate the virtual environment:
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
@@ -823,12 +898,19 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Serves on `http://0.0.0.0:3001`.
+The API will be available at `http://127.0.0.1:3001` and the interactive docs will be at `http://127.0.0.1:3001/`.
+
+### Smoke check
+
+```bash
+curl http://127.0.0.1:3001/version
+curl "http://127.0.0.1:3001/v2/health"
+```
 
 ### Docker
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### Testing
@@ -843,11 +925,21 @@ python -m pytest tests/ -v
 - [httpx](https://www.python-httpx.org/)
 - [Selectolax](https://github.com/rushter/selectolax)
 - [cachetools](https://github.com/tkem/cachetools)
+- [slowapi](https://github.com/laurentS/slowapi)
 - [uvicorn](https://www.uvicorn.org/)
 
 ## Contributing
 
-Feel free to submit a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/master) or an [issue](https://github.com/axsddlr/vlrggapi/issues/new)!
+Issues and pull requests are welcome.
+
+Recommended workflow:
+
+1. Branch from `master`.
+2. Install dependencies and verify the app starts locally.
+3. Run `python -m pytest tests/ -v`.
+4. Open a pull request against `master`.
+
+Open a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/master) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).
 
 ## License
 

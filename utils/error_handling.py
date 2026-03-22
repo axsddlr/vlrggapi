@@ -113,15 +113,6 @@ def validate_id_param(value: str, name: str = "id"):
         )
 
 
-def validate_page_param(page: int, max_page: int = 100) -> int:
-    """Validate and clamp page parameter."""
-    if page < 1:
-        return 1
-    if page > max_page:
-        return max_page
-    return page
-
-
 def validate_match_workload(
     num_pages: int,
     from_page: int | None,
