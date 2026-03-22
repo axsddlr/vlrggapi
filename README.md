@@ -1,5 +1,10 @@
 # vlrggapi
 
+## Important Notice
+
+> **`https://vlrggapi.vercel.app/` is currently down because it exceeded free-tier limits.**
+> Please self-host the API for now, or wait while I look into another solution.
+
 An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage.
 
 Built by [Andre Saddler](https://github.com/axsddlr/)
