@@ -2,7 +2,7 @@ httpx==0.28.1
 cachetools==7.0.5
 uvicorn==0.44.0
 fastapi==0.135.3
-lxml==6.0.2
+lxml==6.0.4
 slowapi==0.1.9
 selectolax==0.4.7
 pytest==9.0.2
