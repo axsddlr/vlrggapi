@@ -215,9 +215,10 @@ class TestCacheManager:
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, text: str = "<html></html>"):
+    def __init__(self, status_code: int, text: str = "<html></html>", headers: dict | None = None):
         self.status_code = status_code
         self.text = text
+        self.headers = headers or {}
 
 
 class FakeAsyncClient:
@@ -471,3 +472,88 @@ async def test_fetch_with_retries_retries_request_errors(monkeypatch):
         ("https://example.test/resource", None),
         ("https://example.test/resource", None),
     ]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_retries_on_429(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [FakeResponse(429), FakeResponse(200)],
+        }
+    )
+
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=1.0,
+    )
+
+    assert response.status_code == 200
+    assert len(sleep_calls) == 1
+    assert client.calls == [
+        ("https://example.test/resource", None),
+        ("https://example.test/resource", None),
+    ]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_uses_retry_after_header_on_429(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [
+                FakeResponse(429, headers={"Retry-After": "7"}),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=1.0,
+    )
+
+    assert response.status_code == 200
+    assert sleep_calls == [7.0]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_falls_back_to_exponential_backoff_on_429_without_retry_after(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [FakeResponse(429), FakeResponse(200)],
+        }
+    )
+
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=2.0,
+    )
+
+    assert response.status_code == 200
+    assert sleep_calls == [2.0]

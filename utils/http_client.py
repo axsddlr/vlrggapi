@@ -3,6 +3,8 @@ Async HTTP client singleton using httpx.
 """
 import asyncio
 import logging
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import httpx
 
@@ -11,7 +13,24 @@ from utils.constants import DEFAULT_REQUEST_DELAY, DEFAULT_RETRIES, DEFAULT_TIME
 
 logger = logging.getLogger(__name__)
 
-RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+def _parse_retry_after(response: httpx.Response) -> float | None:
+    """Parse the Retry-After header into seconds. Returns None if absent or unparseable."""
+    value = response.headers.get("Retry-After")
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        dt = parsedate_to_datetime(value)
+        delta = (dt - datetime.now(tz=timezone.utc)).total_seconds()
+        return max(0.0, delta)
+    except Exception:
+        return None
 
 _client: httpx.AsyncClient | None = None
 
@@ -59,11 +78,16 @@ async def fetch_with_retries(
         if response.status_code not in RETRYABLE_STATUS_CODES or attempt >= retries:
             return response
 
+        if response.status_code == 429:
+            backoff = _parse_retry_after(response) or request_delay * (2 ** (attempt - 1))
+        else:
+            backoff = request_delay * (2 ** (attempt - 1))
+
         logger.warning(
-            "Retrying %s after upstream status %d on attempt %d/%d",
-            url, response.status_code, attempt, retries,
+            "Retrying %s after upstream status %d on attempt %d/%d (backoff %.1fs)",
+            url, response.status_code, attempt, retries, backoff,
         )
-        await asyncio.sleep(request_delay * (2 ** (attempt - 1)))
+        await asyncio.sleep(backoff)
 
     if last_response is not None:
         return last_response
