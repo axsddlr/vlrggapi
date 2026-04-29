@@ -7,7 +7,7 @@ from datetime import timedelta
 from fastapi import HTTPException
 
 from utils.pagination import PaginationConfig, scrape_multiple_pages
-from utils.http_client import fetch_with_retries
+from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
 from utils.html_parsers import parse_eta_to_timedelta
 from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
 from utils.cache_manager import CacheManager, cache_manager
@@ -557,3 +557,114 @@ async def test_fetch_with_retries_falls_back_to_exponential_backoff_on_429_witho
 
     assert response.status_code == 200
     assert sleep_calls == [2.0]
+
+
+# --- CircuitBreaker ---
+
+class TestCircuitBreaker:
+    def setup_method(self):
+        circuit_breaker.reset()
+
+    def test_allows_request_when_closed(self):
+        assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    def test_opens_after_fail_max_failures(self):
+        circuit_breaker.fail_max = 3
+        for _ in range(3):
+            circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is False
+
+    def test_record_success_resets_failure_count(self):
+        circuit_breaker.fail_max = 3
+        circuit_breaker.record_failure("https://example.test/resource")
+        circuit_breaker.record_failure("https://example.test/resource")
+        circuit_breaker.record_success("https://example.test/resource")
+        # After success, failure count resets — needs fail_max more failures to open
+        circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    def test_transitions_to_half_open_after_reset_timeout(self):
+        import time as _time
+        circuit_breaker.fail_max = 1
+        circuit_breaker.reset_timeout = 30.0
+        circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is False
+
+        # Backdate opened_at to simulate reset_timeout having elapsed
+        circuit_breaker._opened_at["example.test"] = _time.monotonic() - 100.0
+        assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    def test_circuit_is_per_host(self):
+        circuit_breaker.fail_max = 1
+        circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is False
+        assert circuit_breaker.allow_request("https://other.test/resource") is True
+
+    def teardown_method(self):
+        circuit_breaker.reset()
+        circuit_breaker.fail_max = 5
+        circuit_breaker.reset_timeout = 30.0
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_raises_circuit_open_error_when_circuit_is_open(monkeypatch):
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 1
+    circuit_breaker.record_failure("https://example.test/resource")
+
+    with pytest.raises(CircuitOpenError):
+        await fetch_with_retries("https://example.test/resource")
+
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 5
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_records_failure_after_exhausting_retries(monkeypatch):
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 2
+
+    client = FakeAsyncClient(
+        {"https://example.test/resource": [FakeResponse(503), FakeResponse(503)]}
+    )
+
+    async def fake_sleep(_delay):
+        pass
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    # First call exhausts retries — records 1 failure
+    await fetch_with_retries("https://example.test/resource", client=client, max_retries=2)
+    assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    # Second call exhausts retries — records 2nd failure, trips circuit
+    client2 = FakeAsyncClient(
+        {"https://example.test/resource": [FakeResponse(503), FakeResponse(503)]}
+    )
+    await fetch_with_retries("https://example.test/resource", client=client2, max_retries=2)
+    assert circuit_breaker.allow_request("https://example.test/resource") is False
+
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 5
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_does_not_count_429_as_circuit_failure(monkeypatch):
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 2
+
+    responses = [FakeResponse(429)] * 4 + [FakeResponse(200)]
+    client = FakeAsyncClient({"https://example.test/resource": responses})
+
+    async def fake_sleep(_delay):
+        pass
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    # Two calls each exhausting retries on 429 should NOT trip the circuit
+    await fetch_with_retries("https://example.test/resource", client=client, max_retries=2)
+    await fetch_with_retries("https://example.test/resource", client=client, max_retries=2)
+    assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 5

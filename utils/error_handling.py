@@ -8,6 +8,7 @@ from functools import wraps
 import httpx
 from fastapi import HTTPException
 
+from utils.http_client import CircuitOpenError
 from utils.constants import (
     MAX_MATCH_PAGE_WINDOW,
     MAX_MATCH_RETRIES,
@@ -48,6 +49,10 @@ def handle_scraper_errors(func):
     def _raise_http_error(exc: Exception):
         if isinstance(exc, HTTPException):
             raise exc
+
+        if isinstance(exc, CircuitOpenError):
+            logger.warning("Circuit open in %s: %s", func.__name__, exc)
+            raise HTTPException(status_code=503, detail=str(exc))
 
         if isinstance(exc, httpx.TimeoutException):
             logger.error("Timeout in %s: %s", func.__name__, exc)

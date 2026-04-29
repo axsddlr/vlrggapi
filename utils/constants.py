@@ -31,6 +31,10 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_RETRIES = 3
 DEFAULT_REQUEST_DELAY = 1.0
 
+# Circuit breaker
+CIRCUIT_FAIL_MAX = 5
+CIRCUIT_RESET_TIMEOUT = 30.0
+
 # Request hardening limits for expensive paginated scrapes
 MAX_MATCH_PAGE_WINDOW = 20
 MAX_MATCH_QUERY_BOUND = 100
