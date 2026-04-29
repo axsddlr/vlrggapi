@@ -8,7 +8,7 @@ from selectolax.parser import HTMLParser
 
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_PLAYER, CACHE_TTL_PLAYER_MATCHES, VLR_BASE_URL
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import (
     build_full_url,
     extract_region_from_flag,
@@ -477,6 +477,8 @@ async def vlr_player(player_id: str, timespan: str = "90d") -> dict:
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
+        if status >= 400:
+            return upstream_error_payload(status, f"player {player_id}")
 
         html = HTMLParser(resp.text)
 
@@ -526,6 +528,10 @@ async def vlr_player_matches(player_id: str, page: int = 1) -> dict:
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
+        if status >= 400:
+            return upstream_error_payload(
+                status, f"player matches {player_id} page {page}"
+            )
 
         html = HTMLParser(resp.text)
 

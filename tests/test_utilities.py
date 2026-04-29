@@ -12,8 +12,9 @@ from utils.html_parsers import parse_eta_to_timedelta
 from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
 from utils.cache_manager import CacheManager, cache_manager
 from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
-from api.scrapers.events import vlr_events
+from api.scrapers.events import vlr_event_matches, vlr_events
 from api.scrapers.match_detail import vlr_match_detail
+from api.scrapers.players import vlr_player, vlr_player_matches
 
 
 # --- PaginationConfig.get_page_range ---
@@ -294,6 +295,8 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
     second = await vlr_events()
 
     assert first["data"]["status"] == 503
+    assert first["data"]["error"] == "VLR.GG returned status 503 for events"
+    assert first["data"]["segments"] == []
     assert second["data"]["status"] == 200
     assert client.calls == [
         ("https://www.vlr.gg/events", None),
@@ -302,6 +305,81 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
         ("https://www.vlr.gg/events", None),
     ]
     assert cache_manager.get(CACHE_TTL_EVENTS, "events", True, True, 1) == second
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_vlr_event_matches_returns_error_payload_for_non_200(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            "https://www.vlr.gg/event/matches/42": [
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    monkeypatch.setattr("api.scrapers.events.get_http_client", lambda: client)
+
+    first = await vlr_event_matches("42")
+    second = await vlr_event_matches("42")
+
+    assert first["data"] == {
+        "status": 503,
+        "error": "VLR.GG returned status 503 for event matches 42",
+        "segments": [],
+    }
+    assert second["data"]["status"] == 200
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("scraper", "args", "url", "expected_error"),
+    [
+        (
+            vlr_player,
+            ("9", "90d"),
+            "https://www.vlr.gg/player/9/?timespan=90d",
+            "VLR.GG returned status 503 for player 9",
+        ),
+        (
+            vlr_player_matches,
+            ("9", 2),
+            "https://www.vlr.gg/player/matches/9/?page=2",
+            "VLR.GG returned status 503 for player matches 9 page 2",
+        ),
+    ],
+)
+async def test_player_scrapers_return_error_payload_for_non_200(
+    monkeypatch, scraper, args, url, expected_error
+):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            url: [
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    monkeypatch.setattr("api.scrapers.players.get_http_client", lambda: client)
+
+    first = await scraper(*args)
+    second = await scraper(*args)
+
+    assert first["data"] == {
+        "status": 503,
+        "error": expected_error,
+        "segments": [],
+    }
+    assert second["data"]["status"] == 200
     cache_manager.clear_all()
 
 
@@ -325,6 +403,8 @@ async def test_vlr_match_detail_does_not_cache_non_200_responses(monkeypatch):
     second = await vlr_match_detail("123")
 
     assert first["data"]["status"] == 503
+    assert first["data"]["error"] == "VLR.GG returned status 503 for match detail 123"
+    assert first["data"]["segments"] == []
     assert second["data"]["status"] == 200
     assert client.calls == [
         ("https://www.vlr.gg/123", None),

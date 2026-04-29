@@ -23,6 +23,26 @@ VALID_MATCH_QUERIES = {"upcoming", "upcoming_extended", "live_score", "results"}
 VALID_EVENT_QUERIES = {"upcoming", "completed", None}
 
 
+def upstream_error_payload(status_code: int, context: str) -> dict:
+    """Return a standard scraper payload for upstream HTTP failures."""
+    return {
+        "data": {
+            "status": status_code,
+            "error": f"VLR.GG returned status {status_code} for {context}",
+            "segments": [],
+        }
+    }
+
+
+def raise_for_upstream_status(status_code: int, context: str) -> None:
+    """Raise a FastAPI HTTPException when VLR.GG returns an error status."""
+    if status_code >= 400:
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"VLR.GG returned status {status_code} for {context}",
+        )
+
+
 def handle_scraper_errors(func):
     """Decorator to handle common scraper errors. Works with both sync and async functions."""
     def _raise_http_error(exc: Exception):

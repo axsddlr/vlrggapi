@@ -3,8 +3,8 @@ Shared pagination and retry logic for multi-page scrapers.
 """
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from typing import Callable, List
+from dataclasses import dataclass
+from typing import Callable
 
 from fastapi import HTTPException
 from selectolax.parser import HTMLParser

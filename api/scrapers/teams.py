@@ -581,7 +581,6 @@ async def vlr_team(team_id: str) -> dict:
 
         result = await vlr_team("2593")
         team = result["data"]["segments"][0]
-        print(team["name"], team["roster"])
     """
     cache_key = ("team", team_id)
 

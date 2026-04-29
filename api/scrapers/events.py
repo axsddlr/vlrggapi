@@ -5,7 +5,7 @@ from selectolax.parser import HTMLParser
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_BASE_URL, VLR_EVENTS_URL, CACHE_TTL_EVENTS, CACHE_TTL_EVENT_MATCHES
 from utils.cache_manager import cache_manager
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import (
     extract_text_content,
     extract_prize_value,
@@ -68,8 +68,11 @@ async def vlr_events(upcoming=True, completed=True, page=1):
 
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        if status >= 400:
+            return upstream_error_payload(status, "events")
+
+        html = HTMLParser(resp.text)
 
         events = []
 
@@ -106,8 +109,11 @@ async def vlr_event_matches(event_id: str):
         url = f"{VLR_BASE_URL}/event/matches/{event_id}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        if status >= 400:
+            return upstream_error_payload(status, f"event matches {event_id}")
+
+        html = HTMLParser(resp.text)
 
         matches = []
         current_date = ""

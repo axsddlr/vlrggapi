@@ -16,14 +16,12 @@ from utils.constants import (
     LIVE_DETAIL_FETCH_TIMEOUT,
 )
 from utils.cache_manager import cache_manager
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, raise_for_upstream_status
 from utils.html_parsers import (
     build_full_url,
     extract_match_teams,
     extract_text_content,
     normalize_image_url,
-    parse_eta_to_timedelta,
-    combine_date_and_time,
     parse_match_timestamp,
 )
 from utils.pagination import PaginationConfig, scrape_multiple_pages
@@ -63,8 +61,10 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
     async def build():
         client = get_http_client()
         resp = await fetch_with_retries(VLR_BASE_URL, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        raise_for_upstream_status(status, "upcoming matches")
+
+        html = HTMLParser(resp.text)
 
         result = []
         for item in html.css(".js-home-matches-upcoming a.wf-module-item"):
@@ -99,9 +99,6 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
         data = {"data": {"status": status, "segments": result}}
 
-        if status != 200:
-            raise Exception("API response: {}".format(status))
-
         return data
 
     return await cache_manager.get_or_create_async(CACHE_TTL_UPCOMING, build, "upcoming")
@@ -113,8 +110,10 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     async def build():
         client = get_http_client()
         resp = await fetch_with_retries(VLR_BASE_URL, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        raise_for_upstream_status(status, "live scores")
+
+        html = HTMLParser(resp.text)
 
         matches = html.css(".js-home-matches-upcoming a.wf-module-item")
         live_matches = []
@@ -235,9 +234,6 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
             )
 
         data = {"data": {"status": status, "segments": result}}
-
-        if status != 200:
-            raise Exception("API response: {}".format(status))
 
         return data
 

@@ -12,9 +12,11 @@ from utils.cache_manager import cache_manager
 from utils.constants import (
     CACHE_TTL_MATCH_DETAIL,
     CACHE_TTL_MATCH_DETAIL_LIVE,
+    MATCH_DETAIL_TAB_FETCH_CONCURRENCY,
+    MATCH_DETAIL_TAB_FETCH_TIMEOUT,
     VLR_BASE_URL,
 )
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import build_full_url, normalize_image_url, parse_href_id_slug
 from utils.http_client import fetch_with_retries, get_http_client
 
@@ -523,11 +525,18 @@ async def _fetch_game_tab_html(
     base_url: str,
     game_id: str,
     tab: str,
+    timeout: int = MATCH_DETAIL_TAB_FETCH_TIMEOUT,
 ) -> tuple[str, str, HTMLParser | None]:
     """Fetch one game-tab page and return parsed HTML when available."""
     url = f"{base_url}/?game={game_id}&tab={tab}"
     try:
-        resp = await fetch_with_retries(url, client=client)
+        resp = await fetch_with_retries(url, client=client, timeout=timeout)
+        if resp.status_code >= 400:
+            logger.warning(
+                "Failed to fetch %s tab for game %s: upstream status %d",
+                tab, game_id, resp.status_code,
+            )
+            return game_id, tab, None
         return game_id, tab, HTMLParser(resp.text)
     except Exception as exc:
         logger.warning("Failed to fetch %s tab for game %s: %s", tab, game_id, exc)
@@ -702,8 +711,11 @@ async def vlr_match_detail(match_id: str) -> dict:
         client = get_http_client()
 
         base_resp = await fetch_with_retries(base_url, client=client)
-        base_html = HTMLParser(base_resp.text)
         http_status = base_resp.status_code
+        if http_status >= 400:
+            return upstream_error_payload(http_status, f"match detail {match_id}")
+
+        base_html = HTMLParser(base_resp.text)
 
         game_ids = _extract_game_ids(base_html)
         first_game_id = game_ids[0] if game_ids else None
@@ -712,9 +724,21 @@ async def vlr_match_detail(match_id: str) -> dict:
         economy_by_game: dict[str, list[dict]] = {}
 
         if game_ids:
+            tab_fetch_semaphore = asyncio.Semaphore(MATCH_DETAIL_TAB_FETCH_CONCURRENCY)
+
+            async def fetch_tab(game_id: str, tab: str):
+                async with tab_fetch_semaphore:
+                    return await _fetch_game_tab_html(
+                        client,
+                        base_url,
+                        game_id,
+                        tab,
+                        timeout=MATCH_DETAIL_TAB_FETCH_TIMEOUT,
+                    )
+
             tab_results = await asyncio.gather(
                 *[
-                    _fetch_game_tab_html(client, base_url, game_id, tab)
+                    fetch_tab(game_id, tab)
                     for game_id in game_ids
                     for tab in ("performance", "economy")
                 ]

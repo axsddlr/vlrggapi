@@ -6,7 +6,7 @@ from selectolax.parser import HTMLParser
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_RANKINGS_URL, CACHE_TTL_RANKINGS
 from utils.cache_manager import cache_manager
-from utils.error_handling import handle_scraper_errors, validate_region
+from utils.error_handling import handle_scraper_errors, raise_for_upstream_status, validate_region
 
 logger = logging.getLogger(__name__)
 
@@ -106,8 +106,10 @@ async def vlr_rankings(region_key):
 
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        raise_for_upstream_status(status, "rankings")
+
+        html = HTMLParser(resp.text)
 
         result = []
         for item in html.css("div.rank-item"):
@@ -137,9 +139,6 @@ async def vlr_rankings(region_key):
             )
 
         data = {"data": {"status": status, "segments": result}}
-
-        if status != 200:
-            raise Exception("API response: {}".format(status))
 
         return data
 
