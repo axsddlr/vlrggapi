@@ -42,7 +42,7 @@ jobs:
         run: uv pip install --system -r requirements.txt
 
       - name: Run tests
-        run: pytest -q
+        run: pytest -q --cov --cov-report=term-missing --cov-fail-under=55
 
   docker-smoke:
     name: Docker smoke build
