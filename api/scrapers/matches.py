@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import re
-from datetime import datetime, timezone
 
 from selectolax.parser import HTMLParser
 
@@ -38,21 +37,6 @@ def _safe_flag(team_node) -> str:
     return flag_class.replace(" mod-", "").replace("16", "_")
 
 
-def _safe_timestamp(item) -> str:
-    """Extract a UTC timestamp string from a homepage match item."""
-    ts_elem = item.css_first(".moment-tz-convert")
-    if not ts_elem:
-        return ""
-
-    unix_ts = ts_elem.attributes.get("data-utc-ts", "")
-    if not unix_ts:
-        return ""
-
-    try:
-        return datetime.fromtimestamp(int(unix_ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    except (TypeError, ValueError, OSError):
-        return ""
-
 
 
 @handle_scraper_errors
@@ -80,7 +64,7 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
             match_event = extract_text_content(item.css_first(".h-match-preview-event"))
             match_series = extract_text_content(item.css_first(".h-match-preview-series"))
-            timestamp = _safe_timestamp(item)
+            timestamp = parse_match_timestamp(item, "")
             url_path = build_full_url(item.attributes.get("href", ""))
 
             result.append(
@@ -147,7 +131,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
 
             match_event = extract_text_content(match.css_first(".h-match-preview-event"))
             match_series = extract_text_content(match.css_first(".h-match-preview-series"))
-            timestamp = _safe_timestamp(match)
+            timestamp = parse_match_timestamp(match, "")
             url_path = build_full_url(match.attributes.get("href", ""))
 
             live_matches.append({
