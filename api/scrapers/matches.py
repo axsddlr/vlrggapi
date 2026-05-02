@@ -22,6 +22,7 @@ from utils.html_parsers import (
     extract_match_teams,
     extract_text_content,
     normalize_image_url,
+    parse_href_id_slug,
     parse_match_timestamp,
 )
 from utils.pagination import PaginationConfig, scrape_multiple_pages
@@ -148,7 +149,9 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
             match_event = extract_text_content(match.css_first(".h-match-preview-event"))
             match_series = extract_text_content(match.css_first(".h-match-preview-series"))
             timestamp = _safe_timestamp(match)
-            url_path = build_full_url(match.attributes.get("href", ""))
+            href = match.attributes.get("href", "")
+            url_path = build_full_url(href)
+            match_id, _ = parse_href_id_slug(href)
 
             live_matches.append({
                 "teams": teams,
@@ -159,6 +162,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
                 "match_series": match_series,
                 "timestamp": timestamp,
                 "url_path": url_path,
+                "match_id": match_id,
             })
 
         detail_fetch_semaphore = asyncio.Semaphore(LIVE_DETAIL_FETCH_CONCURRENCY)
@@ -230,6 +234,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
                     "match_series": match_data["match_series"],
                     "unix_timestamp": match_data["timestamp"],
                     "match_page": match_data["url_path"],
+                    "match_id": match_data["match_id"],
                 }
             )
 
