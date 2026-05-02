@@ -10,10 +10,12 @@ from zoneinfo import ZoneInfo
 
 
 def extract_text_content(element, strip: bool = True) -> str:
-    """Extract text content from an HTML element safely"""
+    """Extract text content from an HTML element safely, collapsing internal whitespace."""
     if not element:
         return ""
-    return element.text(strip=strip)
+    text = element.text(strip=False)
+    collapsed = re.sub(r"\s+", " ", text)
+    return collapsed.strip() if strip else collapsed
 
 
 def extract_prize_value(prize_elem) -> str:
