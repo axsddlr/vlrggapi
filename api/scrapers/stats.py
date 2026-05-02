@@ -56,6 +56,7 @@ def _parse_stats_row(item) -> dict:
         "first_deaths_per_round": _cell_text(cells, 11),
         "headshot_percentage": _cell_text(cells, 12),
         "clutch_success_percentage": _cell_text(cells, 13),
+        "clutch_attempts": _cell_text(cells, 14),
     }
 
 
