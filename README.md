@@ -94,16 +94,16 @@ Interactive Swagger docs are available at `/`.
 
 ## V2 Endpoints
 
+All examples are collapsed — click to expand.
+
 ### `GET /v2/news`
-
-Fetches the latest Valorant esports news.
-
-- **Params:** none
-- **Cache:** 10 minutes
+**Params:** none | **Cache:** 10 min
 
 ```
 GET /v2/news
 ```
+
+<details><summary>Response</summary>
 
 ```json
 {
@@ -122,23 +122,17 @@ GET /v2/news
   }
 }
 ```
+</details>
 
 ### `GET /v2/match`
-
-Fetches match data by type.
-
-- **Params:**
-  - `q` (required) — `upcoming`, `upcoming_extended`, `live_score`, or `results`
-  - `num_pages` — pages to scrape (default: 1)
-  - `from_page` / `to_page` — page range (overrides `num_pages`)
-  - `max_retries` — retry attempts per page (default: 3)
-  - `request_delay` — delay between requests in seconds (default: 1.0)
-  - `timeout` — request timeout in seconds (default: 30)
-- **Cache:** 30s (live_score), 5min (upcoming), 60s (results)
+**Params:** `q` (required: upcoming/upcoming_extended/live_score/results), `num_pages`, `from_page`, `to_page`, `max_retries`, `request_delay`, `timeout`
+**Cache:** 30s (live_score), 5min (upcoming), 60s (results)
 
 ```
 GET /v2/match?q=upcoming
 ```
+
+<details><summary>Response (upcoming)</summary>
 
 ```json
 {
@@ -147,10 +141,8 @@ GET /v2/match?q=upcoming
     "status": 200,
     "segments": [
       {
-        "team1": "G2 Esports",
-        "team2": "Leviatán",
-        "flag1": "flag_us",
-        "flag2": "flag_cl",
+        "team1": "G2 Esports", "team2": "Leviatán",
+        "flag1": "flag_us", "flag2": "flag_cl",
         "time_until_match": "51m from now",
         "match_series": "Regular Season: Week 3",
         "match_event": "Champions Tour 2024: Americas Stage 1",
@@ -161,18 +153,16 @@ GET /v2/match?q=upcoming
   }
 }
 ```
+</details>
 
 ### `GET /v2/rankings`
-
-Fetches team rankings for a region.
-
-- **Params:**
-  - `region` (required) — see [Region Codes](#region-codes)
-- **Cache:** 1 hour
+**Params:** `region` (required — see [Region Codes](#region-codes)) | **Cache:** 1 hr
 
 ```
 GET /v2/rankings?region=na
 ```
+
+<details><summary>Response</summary>
 
 ```json
 {
@@ -181,32 +171,25 @@ GET /v2/rankings?region=na
     "status": 200,
     "segments": [
       {
-        "rank": "1",
-        "team": "Sentinels",
-        "country": "United States",
-        "last_played": "22h ago",
-        "record": "7-3",
-        "earnings": "$295,500",
+        "rank": "1", "team": "Sentinels", "country": "United States",
+        "last_played": "22h ago", "record": "7-3", "earnings": "$295,500",
         "logo": "//owcdn.net/img/..."
       }
     ]
   }
 }
 ```
+</details>
 
 ### `GET /v2/stats`
-
-Fetches player statistics for a region and timespan.
-
-- **Params:**
-  - `region` (required) — see [Region Codes](#region-codes)
-  - `timespan` (required) — `30`, `60`, `90`, or `all`
-- **Cache:** 30 minutes
+**Params:** `region` (required), `timespan` (required: 30/60/90/all) | **Cache:** 30 min
 
 ```
 GET /v2/stats?region=na&timespan=30
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
@@ -214,40 +197,29 @@ GET /v2/stats?region=na&timespan=30
     "status": 200,
     "segments": [
       {
-        "player": "player_name",
-        "org": "ORG",
-        "rating": "1.18",
-        "average_combat_score": "235.2",
-        "kill_deaths": "1.19",
-        "kill_assists_survived_traded": "72%",
-        "average_damage_per_round": "158.4",
-        "kills_per_round": "0.81",
-        "assists_per_round": "0.29",
-        "first_kills_per_round": "0.19",
-        "first_deaths_per_round": "0.13",
-        "headshot_percentage": "26%",
-        "clutch_success_percentage": "28%",
-        "clutch_attempts": "9/57"
+        "player": "player_name", "org": "ORG",
+        "rating": "1.18", "average_combat_score": "235.2",
+        "kill_deaths": "1.19", "kill_assists_survived_traded": "72%",
+        "average_damage_per_round": "158.4", "kills_per_round": "0.81",
+        "assists_per_round": "0.29", "first_kills_per_round": "0.19",
+        "first_deaths_per_round": "0.13", "headshot_percentage": "26%",
+        "clutch_success_percentage": "28%", "clutch_attempts": "9/57"
       }
     ]
   }
 }
 ```
+</details>
 
 ### `GET /v2/events`
-
-Browse Valorant events — overview listing with names, dates, status, and prize pools.
-
-Use this to discover event IDs for detail lookups.
-
-- **Params:**
-  - `q` (optional) — `upcoming` or `completed` (omit for both)
-  - `page` (optional) — page number for completed events (default: 1)
-- **Cache:** 30 minutes
+Browse events — use to discover event IDs for detail/matches lookups.
+**Params:** `q` (optional: upcoming/completed), `page` | **Cache:** 30 min
 
 ```
 GET /v2/events?q=upcoming
 ```
+
+<details><summary>Response</summary>
 
 ```json
 {
@@ -256,31 +228,24 @@ GET /v2/events?q=upcoming
     "status": 200,
     "segments": [
       {
-        "title": "VCT 2025: Pacific Stage 2",
-        "status": "ongoing",
-        "prize": "$250,000",
-        "dates": "Jul 15—Aug 31",
-        "region": "kr",
+        "title": "VCT 2025: Pacific Stage 2", "status": "ongoing",
+        "prize": "$250,000", "dates": "Jul 15—Aug 31", "region": "kr",
         "url_path": "https://www.vlr.gg/event/..."
       }
     ]
   }
 }
 ```
+</details>
 
 ### `GET /v2/match/details`
-
-Fetches detailed data for a specific match.
-
-- **Params:**
-  - `match_id` (required) — VLR.GG match ID
-- **Response notes:**
-  - `teams[].id` — VLR.GG team ID, usable with `GET /v2/team?id=...`
-- **Cache:** 5 minutes (30s for live matches)
+**Params:** `match_id` (required) | **Cache:** 5 min (30s for live)
 
 ```
 GET /v2/match/details?match_id=595657
 ```
+
+<details><summary>Response</summary>
 
 ```json
 {
@@ -289,69 +254,37 @@ GET /v2/match/details?match_id=595657
     "match_id": "595657",
     "event": { "name": "Champions Tour 2024: Americas Stage 1", "series": "Regular Season: Week 3" },
     "map_vetos": "SEN ban Breeze; C9 ban Lotus; SEN pick Ascent; C9 pick Bind; Haven remains",
-    "date": "April 23, 2024",
-    "status": "completed",
+    "date": "April 23, 2024", "status": "completed",
     "teams": [
       { "id": "2", "name": "Sentinels", "score": 2, "logo": "//owcdn.net/img/..." },
       { "id": "188", "name": "Cloud9", "score": 1, "logo": "//owcdn.net/img/..." }
     ],
-    "maps": [
-      {
-        "map_name": "Ascent",
-        "picked_by": "Sentinels",
-        "duration": "28:41",
-        "score": { "team1": { "total": 13, "ct": 8, "t": 5 }, "team2": { "total": 9, "ct": 4, "t": 5 } },
-        "players": {
-          "team1": [
-            {
-              "name": "TenZ",
-              "agent": "Jett",
-              "rating": "1.32",
-              "acs": "267",
-              "kills": "24",
-              "deaths": "15",
-              "assists": "3",
-              "kd_diff": "+9",
-              "kast": "77%",
-              "adr": "172.3",
-              "hs_pct": "32%",
-              "fk": "4",
-              "fd": "2",
-              "fk_diff": "+2"
-            }
-          ],
-          "team2": []
-        },
-        "rounds": [
-          { "round_num": 1, "winner": "team1", "side": "t" }
-        ]
-      }
-    ],
-    "head_to_head": [
-      { "event": "VCT Americas", "date": "2024/03/15", "score": "2-1", "url": "https://www.vlr.gg/..." }
-    ],
+    "maps": [{
+      "map_name": "Ascent", "picked_by": "Sentinels", "duration": "28:41",
+      "score": { "team1": { "total": 13, "ct": 8, "t": 5 }, "team2": { "total": 9, "ct": 4, "t": 5 } },
+      "players": { "team1": [{ "name": "TenZ", "agent": "Jett", "rating": "1.32", "acs": "267", "kills": "24", "deaths": "15", "assists": "3", "kd_diff": "+9", "kast": "77%", "adr": "172.3", "hs_pct": "32%", "fk": "4", "fd": "2", "fk_diff": "+2" }], "team2": [] },
+      "rounds": [{ "round_num": 1, "winner": "team1", "side": "t" }]
+    }],
+    "head_to_head": [{ "event": "VCT Americas", "date": "2024/03/15", "score": "2-1", "url": "https://www.vlr.gg/..." }],
     "performance": {
       "kill_matrix": [{ "player": "TenZ", "kills_vs": { "opponent1": "5" } }],
       "advanced_stats": [{ "player": "TenZ", "2K": "3", "3K": "1" }]
     },
-    "economy": [
-      { "Team": "Sentinels", "Pistol": "50%", "Eco": "33%", "Full": "72%" }
-    ]
+    "economy": [{ "Team": "Sentinels", "Pistol": "50%", "Eco": "33%", "Full": "72%" }]
   }
 }
 ```
+</details>
 
 ### `GET /v2/event/{event_id}`
-
-Get full event detail — everything about a single event in one call.
-
-- **Params:**
-  - `event_id` (required, path) — VLR.GG event ID (from `/v2/events`)
-- **Cache:** 30 minutes
+Event detail: prizes, team rosters, and standings tables.
+**Params:** `event_id` (path, required — from `/v2/events`) | **Cache:** 30 min
 
 ```
 GET /v2/event/2124
 ```
+
+<details><summary>Response</summary>
 
 ```json
 {
@@ -359,53 +292,38 @@ GET /v2/event/2124
   "data": {
     "segments": {
       "event": {
-        "name": "VCT 2026: Americas Stage 1",
-        "series": "Valorant Champions Tour 2026",
-        "dates": "Apr 15 - May 10, 2026",
-        "prize": "$250,000 USD",
-        "location": "Los Angeles, USA",
-        "logo": "https://owcdn.net/img/..."
+        "name": "VCT 2026: Americas Stage 1", "series": "Valorant Champions Tour 2026",
+        "dates": "Apr 15 - May 10, 2026", "prize": "$250,000 USD",
+        "location": "Los Angeles, USA", "logo": "https://owcdn.net/img/..."
       },
       "prizes": [
         { "placement": "1st", "amount": "$100,000", "team": { "id": "120", "name": "100 Thieves", "logo": "...", "region": "United States" } },
         { "placement": "2nd", "amount": "$60,000", "team": { "id": "2355", "name": "KRÜ Esports", "logo": "...", "region": "Chile" } }
       ],
-      "teams": [
-        {
-          "id": "120",
-          "name": "100 Thieves",
-          "players": [
-            { "id": "9", "name": "Asuna", "flag": "mod-us" },
-            { "id": "188", "name": "bang", "flag": "mod-us" }
-          ],
-          "qualification": "NA Circuit Points"
-        }
-      ],
-      "standings": [
-        {
-          "stage": "Group Stage",
-          "columns": ["Team", "W", "L", "RD", "MRD"],
-          "rows": [
-            { "Team": "100 Thieves", "W": "4", "L": "1", "RD": "+42", "MRD": "+12" }
-          ]
-        }
-      ]
+      "teams": [{
+        "id": "120", "name": "100 Thieves",
+        "players": [{ "id": "9", "name": "Asuna", "flag": "mod-us" }],
+        "qualification": "NA Circuit Points"
+      }],
+      "standings": [{
+        "stage": "Group Stage", "columns": ["Team", "W", "L", "RD", "MRD"],
+        "rows": [{ "Team": "100 Thieves", "W": "4", "L": "1", "RD": "+42", "MRD": "+12" }]
+      }]
     }
   }
 }
 ```
+</details>
 
 ### `GET /v2/search`
-
-Search VLR.GG for players, teams, and events by name or keyword.
-
-- **Params:**
-  - `q` (required) — search query (e.g., player name, team name, event keyword)
-- **Cache:** 5 minutes
+Cross-entity search for players, teams, and events.
+**Params:** `q` (required) | **Cache:** 5 min
 
 ```
 GET /v2/search?q=tenz
 ```
+
+<details><summary>Response</summary>
 
 ```json
 {
@@ -414,271 +332,173 @@ GET /v2/search?q=tenz
     "segments": {
       "query": "tenz",
       "results": {
-        "players": [
-          { "id": "9", "name": "TenZ", "img": "https://owcdn.net/img/...", "description": "", "tag": "" }
-        ],
-        "teams": [
-          { "id": "16647", "name": "TenZ and Friends", "img": "https://...", "description": "", "tag": "(inactive)" }
-        ],
+        "players": [{ "id": "9", "name": "TenZ", "img": "https://owcdn.net/img/...", "description": "", "tag": "" }],
+        "teams": [{ "id": "16647", "name": "TenZ and Friends", "img": "https://...", "description": "", "tag": "(inactive)" }],
         "events": []
       }
     }
   }
 }
 ```
+</details>
 
 ### `GET /v2/player`
-
-Fetches a player profile.
-
-- **Params:**
-  - `id` (required) — VLR.GG player ID
-  - `timespan` — `30d`, `60d`, `90d`, or `all` (default: `90d`)
-- **Cache:** 30 minutes
+**Params:** `id` (required), `timespan` (30d/60d/90d/all, default: 90d) | **Cache:** 30 min
 
 ```
 GET /v2/player?id=9&timespan=all
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "info": {
-      "name": "TenZ",
-      "real_name": "Tyson Ngo",
-      "avatar": "https://owcdn.net/img/...",
-      "country": "Canada",
-      "socials": [{ "platform": "twitter", "url": "https://twitter.com/TenZOfficial" }]
-    },
+    "info": { "name": "TenZ", "real_name": "Tyson Ngo", "avatar": "https://owcdn.net/img/...", "country": "Canada", "socials": [{ "platform": "twitter", "url": "..." }] },
     "current_teams": [{ "name": "Sentinels", "tag": "SEN", "status": "Active" }],
     "past_teams": [{ "name": "Cloud9", "tag": "C9", "dates": "2020–2021" }],
-    "agent_stats": [
-      {
-        "agent": "Jett",
-        "use_count": 150,
-        "use_pct": "42%",
-        "rounds": 3200,
-        "rating": "1.15",
-        "acs": "245.3",
-        "kd": "1.18",
-        "adr": "162.1",
-        "kast": "71%",
-        "kpr": "0.82",
-        "apr": "0.28",
-        "fkpr": "0.20",
-        "fdpr": "0.14",
-        "kills": 2624,
-        "deaths": 2224,
-        "assists": 896,
-        "fk": 640,
-        "fd": 448
-      }
-    ],
-    "event_placements": [
-      { "event": "Champions 2024", "placement": "1st", "prize": "$100,000", "team": "Sentinels" }
-    ],
+    "agent_stats": [{ "agent": "Jett", "use_count": 150, "use_pct": "42%", "rounds": 3200, "rating": "1.15", "acs": "245.3", "kd": "1.18", "adr": "162.1", "kast": "71%", "kpr": "0.82", "apr": "0.28", "fkpr": "0.20", "fdpr": "0.14", "kills": 2624, "deaths": 2224, "assists": 896, "fk": 640, "fd": 448 }],
+    "event_placements": [{ "event": "Champions 2024", "placement": "1st", "prize": "$100,000", "team": "Sentinels" }],
     "total_winnings": "$177,650"
   }
 }
 ```
+</details>
 
 ### `GET /v2/player/matches`
-
-Fetches paginated match history for a player.
-
-- **Params:**
-  - `id` (required) — VLR.GG player ID
-  - `page` — page number (default: 1)
-- **Cache:** 10 minutes
+**Params:** `id` (required), `page` (default: 1) | **Cache:** 10 min
 
 ```
 GET /v2/player/matches?id=9&page=1
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "matches": [
-      {
-        "match_id": "595657",
-        "event": "Champions Tour 2024: Americas Stage 1",
-        "teams": { "team1": "Sentinels", "team2": "Cloud9" },
-        "score": "2-1",
-        "date": "Apr 24, 2024"
-      }
-    ],
+    "matches": [{ "match_id": "595657", "event": "Champions Tour 2024: Americas Stage 1", "teams": { "team1": "Sentinels", "team2": "Cloud9" }, "score": "2-1", "date": "Apr 24, 2024" }],
     "page": 1
   }
 }
 ```
+</details>
 
 ### `GET /v2/team`
-
-Fetches a team profile.
-
-- **Params:**
-  - `id` (required) — VLR.GG team ID
-- **Cache:** 30 minutes
+**Params:** `id` (required) | **Cache:** 30 min
 
 ```
 GET /v2/team?id=2
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "info": {
-      "name": "Sentinels",
-      "tag": "SEN",
-      "logo": "https://owcdn.net/img/...",
-      "country": "United States",
-      "socials": [{ "platform": "twitter", "url": "https://twitter.com/Sentinels" }]
-    },
+    "info": { "name": "Sentinels", "tag": "SEN", "logo": "https://owcdn.net/img/...", "country": "United States", "socials": [{ "platform": "twitter", "url": "..." }] },
     "rating": { "vlr_rating": "1850", "rank": "1", "region": "na" },
-    "roster": [
-      {
-        "alias": "TenZ",
-        "real_name": "Tyson Ngo",
-        "role": "Duelist",
-        "is_captain": false,
-        "avatar": "https://owcdn.net/img/..."
-      }
-    ],
-    "event_placements": [
-      { "event": "Champions 2024", "placement": "1st", "prize": "$100,000" }
-    ],
+    "roster": [{ "alias": "TenZ", "real_name": "Tyson Ngo", "role": "Duelist", "is_captain": false, "avatar": "..." }],
+    "event_placements": [{ "event": "Champions 2024", "placement": "1st", "prize": "$100,000" }],
     "total_winnings": "$1,194,000"
   }
 }
 ```
+</details>
 
 ### `GET /v2/team/matches`
-
-Fetches paginated match history for a team.
-
-- **Params:**
-  - `id` (required) — VLR.GG team ID
-  - `page` — page number (default: 1)
-- **Cache:** 10 minutes
+**Params:** `id` (required), `page` (default: 1) | **Cache:** 10 min
 
 ```
 GET /v2/team/matches?id=2&page=1
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "matches": [
-      {
-        "match_id": "595657",
-        "event": "Champions Tour 2024: Americas Stage 1",
-        "teams": { "team1": "Sentinels", "team2": "Cloud9" },
-        "score": "2-1",
-        "date": "Apr 24, 2024"
-      }
-    ],
+    "matches": [{ "match_id": "595657", "event": "Champions Tour 2024: Americas Stage 1", "teams": { "team1": "Sentinels", "team2": "Cloud9" }, "score": "2-1", "date": "Apr 24, 2024" }],
     "page": 1
   }
 }
 ```
+</details>
 
 ### `GET /v2/team/transactions`
-
-Fetches roster transaction history for a team.
-
-- **Params:**
-  - `id` (required) — VLR.GG team ID
-- **Cache:** 1 hour
+**Params:** `id` (required) | **Cache:** 1 hr
 
 ```
 GET /v2/team/transactions?id=2
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "transactions": [
-      {
-        "date": "Jan 15, 2024",
-        "action": "join",
-        "player": "TenZ",
-        "position": "Duelist"
-      }
-    ]
+    "transactions": [{ "date": "Jan 15, 2024", "action": "join", "player": "TenZ", "position": "Duelist" }]
   }
 }
 ```
+</details>
 
 ### `GET /v2/events/matches`
-
-Fetches the match list for a specific event.
-
-- **Params:**
-  - `event_id` (required) — VLR.GG event ID
-- **Cache:** 10 minutes
+**Params:** `event_id` (required) | **Cache:** 10 min
 
 ```
 GET /v2/events/matches?event_id=2095
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "matches": [
-      {
-        "match_id": "595657",
-        "teams": [
-          { "name": "Sentinels", "score": "2", "is_winner": true },
-          { "name": "Cloud9", "score": "1", "is_winner": false }
-        ],
-        "event_series": "Grand Final",
-        "vods": [{ "name": "VOD", "url": "https://youtube.com/..." }],
-        "date": "Apr 24, 2024"
-      }
-    ]
+    "matches": [{
+      "match_id": "595657",
+      "teams": [{ "name": "Sentinels", "score": "2", "is_winner": true }, { "name": "Cloud9", "score": "1", "is_winner": false }],
+      "event_series": "Grand Final",
+      "vods": [{ "name": "VOD", "url": "https://youtube.com/..." }],
+      "date": "Apr 24, 2024"
+    }]
   }
 }
 ```
+</details>
 
 ### `GET /v2/health`
-
-Returns health status of the API and vlr.gg.
-
-- **Params:** none
-- **Cache:** none
+**Params:** none | **Cache:** none
 
 ```
 GET /v2/health
 ```
 
+<details><summary>Response</summary>
+
 ```json
 {
   "status": "success",
   "data": {
-    "https://vlrggapi.vercel.app": {
-      "status": "Healthy",
-      "status_code": 200
-    },
-    "https://vlr.gg": {
-      "status": "Healthy",
-      "status_code": 200
-    }
+    "https://vlrggapi.vercel.app": { "status": "Healthy", "status_code": 200 },
+    "https://vlr.gg": { "status": "Healthy", "status_code": 200 }
   }
 }
 ```
+</details>
 
 ## Original Endpoints
 
-These endpoints are preserved for backwards compatibility. Most return `{"data": {"status": int, "segments": [...]}}`. The `/rankings` endpoint returns `{"status": int, "data": [...]}` instead.
+Preserved for backwards compatibility. Most return `{"data": {"status": int, "segments": [...]}}`. Rankings uses `{"status": int, "data": [...]}`. Response shapes mirror their V2 counterparts — see [V2 Endpoints](#v2-endpoints) for examples.
 
 | Route | Query Params |
-|---|---|---|
+|---|---|
 | `GET /news` | — |
 | `GET /match` | `q` (upcoming/upcoming_extended/live_score/results), pagination params |
 | `GET /match/details` | `match_id` |
@@ -694,28 +514,6 @@ These endpoints are preserved for backwards compatibility. Most return `{"data":
 | `GET /team/matches` | `id`, `page` |
 | `GET /team/transactions` | `id` |
 | `GET /health` | — |
-
-<details>
-<summary><code>GET /news</code> — response example</summary>
-
-```json
-{
-  "data": {
-    "status": 200,
-    "segments": [
-      {
-        "title": "Riot introduces changes to Premier, adds new Invite Division",
-        "description": "Riot looks to streamline Premier promotions and Challengers qualification with upcoming changes.",
-        "date": "April 23, 2024",
-        "author": "thothgow",
-        "url_path": "https://vlr.gg/336099/riot-introduces-changes-to-premier-adds-new-invite-division"
-      }
-    ]
-  }
-}
-```
-
-</details>
 
 <details>
 <summary><code>GET /match?q=upcoming</code> — response example</summary>
