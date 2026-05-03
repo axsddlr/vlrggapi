@@ -17,6 +17,7 @@ from routers.shared_handlers import (
     get_player_data,
     get_player_matches_data,
     get_rankings_data,
+    get_search_data,
     get_stats_data,
     get_team_data,
     get_team_matches_data,
@@ -259,6 +260,21 @@ async def v2_event_detail(
     """
     validate_id_param(event_id, "event_id")
     result = await get_event_detail_data(event_id)
+    return _wrap_v2(result)
+
+
+@router.get("/search", response_model=V2Response)
+@limiter.limit(RATE_LIMIT)
+async def v2_search(
+    request: Request,
+    q: str = Query(..., description="Search query (player name, team name, event keyword)"),
+):
+    """
+    Search VLR.GG for teams, players, events, and series.
+
+    Returns categorized results with entity IDs, names, images, and descriptions.
+    """
+    result = await get_search_data(q)
     return _wrap_v2(result)
 
 
