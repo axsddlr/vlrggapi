@@ -77,20 +77,25 @@ Interactive Swagger docs are available at `/`.
 
 ## V2 Endpoint Overview
 
-| Area | Route | Purpose |
-|---|---|---|---|
-| News | `GET /v2/news` | Latest Valorant esports news |
-| Matches | `GET /v2/match` | Upcoming, live, extended upcoming, and results feeds |
-| Match detail | `GET /v2/match/details` | Per-map stats, rounds, performance, economy, streams |
-| Rankings | `GET /v2/rankings` | Regional team rankings |
-| Stats | `GET /v2/stats` | Regional player stats by timespan |
-| Events | `GET /v2/events` | Browse upcoming and completed events |
-| Event detail | `GET /v2/event/{id}` | Event info, prize breakdown, team rosters, standings |
-| Event matches | `GET /v2/events/matches` | Match list for a specific event |
-| Players | `GET /v2/player`, `GET /v2/player/matches` | Player profile and match history |
-| Teams | `GET /v2/team`, `GET /v2/team/matches`, `GET /v2/team/transactions` | Team profile, match history, roster changes |
-| Search | `GET /v2/search` | Cross-entity search (players, teams, events) |
-| Health | `GET /v2/health` | Runtime and upstream health status |
+| Route | Query Params | Cache |
+|---|---|---|
+| `GET /v2/news` | — | 10 min |
+| `GET /v2/match` | `q` (upcoming/upcoming_extended/live_score/results), `num_pages`, `from_page`, `to_page`, `max_retries`, `request_delay`, `timeout` | 30s–60s |
+| `GET /v2/match/details` | `match_id` | 5 min |
+| `GET /v2/rankings` | `region` | 1 hr |
+| `GET /v2/stats` | `region`, `timespan` | 30 min |
+| `GET /v2/events` | `q` (upcoming/completed), `page` | 30 min |
+| `GET /v2/event/{id}` | `event_id` (path) | 30 min |
+| `GET /v2/events/matches` | `event_id` | 10 min |
+| `GET /v2/search` | `q` | 5 min |
+| `GET /v2/player` | `id`, `timespan` | 30 min |
+| `GET /v2/player/matches` | `id`, `page` | 10 min |
+| `GET /v2/team` | `id` | 30 min |
+| `GET /v2/team/matches` | `id`, `page` | 10 min |
+| `GET /v2/team/transactions` | `id` | 1 hr |
+| `GET /v2/health` | — | none |
+
+See section below for full descriptions and response examples.
 
 ## V2 Endpoints
 
