@@ -75,7 +75,7 @@ def _parse_match_header(html: HTMLParser) -> dict:
     if vs_note_elem:
         status = extract_text_content(vs_note_elem)
 
-    return {"date": date, "patch": patch, "status": status}
+    return {"date": date, "map_vetos": patch, "status": status}
 
 
 def _is_live(html: HTMLParser) -> bool:
@@ -777,7 +777,7 @@ async def vlr_match_detail(match_id: str) -> dict:
             "match_id": match_id,
             "event": event_info,
             "date": header_info["date"],
-            "patch": header_info["patch"],
+            "map_vetos": header_info["map_vetos"],
             "status": header_info["status"],
             "teams": teams,
             "streams": streams,
