@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 from models import V2Response
 from routers.shared_handlers import (
     get_event_matches_data,
+    get_event_detail_data,
     get_events_data,
     get_health_data,
     get_match_data,
@@ -240,6 +241,24 @@ async def v2_event_matches(
     """Get match list for a specific event with scores and VOD links."""
     validate_id_param(event_id, "event_id")
     result = await get_event_matches_data(event_id)
+    return _wrap_v2(result)
+
+
+@router.get("/event/{event_id}", response_model=V2Response)
+@limiter.limit(RATE_LIMIT)
+async def v2_event_detail(
+    request: Request,
+    event_id: str,
+):
+    """
+    Get full event detail: header info, prize pool, participating teams, and standings.
+
+    Includes event name/series/dates/prize/location, prize distribution
+    with placement and amounts, team rosters with player flags, and
+    group/stage standings tables.
+    """
+    validate_id_param(event_id, "event_id")
+    result = await get_event_detail_data(event_id)
     return _wrap_v2(result)
 
 
