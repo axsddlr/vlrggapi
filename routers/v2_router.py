@@ -130,11 +130,18 @@ async def v2_events(
     page: int = Query(1, description="Page number (completed events only)", ge=1, le=100),
 ):
     """
-    Get Valorant events.
+    Browse Valorant events — overview listing with names, dates, status, and prize pools.
+
+    Use this endpoint to discover events or build event directories. Each entry
+    includes the event ID so you can drill down into details or match results.
 
     - **upcoming**: Currently active or scheduled future events
     - **completed**: Historical events that have finished
     - **omit q**: Both upcoming and completed events
+
+    To get a single event's full details (prizes, teams, standings),
+    use GET /v2/event/{event_id}.
+    To get match results for a specific event, use GET /v2/events/matches.
     """
     validate_event_query(q)
 
@@ -239,7 +246,15 @@ async def v2_event_matches(
     request: Request,
     event_id: str = Query(..., description="VLR.GG event ID"),
 ):
-    """Get match list for a specific event with scores and VOD links."""
+    """List all matches for a specific event — scores, teams, dates, tournament info.
+
+    Use this endpoint when you have an event ID and want to see its match results
+    or upcoming schedule. Each match entry includes team names, scores, flags,
+    and the match page URL.
+
+    To browse events (get event IDs and metadata), use GET /v2/events.
+    To get event details (prizes, team rosters, standings tables),
+    use GET /v2/event/{event_id}."""
     validate_id_param(event_id, "event_id")
     result = await get_event_matches_data(event_id)
     return _wrap_v2(result)
@@ -252,11 +267,16 @@ async def v2_event_detail(
     event_id: str,
 ):
     """
-    Get full event detail: header info, prize pool, participating teams, and standings.
+    Get full event detail — everything about a single event in one call.
 
-    Includes event name/series/dates/prize/location, prize distribution
-    with placement and amounts, team rosters with player flags, and
-    group/stage standings tables.
+    Returns:
+    - **event**: name, series, subtitle, dates, prize pool amount, location, logo
+    - **prizes**: placement breakdown (1st, 2nd, 3rd-4th...) with amounts and team info
+    - **teams**: participating teams with player rosters, country flags, and qualification notes
+    - **standings**: group/stage tables with W/L, map diff, round diff columns
+
+    Event IDs come from GET /v2/events. To get matches for this event instead,
+    use GET /v2/events/matches?event_id={event_id}.
     """
     validate_id_param(event_id, "event_id")
     result = await get_event_detail_data(event_id)
