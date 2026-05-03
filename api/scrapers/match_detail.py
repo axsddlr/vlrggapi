@@ -19,6 +19,7 @@ from utils.constants import (
 from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import build_full_url, extract_text_content, normalize_image_url, parse_href_id_slug
 from utils.http_client import fetch_with_retries, get_http_client
+from utils.id_mapper import id_mapper
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ def _parse_teams(html: HTMLParser) -> list[dict]:
                 "is_winner": False,
             }
         )
+        id_mapper.register_team(name, team_id)
 
     # Logos: two <img> elements inside .match-header-vs
     vs_elem = html.css_first(".match-header-vs")
