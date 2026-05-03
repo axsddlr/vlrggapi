@@ -41,10 +41,12 @@ curl "http://127.0.0.1:3001/v2/player?id=9&timespan=all"
 
 New endpoints provide deep coverage of individual matches, players, and teams:
 
-- **Match details** — per-map player stats (K/D/A, ACS, rating), round-by-round data, kill matrix, economy breakdown, head-to-head history
+- **Match details** — per-map player stats (K/D/A, ACS, rating), round-by-round data, kill matrix, economy breakdown, head-to-head history, map veto data
 - **Player profiles** — agent stats (17 metrics), current/past teams, event placements, total winnings, match history
 - **Team profiles** — roster with roles/captain status, VLR rating/rank, event placements, total winnings, match history, roster transactions
 - **Event matches** — full match list for any event with scores and VOD links
+- **Event detail** — event info with prize pool breakdown, participating team rosters, and group/stage standings tables
+- **Search** — cross-entity search for teams, players, and events by name or keyword
 
 ### V2 API
 
@@ -76,16 +78,18 @@ Interactive Swagger docs are available at `/`.
 ## V2 Endpoint Overview
 
 | Area | Route | Purpose |
-|---|---|---|
+|---|---|---|---|
 | News | `GET /v2/news` | Latest Valorant esports news |
 | Matches | `GET /v2/match` | Upcoming, live, extended upcoming, and results feeds |
 | Match detail | `GET /v2/match/details` | Per-map stats, rounds, performance, economy, streams |
 | Rankings | `GET /v2/rankings` | Regional team rankings |
 | Stats | `GET /v2/stats` | Regional player stats by timespan |
-| Events | `GET /v2/events` | Upcoming and completed events |
+| Events | `GET /v2/events` | Browse upcoming and completed events |
+| Event detail | `GET /v2/event/{id}` | Event info, prize breakdown, team rosters, standings |
 | Event matches | `GET /v2/events/matches` | Match list for a specific event |
 | Players | `GET /v2/player`, `GET /v2/player/matches` | Player profile and match history |
 | Teams | `GET /v2/team`, `GET /v2/team/matches`, `GET /v2/team/transactions` | Team profile, match history, roster changes |
+| Search | `GET /v2/search` | Cross-entity search (players, teams, events) |
 | Health | `GET /v2/health` | Runtime and upstream health status |
 
 ## V2 Endpoints
@@ -130,7 +134,7 @@ Fetches match data by type.
   - `max_retries` — retry attempts per page (default: 3)
   - `request_delay` — delay between requests in seconds (default: 1.0)
   - `timeout` — request timeout in seconds (default: 30)
-- **Cache:** 30s (live_score), 5min (upcoming), 1hr (results)
+- **Cache:** 30s (live_score), 5min (upcoming), 60s (results)
 
 ```
 GET /v2/match?q=upcoming
@@ -222,7 +226,8 @@ GET /v2/stats?region=na&timespan=30
         "first_kills_per_round": "0.19",
         "first_deaths_per_round": "0.13",
         "headshot_percentage": "26%",
-        "clutch_success_percentage": "28%"
+        "clutch_success_percentage": "28%",
+        "clutch_attempts": "9/57"
       }
     ]
   }
@@ -231,7 +236,9 @@ GET /v2/stats?region=na&timespan=30
 
 ### `GET /v2/events`
 
-Fetches Valorant events.
+Browse Valorant events — overview listing with names, dates, status, and prize pools.
+
+Use this to discover event IDs for detail lookups.
 
 - **Params:**
   - `q` (optional) — `upcoming` or `completed` (omit for both)
@@ -279,7 +286,11 @@ GET /v2/match/details?match_id=595657
 {
   "status": "success",
   "data": {
+    "match_id": "595657",
     "event": { "name": "Champions Tour 2024: Americas Stage 1", "series": "Regular Season: Week 3" },
+    "map_vetos": "SEN ban Breeze; C9 ban Lotus; SEN pick Ascent; C9 pick Bind; Haven remains",
+    "date": "April 23, 2024",
+    "status": "completed",
     "teams": [
       { "id": "2", "name": "Sentinels", "score": 2, "logo": "//owcdn.net/img/..." },
       { "id": "188", "name": "Cloud9", "score": 1, "logo": "//owcdn.net/img/..." }
@@ -290,39 +301,128 @@ GET /v2/match/details?match_id=595657
         "picked_by": "Sentinels",
         "duration": "28:41",
         "score": { "team1": { "total": 13, "ct": 8, "t": 5 }, "team2": { "total": 9, "ct": 4, "t": 5 } },
-        "players": [
-          {
-            "team": "Sentinels",
-            "player": "TenZ",
-            "agent": "Jett",
-            "rating": "1.32",
-            "acs": "267",
-            "kills": "24",
-            "deaths": "15",
-            "assists": "3",
-            "kast": "77%",
-            "adr": "172.3",
-            "hs_pct": "32%",
-            "fk": "4",
-            "fd": "2"
-          }
+        "players": {
+          "team1": [
+            {
+              "name": "TenZ",
+              "agent": "Jett",
+              "rating": "1.32",
+              "acs": "267",
+              "kills": "24",
+              "deaths": "15",
+              "assists": "3",
+              "kd_diff": "+9",
+              "kast": "77%",
+              "adr": "172.3",
+              "hs_pct": "32%",
+              "fk": "4",
+              "fd": "2",
+              "fk_diff": "+2"
+            }
+          ],
+          "team2": []
+        },
+        "rounds": [
+          { "round_num": 1, "winner": "team1", "side": "t" }
         ]
       }
     ],
-    "rounds": [
-      { "round_number": 1, "team1_win": true, "team2_win": false, "team1_side": "ct", "team2_side": "t" }
-    ],
     "head_to_head": [
-      { "event": "VCT Americas", "match": "Sentinels vs Cloud9", "score": "2-1" }
+      { "event": "VCT Americas", "date": "2024/03/15", "score": "2-1", "url": "https://www.vlr.gg/..." }
     ],
-    "streams": [{ "name": "English", "link": "https://twitch.tv/..." }],
     "performance": {
-      "kill_matrix": [{ "player": "TenZ", "kills_against": { "opponent1": 5 } }],
-      "advanced_stats": [{ "player": "TenZ", "2k": 3, "3k": 1, "4k": 0, "5k": 0, "clutch_1v1": 1 }]
+      "kill_matrix": [{ "player": "TenZ", "kills_vs": { "opponent1": "5" } }],
+      "advanced_stats": [{ "player": "TenZ", "2K": "3", "3K": "1" }]
     },
     "economy": [
-      { "team": "Sentinels", "pistol": "50%", "eco": "33%", "semi_buy": "60%", "full_buy": "72%" }
+      { "Team": "Sentinels", "Pistol": "50%", "Eco": "33%", "Full": "72%" }
     ]
+  }
+}
+```
+
+### `GET /v2/event/{event_id}`
+
+Get full event detail — everything about a single event in one call.
+
+- **Params:**
+  - `event_id` (required, path) — VLR.GG event ID (from `/v2/events`)
+- **Cache:** 30 minutes
+
+```
+GET /v2/event/2124
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "segments": {
+      "event": {
+        "name": "VCT 2026: Americas Stage 1",
+        "series": "Valorant Champions Tour 2026",
+        "dates": "Apr 15 - May 10, 2026",
+        "prize": "$250,000 USD",
+        "location": "Los Angeles, USA",
+        "logo": "https://owcdn.net/img/..."
+      },
+      "prizes": [
+        { "placement": "1st", "amount": "$100,000", "team": { "id": "120", "name": "100 Thieves", "logo": "...", "region": "United States" } },
+        { "placement": "2nd", "amount": "$60,000", "team": { "id": "2355", "name": "KRÜ Esports", "logo": "...", "region": "Chile" } }
+      ],
+      "teams": [
+        {
+          "id": "120",
+          "name": "100 Thieves",
+          "players": [
+            { "id": "9", "name": "Asuna", "flag": "mod-us" },
+            { "id": "188", "name": "bang", "flag": "mod-us" }
+          ],
+          "qualification": "NA Circuit Points"
+        }
+      ],
+      "standings": [
+        {
+          "stage": "Group Stage",
+          "columns": ["Team", "W", "L", "RD", "MRD"],
+          "rows": [
+            { "Team": "100 Thieves", "W": "4", "L": "1", "RD": "+42", "MRD": "+12" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+### `GET /v2/search`
+
+Search VLR.GG for players, teams, and events by name or keyword.
+
+- **Params:**
+  - `q` (required) — search query (e.g., player name, team name, event keyword)
+- **Cache:** 5 minutes
+
+```
+GET /v2/search?q=tenz
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "segments": {
+      "query": "tenz",
+      "results": {
+        "players": [
+          { "id": "9", "name": "TenZ", "img": "https://owcdn.net/img/...", "description": "", "tag": "" }
+        ],
+        "teams": [
+          { "id": "16647", "name": "TenZ and Friends", "img": "https://...", "description": "", "tag": "(inactive)" }
+        ],
+        "events": []
+      }
+    }
   }
 }
 ```
@@ -578,14 +678,16 @@ GET /v2/health
 These endpoints are preserved for backwards compatibility. Most return `{"data": {"status": int, "segments": [...]}}`. The `/rankings` endpoint returns `{"status": int, "data": [...]}` instead.
 
 | Route | Query Params |
-|---|---|
+|---|---|---|
 | `GET /news` | — |
 | `GET /match` | `q` (upcoming/upcoming_extended/live_score/results), pagination params |
 | `GET /match/details` | `match_id` |
 | `GET /stats` | `region`, `timespan` |
 | `GET /rankings` | `region` |
 | `GET /events` | `q` (upcoming/completed), `page` |
+| `GET /event/{id}` | — (path param) |
 | `GET /events/matches` | `event_id` |
+| `GET /search` | `q` |
 | `GET /player` | `id`, `timespan` |
 | `GET /player/matches` | `id`, `page` |
 | `GET /team` | `id` |
@@ -726,7 +828,8 @@ These endpoints are preserved for backwards compatibility. Most return `{"data":
         "first_kills_per_round": "0.19",
         "first_deaths_per_round": "0.13",
         "headshot_percentage": "26%",
-        "clutch_success_percentage": "28%"
+        "clutch_success_percentage": "28%",
+        "clutch_attempts": "9/57"
       }
     ]
   }
@@ -846,21 +949,23 @@ Original endpoints do not validate input (preserved for backwards compatibility)
 V2 endpoints use an in-memory TTL cache to reduce load on vlr.gg. Cache durations per endpoint:
 
 | Data | TTL |
-|---|---|
+|---|---|---|
 | Live scores | 30 seconds |
 | Match detail (live) | 30 seconds |
+| Results | 60 seconds |
 | Upcoming matches | 5 minutes |
 | Match detail | 5 minutes |
+| Search | 5 minutes |
 | News | 10 minutes |
 | Player matches | 10 minutes |
 | Team matches | 10 minutes |
 | Event matches | 10 minutes |
 | Stats | 30 minutes |
 | Events | 30 minutes |
+| Event detail | 30 minutes |
 | Player profile | 30 minutes |
 | Team profile | 30 minutes |
 | Rankings | 1 hour |
-| Results | 1 hour |
 | Team transactions | 1 hour |
 
 Original endpoints are not cached.
