@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from api.scrapers.match_detail import vlr_match_detail
@@ -94,6 +96,7 @@ class FakeResponse:
     def __init__(self, status_code: int, text: str):
         self.status_code = status_code
         self.text = text
+        self.headers: dict = {}
 
 
 class FakeAsyncClient:
@@ -173,6 +176,55 @@ async def test_vlr_match_detail_fetches_performance_and_economy_for_all_games(mo
     }
     assert segment["maps"][1]["economy"] == [{"Team": "Team Two", "Pistol": "50%"}]
     assert len(client.calls) == 5
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_vlr_match_detail_limits_tab_fetches_and_falls_back_on_tab_error(monkeypatch):
+    cache_manager.clear_all()
+    active_fetches = 0
+    max_active_fetches = 0
+    tab_timeouts: list[int | None] = []
+
+    async def fake_fetch_with_retries(
+        url,
+        *,
+        client=None,
+        timeout=None,
+        max_retries=3,
+        request_delay=1.0,
+    ):
+        nonlocal active_fetches, max_active_fetches
+        if url == "https://www.vlr.gg/888":
+            return FakeResponse(200, BASE_MATCH_HTML)
+
+        tab_timeouts.append(timeout)
+        active_fetches += 1
+        max_active_fetches = max(max_active_fetches, active_fetches)
+        try:
+            await asyncio.sleep(0)
+            if url.endswith("game=game-2&tab=economy"):
+                return FakeResponse(503, "<html></html>")
+            if "tab=performance" in url:
+                return FakeResponse(200, performance_html("Opponent"))
+            return FakeResponse(200, economy_html("Team"))
+        finally:
+            active_fetches -= 1
+
+    monkeypatch.setattr("api.scrapers.match_detail.get_http_client", lambda: object())
+    monkeypatch.setattr(
+        "api.scrapers.match_detail.fetch_with_retries", fake_fetch_with_retries
+    )
+    monkeypatch.setattr("api.scrapers.match_detail.MATCH_DETAIL_TAB_FETCH_CONCURRENCY", 2)
+    monkeypatch.setattr("api.scrapers.match_detail.MATCH_DETAIL_TAB_FETCH_TIMEOUT", 11)
+
+    data = await vlr_match_detail("888")
+    segment = data["data"]["segments"][0]
+
+    assert max_active_fetches <= 2
+    assert tab_timeouts == [11] * 4
+    assert segment["economy_by_map"][1] == {"game_id": "game-2", "rows": []}
+    assert segment["maps"][1]["economy"] == []
     cache_manager.clear_all()
 
 

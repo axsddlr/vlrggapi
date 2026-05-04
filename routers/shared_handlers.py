@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from api.scrapers import (
     check_health,
+    vlr_event_detail,
     vlr_event_matches,
     vlr_events,
     vlr_live_score,
@@ -14,6 +15,7 @@ from api.scrapers import (
     vlr_player,
     vlr_player_matches,
     vlr_rankings,
+    vlr_search,
     vlr_stats,
     vlr_team,
     vlr_team_matches,
@@ -127,5 +129,13 @@ async def get_event_matches_data(event_id: str) -> dict:
     return await vlr_event_matches(event_id)
 
 
+async def get_event_detail_data(event_id: str) -> dict:
+    return await vlr_event_detail(event_id)
+
+
 async def get_health_data() -> dict:
     return await check_health()
+
+
+async def get_search_data(query: str) -> dict:
+    return await vlr_search(query)

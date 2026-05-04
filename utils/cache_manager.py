@@ -8,6 +8,7 @@ import json
 from cachetools import TTLCache
 
 from utils.constants import CACHE_MAX_SIZE
+from utils.id_mapper import id_mapper
 
 
 class CacheManager:
@@ -107,10 +108,11 @@ class CacheManager:
         cache.pop(key, None)
 
     def clear_all(self):
-        """Clear all caches."""
+        """Clear all caches and the id mapper."""
         for cache in self._caches.values():
             cache.clear()
         self._inflight.clear()
+        id_mapper.clear()
 
 
 cache_manager = CacheManager()

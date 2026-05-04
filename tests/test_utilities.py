@@ -7,13 +7,14 @@ from datetime import timedelta
 from fastapi import HTTPException
 
 from utils.pagination import PaginationConfig, scrape_multiple_pages
-from utils.http_client import fetch_with_retries
+from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
 from utils.html_parsers import parse_eta_to_timedelta
 from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
 from utils.cache_manager import CacheManager, cache_manager
 from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
-from api.scrapers.events import vlr_events
+from api.scrapers.events import vlr_event_matches, vlr_events
 from api.scrapers.match_detail import vlr_match_detail
+from api.scrapers.players import vlr_player, vlr_player_matches
 
 
 # --- PaginationConfig.get_page_range ---
@@ -214,9 +215,10 @@ class TestCacheManager:
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, text: str = "<html></html>"):
+    def __init__(self, status_code: int, text: str = "<html></html>", headers: dict | None = None):
         self.status_code = status_code
         self.text = text
+        self.headers = headers or {}
 
 
 class FakeAsyncClient:
@@ -294,6 +296,8 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
     second = await vlr_events()
 
     assert first["data"]["status"] == 503
+    assert first["data"]["error"] == "VLR.GG returned status 503 for events"
+    assert first["data"]["segments"] == []
     assert second["data"]["status"] == 200
     assert client.calls == [
         ("https://www.vlr.gg/events", None),
@@ -302,6 +306,81 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
         ("https://www.vlr.gg/events", None),
     ]
     assert cache_manager.get(CACHE_TTL_EVENTS, "events", True, True, 1) == second
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_vlr_event_matches_returns_error_payload_for_non_200(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            "https://www.vlr.gg/event/matches/42": [
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    monkeypatch.setattr("api.scrapers.events.get_http_client", lambda: client)
+
+    first = await vlr_event_matches("42")
+    second = await vlr_event_matches("42")
+
+    assert first["data"] == {
+        "status": 503,
+        "error": "VLR.GG returned status 503 for event matches 42",
+        "segments": [],
+    }
+    assert second["data"]["status"] == 200
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("scraper", "args", "url", "expected_error"),
+    [
+        (
+            vlr_player,
+            ("9", "90d"),
+            "https://www.vlr.gg/player/9/?timespan=90d",
+            "VLR.GG returned status 503 for player 9",
+        ),
+        (
+            vlr_player_matches,
+            ("9", 2),
+            "https://www.vlr.gg/player/matches/9/?page=2",
+            "VLR.GG returned status 503 for player matches 9 page 2",
+        ),
+    ],
+)
+async def test_player_scrapers_return_error_payload_for_non_200(
+    monkeypatch, scraper, args, url, expected_error
+):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            url: [
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(503),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    monkeypatch.setattr("api.scrapers.players.get_http_client", lambda: client)
+
+    first = await scraper(*args)
+    second = await scraper(*args)
+
+    assert first["data"] == {
+        "status": 503,
+        "error": expected_error,
+        "segments": [],
+    }
+    assert second["data"]["status"] == 200
     cache_manager.clear_all()
 
 
@@ -325,6 +404,8 @@ async def test_vlr_match_detail_does_not_cache_non_200_responses(monkeypatch):
     second = await vlr_match_detail("123")
 
     assert first["data"]["status"] == 503
+    assert first["data"]["error"] == "VLR.GG returned status 503 for match detail 123"
+    assert first["data"]["segments"] == []
     assert second["data"]["status"] == 200
     assert client.calls == [
         ("https://www.vlr.gg/123", None),
@@ -391,3 +472,199 @@ async def test_fetch_with_retries_retries_request_errors(monkeypatch):
         ("https://example.test/resource", None),
         ("https://example.test/resource", None),
     ]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_retries_on_429(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [FakeResponse(429), FakeResponse(200)],
+        }
+    )
+
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=1.0,
+    )
+
+    assert response.status_code == 200
+    assert len(sleep_calls) == 1
+    assert client.calls == [
+        ("https://example.test/resource", None),
+        ("https://example.test/resource", None),
+    ]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_uses_retry_after_header_on_429(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [
+                FakeResponse(429, headers={"Retry-After": "7"}),
+                FakeResponse(200),
+            ],
+        }
+    )
+
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=1.0,
+    )
+
+    assert response.status_code == 200
+    assert sleep_calls == [7.0]
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_falls_back_to_exponential_backoff_on_429_without_retry_after(monkeypatch):
+    client = FakeAsyncClient(
+        {
+            "https://example.test/resource": [FakeResponse(429), FakeResponse(200)],
+        }
+    )
+
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    response = await fetch_with_retries(
+        "https://example.test/resource",
+        client=client,
+        max_retries=2,
+        request_delay=2.0,
+    )
+
+    assert response.status_code == 200
+    assert sleep_calls == [2.0]
+
+
+# --- CircuitBreaker ---
+
+class TestCircuitBreaker:
+    def setup_method(self):
+        circuit_breaker.reset()
+
+    def test_allows_request_when_closed(self):
+        assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    def test_opens_after_fail_max_failures(self):
+        circuit_breaker.fail_max = 3
+        for _ in range(3):
+            circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is False
+
+    def test_record_success_resets_failure_count(self):
+        circuit_breaker.fail_max = 3
+        circuit_breaker.record_failure("https://example.test/resource")
+        circuit_breaker.record_failure("https://example.test/resource")
+        circuit_breaker.record_success("https://example.test/resource")
+        # After success, failure count resets — needs fail_max more failures to open
+        circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    def test_transitions_to_half_open_after_reset_timeout(self):
+        import time as _time
+        circuit_breaker.fail_max = 1
+        circuit_breaker.reset_timeout = 30.0
+        circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is False
+
+        # Backdate opened_at to simulate reset_timeout having elapsed
+        circuit_breaker._opened_at["example.test"] = _time.monotonic() - 100.0
+        assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    def test_circuit_is_per_host(self):
+        circuit_breaker.fail_max = 1
+        circuit_breaker.record_failure("https://example.test/resource")
+        assert circuit_breaker.allow_request("https://example.test/resource") is False
+        assert circuit_breaker.allow_request("https://other.test/resource") is True
+
+    def teardown_method(self):
+        circuit_breaker.reset()
+        circuit_breaker.fail_max = 5
+        circuit_breaker.reset_timeout = 30.0
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_raises_circuit_open_error_when_circuit_is_open(monkeypatch):
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 1
+    circuit_breaker.record_failure("https://example.test/resource")
+
+    with pytest.raises(CircuitOpenError):
+        await fetch_with_retries("https://example.test/resource")
+
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 5
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_records_failure_after_exhausting_retries(monkeypatch):
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 2
+
+    client = FakeAsyncClient(
+        {"https://example.test/resource": [FakeResponse(503), FakeResponse(503)]}
+    )
+
+    async def fake_sleep(_delay):
+        pass
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    # First call exhausts retries — records 1 failure
+    await fetch_with_retries("https://example.test/resource", client=client, max_retries=2)
+    assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    # Second call exhausts retries — records 2nd failure, trips circuit
+    client2 = FakeAsyncClient(
+        {"https://example.test/resource": [FakeResponse(503), FakeResponse(503)]}
+    )
+    await fetch_with_retries("https://example.test/resource", client=client2, max_retries=2)
+    assert circuit_breaker.allow_request("https://example.test/resource") is False
+
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 5
+
+
+@pytest.mark.anyio
+async def test_fetch_with_retries_does_not_count_429_as_circuit_failure(monkeypatch):
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 2
+
+    responses = [FakeResponse(429)] * 4 + [FakeResponse(200)]
+    client = FakeAsyncClient({"https://example.test/resource": responses})
+
+    async def fake_sleep(_delay):
+        pass
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+
+    # Two calls each exhausting retries on 429 should NOT trip the circuit
+    await fetch_with_retries("https://example.test/resource", client=client, max_retries=2)
+    await fetch_with_retries("https://example.test/resource", client=client, max_retries=2)
+    assert circuit_breaker.allow_request("https://example.test/resource") is True
+
+    circuit_breaker.reset()
+    circuit_breaker.fail_max = 5

@@ -70,6 +70,7 @@ class FakeResponse:
     def __init__(self, status_code: int, text: str):
         self.status_code = status_code
         self.text = text
+        self.headers: dict = {}
 
 
 class FakeAsyncClient:
@@ -153,11 +154,12 @@ async def test_vlr_live_score_handles_missing_homepage_fields(monkeypatch):
                     "match_event": "",
                     "match_series": "",
                     "unix_timestamp": "",
-                    "match_page": "https://www.vlr.gg/123",
-                }
-            ],
+                        "match_page": "https://www.vlr.gg/123",
+                        "match_id": "123",
+                    }
+                ],
+            }
         }
-    }
     cache_manager.clear_all()
 
 

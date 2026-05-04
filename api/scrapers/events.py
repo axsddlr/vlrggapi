@@ -5,7 +5,7 @@ from selectolax.parser import HTMLParser
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_BASE_URL, VLR_EVENTS_URL, CACHE_TTL_EVENTS, CACHE_TTL_EVENT_MATCHES
 from utils.cache_manager import cache_manager
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import (
     extract_text_content,
     extract_prize_value,
@@ -68,8 +68,11 @@ async def vlr_events(upcoming=True, completed=True, page=1):
 
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        if status >= 400:
+            return upstream_error_payload(status, "events")
+
+        html = HTMLParser(resp.text)
 
         events = []
 
@@ -106,8 +109,11 @@ async def vlr_event_matches(event_id: str):
         url = f"{VLR_BASE_URL}/event/matches/{event_id}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        if status >= 400:
+            return upstream_error_payload(status, f"event matches {event_id}")
+
+        html = HTMLParser(resp.text)
 
         matches = []
         current_date = ""
@@ -147,15 +153,6 @@ async def vlr_event_matches(event_id: str):
             elif eta_el:
                 match_status = eta_el.text(strip=True)
 
-            vods = []
-            for vod_el in elem.css(".match-item-vod .wf-tag"):
-                vod_text = vod_el.text(strip=True)
-                vod_link_el = vod_el if vod_el.tag == "a" else vod_el.parent
-                vod_href = vod_link_el.attributes.get("href", "") if vod_link_el else ""
-                if vod_href:
-                    vod_href = build_full_url(vod_href)
-                vods.append({"label": vod_text, "url": vod_href})
-
             note_el = elem.css_first(".match-item-note")
             note = note_el.text(strip=True) if note_el else ""
 
@@ -168,7 +165,6 @@ async def vlr_event_matches(event_id: str):
                 "event_series": event_series,
                 "team1": teams[0],
                 "team2": teams[1],
-                "vods": vods,
             })
 
         return {"data": {"status": status, "segments": matches}}

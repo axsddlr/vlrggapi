@@ -6,7 +6,7 @@ from selectolax.parser import HTMLParser
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_NEWS_URL, CACHE_TTL_NEWS
 from utils.cache_manager import cache_manager
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, raise_for_upstream_status
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +79,10 @@ async def vlr_news():
     async def build():
         client = get_http_client()
         resp = await fetch_with_retries(VLR_NEWS_URL, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        raise_for_upstream_status(status, "news")
+
+        html = HTMLParser(resp.text)
 
         result = []
         for item in html.css("a.wf-module-item"):
@@ -99,9 +101,6 @@ async def vlr_news():
             )
 
         data = {"data": {"status": status, "segments": result}}
-
-        if status != 200:
-            raise Exception("API response: {}".format(status))
 
         return data
 

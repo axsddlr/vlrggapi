@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import re
-from datetime import datetime, timezone
 
 from selectolax.parser import HTMLParser
 
@@ -16,14 +15,13 @@ from utils.constants import (
     LIVE_DETAIL_FETCH_TIMEOUT,
 )
 from utils.cache_manager import cache_manager
-from utils.error_handling import handle_scraper_errors
+from utils.error_handling import handle_scraper_errors, raise_for_upstream_status
 from utils.html_parsers import (
     build_full_url,
     extract_match_teams,
     extract_text_content,
     normalize_image_url,
-    parse_eta_to_timedelta,
-    combine_date_and_time,
+    parse_href_id_slug,
     parse_match_timestamp,
 )
 from utils.pagination import PaginationConfig, scrape_multiple_pages
@@ -40,21 +38,6 @@ def _safe_flag(team_node) -> str:
     return flag_class.replace(" mod-", "").replace("16", "_")
 
 
-def _safe_timestamp(item) -> str:
-    """Extract a UTC timestamp string from a homepage match item."""
-    ts_elem = item.css_first(".moment-tz-convert")
-    if not ts_elem:
-        return ""
-
-    unix_ts = ts_elem.attributes.get("data-utc-ts", "")
-    if not unix_ts:
-        return ""
-
-    try:
-        return datetime.fromtimestamp(int(unix_ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    except (TypeError, ValueError, OSError):
-        return ""
-
 
 
 @handle_scraper_errors
@@ -63,8 +46,10 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
     async def build():
         client = get_http_client()
         resp = await fetch_with_retries(VLR_BASE_URL, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        raise_for_upstream_status(status, "upcoming matches")
+
+        html = HTMLParser(resp.text)
 
         result = []
         for item in html.css(".js-home-matches-upcoming a.wf-module-item"):
@@ -80,7 +65,7 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
             match_event = extract_text_content(item.css_first(".h-match-preview-event"))
             match_series = extract_text_content(item.css_first(".h-match-preview-series"))
-            timestamp = _safe_timestamp(item)
+            timestamp = parse_match_timestamp(item, "")
             url_path = build_full_url(item.attributes.get("href", ""))
 
             result.append(
@@ -99,9 +84,6 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
         data = {"data": {"status": status, "segments": result}}
 
-        if status != 200:
-            raise Exception("API response: {}".format(status))
-
         return data
 
     return await cache_manager.get_or_create_async(CACHE_TTL_UPCOMING, build, "upcoming")
@@ -113,8 +95,10 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
     async def build():
         client = get_http_client()
         resp = await fetch_with_retries(VLR_BASE_URL, client=client)
-        html = HTMLParser(resp.text)
         status = resp.status_code
+        raise_for_upstream_status(status, "live scores")
+
+        html = HTMLParser(resp.text)
 
         matches = html.css(".js-home-matches-upcoming a.wf-module-item")
         live_matches = []
@@ -148,8 +132,10 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
 
             match_event = extract_text_content(match.css_first(".h-match-preview-event"))
             match_series = extract_text_content(match.css_first(".h-match-preview-series"))
-            timestamp = _safe_timestamp(match)
-            url_path = build_full_url(match.attributes.get("href", ""))
+            timestamp = parse_match_timestamp(match, "")
+            href = match.attributes.get("href", "")
+            url_path = build_full_url(href)
+            match_id, _ = parse_href_id_slug(href)
 
             live_matches.append({
                 "teams": teams,
@@ -160,6 +146,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
                 "match_series": match_series,
                 "timestamp": timestamp,
                 "url_path": url_path,
+                "match_id": match_id,
             })
 
         detail_fetch_semaphore = asyncio.Semaphore(LIVE_DETAIL_FETCH_CONCURRENCY)
@@ -231,13 +218,11 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
                     "match_series": match_data["match_series"],
                     "unix_timestamp": match_data["timestamp"],
                     "match_page": match_data["url_path"],
+                    "match_id": match_data["match_id"],
                 }
             )
 
         data = {"data": {"status": status, "segments": result}}
-
-        if status != 200:
-            raise Exception("API response: {}".format(status))
 
         return data
 

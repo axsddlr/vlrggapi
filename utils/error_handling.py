@@ -8,6 +8,7 @@ from functools import wraps
 import httpx
 from fastapi import HTTPException
 
+from utils.http_client import CircuitOpenError
 from utils.constants import (
     MAX_MATCH_PAGE_WINDOW,
     MAX_MATCH_RETRIES,
@@ -23,11 +24,35 @@ VALID_MATCH_QUERIES = {"upcoming", "upcoming_extended", "live_score", "results"}
 VALID_EVENT_QUERIES = {"upcoming", "completed", None}
 
 
+def upstream_error_payload(status_code: int, context: str) -> dict:
+    """Return a standard scraper payload for upstream HTTP failures."""
+    return {
+        "data": {
+            "status": status_code,
+            "error": f"VLR.GG returned status {status_code} for {context}",
+            "segments": [],
+        }
+    }
+
+
+def raise_for_upstream_status(status_code: int, context: str) -> None:
+    """Raise a FastAPI HTTPException when VLR.GG returns an error status."""
+    if status_code >= 400:
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"VLR.GG returned status {status_code} for {context}",
+        )
+
+
 def handle_scraper_errors(func):
     """Decorator to handle common scraper errors. Works with both sync and async functions."""
     def _raise_http_error(exc: Exception):
         if isinstance(exc, HTTPException):
             raise exc
+
+        if isinstance(exc, CircuitOpenError):
+            logger.warning("Circuit open in %s: %s", func.__name__, exc)
+            raise HTTPException(status_code=503, detail=str(exc))
 
         if isinstance(exc, httpx.TimeoutException):
             logger.error("Timeout in %s: %s", func.__name__, exc)

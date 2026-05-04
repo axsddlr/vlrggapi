@@ -44,6 +44,7 @@ class FakeResponse:
     def __init__(self, status_code: int, text: str):
         self.status_code = status_code
         self.text = text
+        self.headers: dict = {}
 
 
 class FakeAsyncClient:
@@ -75,6 +76,7 @@ def test_parse_stats_row_uses_structured_player_and_org_selectors():
         "first_deaths_per_round": "0.05",
         "headshot_percentage": "33%",
         "clutch_success_percentage": "16%",
+        "clutch_attempts": "9/57",
     }
 
 
@@ -107,6 +109,7 @@ async def test_vlr_stats_preserves_output_shape_with_structured_row_parsing(monk
                     "first_deaths_per_round": "0.05",
                     "headshot_percentage": "33%",
                     "clutch_success_percentage": "16%",
+                    "clutch_attempts": "9/57",
                 }
             ],
         }

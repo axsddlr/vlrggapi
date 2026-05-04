@@ -1,0 +1,9 @@
+[run]
+source = .
+omit =
+    tests/*
+    conftest.py
+
+[report]
+show_missing = true
+skip_covered = false
