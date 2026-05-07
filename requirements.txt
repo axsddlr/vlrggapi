@@ -1,7 +1,7 @@
 httpx==0.28.1
 cachetools==7.0.6
-uvicorn==0.44.0
-fastapi==0.136.0
+uvicorn==0.45.0
+fastapi==0.136.1
 lxml==6.1.0
 slowapi==0.1.9
 selectolax==0.4.7
