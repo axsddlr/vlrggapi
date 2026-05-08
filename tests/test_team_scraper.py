@@ -1,5 +1,4 @@
 import pytest
-
 from fastapi import HTTPException
 
 from api.scrapers.teams import (

@@ -98,6 +98,8 @@ async def get_events_data(q: str | None, page: int) -> dict:
         return await vlr_events(upcoming=True, completed=False, page=page)
     if q == "completed":
         return await vlr_events(upcoming=False, completed=True, page=page)
+    if q == "live":
+        return await vlr_events(upcoming=False, completed=False, page=page, live=True)
     return await vlr_events(upcoming=True, completed=True, page=page)
 
 

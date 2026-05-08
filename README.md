@@ -84,7 +84,7 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/match/details` | `match_id` | 5 min |
 | `GET /v2/rankings` | `region` | 1 hr |
 | `GET /v2/stats` | `region`, `timespan` | 30 min |
-| `GET /v2/events` | `q` (upcoming/completed), `page` | 30 min |
+| `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
 | `GET /v2/event/{id}` | `event_id` (path) | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
@@ -218,10 +218,11 @@ GET /v2/stats?region=na&timespan=30
 
 ### `GET /v2/events`
 Browse events — use to discover event IDs for detail/matches lookups.
-**Params:** `q` (optional: upcoming/completed), `page` | **Cache:** 30 min
+**Params:** `q` (optional: upcoming/completed/live), `page` | **Cache:** 30 min
 
 ```
 GET /v2/events?q=upcoming
+GET /v2/events?q=live
 ```
 
 <details><summary>Response</summary>
@@ -509,7 +510,7 @@ Preserved for backwards compatibility. Most return `{"data": {"status": int, "se
 | `GET /match/details` | `match_id` |
 | `GET /stats` | `region`, `timespan` |
 | `GET /rankings` | `region` |
-| `GET /events` | `q` (upcoming/completed), `page` |
+| `GET /events` | `q` (upcoming/completed/live), `page` |
 | `GET /event/{id}` | — (path param) |
 | `GET /events/matches` | `event_id` |
 | `GET /search` | `q` |
@@ -736,7 +737,7 @@ V2 endpoints validate input and return HTTP 400 with descriptive error messages:
 - **Invalid timespan** — must be `30`, `60`, `90`, or `all`
 - **Invalid player timespan** — must be `30d`, `60d`, `90d`, or `all`
 - **Invalid match query** — must be `upcoming`, `upcoming_extended`, `live_score`, or `results`
-- **Invalid event query** — must be `upcoming` or `completed`
+- **Invalid event query** — must be `upcoming`, `completed`, or `live`
 - **Invalid ID** — `match_id`, `event_id`, player `id`, and team `id` must be positive integers
 
 ```json

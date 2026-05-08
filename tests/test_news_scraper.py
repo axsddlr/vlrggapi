@@ -1,9 +1,9 @@
 import asyncio
+
 import pytest
 
 from api.scrapers.news import vlr_news
 from utils.cache_manager import cache_manager
-
 
 NEWS_HTML = """
 <html>

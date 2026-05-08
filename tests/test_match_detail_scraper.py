@@ -5,7 +5,6 @@ import pytest
 from api.scrapers.match_detail import vlr_match_detail
 from utils.cache_manager import cache_manager
 
-
 PLAYER_ROW = """
 <tr>
   <td class="mod-player"><div class="text-of">TenZ</div></td>

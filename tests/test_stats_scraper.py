@@ -1,9 +1,8 @@
 import pytest
+from selectolax.parser import HTMLParser
 
 from api.scrapers.stats import _parse_stats_row, vlr_stats
-from selectolax.parser import HTMLParser
 from utils.cache_manager import cache_manager
-
 
 STATS_HTML = """
 <html>

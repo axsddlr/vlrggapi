@@ -10,7 +10,6 @@ import logging
 import re
 
 from fastapi import HTTPException
-from selectolax.parser import HTMLParser
 
 from utils.cache_manager import cache_manager
 from utils.constants import (
@@ -21,11 +20,13 @@ from utils.constants import (
 )
 from utils.error_handling import handle_scraper_errors
 from utils.html_parsers import (
+    HTMLParser,
     build_full_url,
     extract_region_from_flag,
     infer_platform,
     normalize_image_url,
     parse_href_id_slug,
+    parse_html,
 )
 from utils.http_client import fetch_with_retries, get_http_client
 
@@ -597,7 +598,7 @@ async def vlr_team(team_id: str) -> dict:
                 detail=f"VLR.GG returned status {status} for team {team_id}",
             )
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         header_info = _parse_team_header(html, team_id)
         rating = _parse_rating_info(html)
@@ -661,7 +662,7 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
                 ),
             )
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
         matches: list[dict] = []
 
         selectors = [
@@ -739,7 +740,7 @@ async def vlr_team_transactions(team_id: str) -> dict:
                 detail=f"VLR.GG returned status {status} for team transactions {team_id}",
             )
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
         transactions: list[dict] = []
 
         selectors = [

@@ -7,8 +7,8 @@ from slowapi.util import get_remote_address
 
 from models import V2Response
 from routers.shared_handlers import (
-    get_event_matches_data,
     get_event_detail_data,
+    get_event_matches_data,
     get_events_data,
     get_health_data,
     get_match_data,
@@ -23,13 +23,13 @@ from routers.shared_handlers import (
     get_team_matches_data,
     get_team_transactions_data,
 )
-from utils.constants import RATE_LIMIT, MAX_MATCH_QUERY_BOUND
+from utils.constants import MAX_MATCH_QUERY_BOUND, RATE_LIMIT
 from utils.error_handling import (
     validate_event_query,
+    validate_id_param,
     validate_match_query,
     validate_match_workload,
     validate_player_timespan,
-    validate_id_param,
 )
 
 router = APIRouter(prefix="/v2", tags=["v2"])
@@ -126,7 +126,7 @@ async def v2_match(
 @limiter.limit(RATE_LIMIT)
 async def v2_events(
     request: Request,
-    q: str = Query(None, description="Event type: upcoming or completed"),
+    q: str = Query(None, description="Event type: upcoming, completed, or live"),
     page: int = Query(1, description="Page number (completed events only)", ge=1, le=100),
 ):
     """
@@ -135,7 +135,8 @@ async def v2_events(
     Use this endpoint to discover events or build event directories. Each entry
     includes the event ID so you can drill down into details or match results.
 
-    - **upcoming**: Currently active or scheduled future events
+    - **live**: Events currently being played (homepage sidebar)
+    - **upcoming**: Scheduled future events
     - **completed**: Historical events that have finished
     - **omit q**: Both upcoming and completed events
 

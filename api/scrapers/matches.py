@@ -2,28 +2,28 @@ import asyncio
 import logging
 import re
 
-from selectolax.parser import HTMLParser
-
-from utils.http_client import fetch_with_retries, get_http_client
+from utils.cache_manager import cache_manager
 from utils.constants import (
-    VLR_BASE_URL,
-    VLR_MATCHES_URL,
-    CACHE_TTL_UPCOMING,
     CACHE_TTL_LIVE,
     CACHE_TTL_RESULTS,
+    CACHE_TTL_UPCOMING,
     LIVE_DETAIL_FETCH_CONCURRENCY,
     LIVE_DETAIL_FETCH_TIMEOUT,
+    VLR_BASE_URL,
+    VLR_MATCHES_URL,
 )
-from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors, raise_for_upstream_status
 from utils.html_parsers import (
+    HTMLParser,
     build_full_url,
     extract_match_teams,
     extract_text_content,
     normalize_image_url,
     parse_href_id_slug,
+    parse_html,
     parse_match_timestamp,
 )
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
         status = resp.status_code
         raise_for_upstream_status(status, "upcoming matches")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         result = []
         for item in html.css(".js-home-matches-upcoming a.wf-module-item"):
@@ -98,7 +98,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
         status = resp.status_code
         raise_for_upstream_status(status, "live scores")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         matches = html.css(".js-home-matches-upcoming a.wf-module-item")
         live_matches = []
@@ -175,7 +175,7 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
             map_number = "Unknown"
 
             if detail_resp is not None:
-                match_html = HTMLParser(detail_resp.text)
+                match_html = parse_html(detail_resp.text)
 
                 logos = []
                 for img in match_html.css(".match-header-vs img"):

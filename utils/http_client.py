@@ -4,13 +4,12 @@ Async HTTP client singleton using httpx.
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 
 import httpx
 
-from utils.utils import headers
 from utils.constants import (
     CIRCUIT_FAIL_MAX,
     CIRCUIT_RESET_TIMEOUT,
@@ -18,6 +17,7 @@ from utils.constants import (
     DEFAULT_RETRIES,
     DEFAULT_TIMEOUT,
 )
+from utils.utils import headers
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ def _parse_retry_after(response: httpx.Response) -> float | None:
         pass
     try:
         dt = parsedate_to_datetime(value)
-        delta = (dt - datetime.now(tz=timezone.utc)).total_seconds()
+        delta = (dt - datetime.now(tz=UTC)).total_seconds()
         return max(0.0, delta)
     except Exception:
         return None
