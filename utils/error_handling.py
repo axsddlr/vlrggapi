@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 VALID_TIMESPANS = {"30", "60", "90", "all"}
 VALID_PLAYER_TIMESPANS = {"30d", "60d", "90d", "all"}
 VALID_MATCH_QUERIES = {"upcoming", "upcoming_extended", "live_score", "results"}
-VALID_EVENT_QUERIES = {"upcoming", "completed", None}
+VALID_EVENT_QUERIES = {"upcoming", "completed", "live", None}
 
 
 def upstream_error_payload(status_code: int, context: str) -> dict:
@@ -116,7 +116,7 @@ def validate_event_query(q: str | None):
     if q not in VALID_EVENT_QUERIES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid event query '{q}'. Valid values: upcoming, completed",
+            detail=f"Invalid event query '{q}'. Valid values: upcoming, completed, live",
         )
 
 

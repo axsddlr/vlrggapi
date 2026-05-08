@@ -153,7 +153,7 @@ async def VLR_events(
         None,
         description="Event type filter",
         examples=["completed"],
-        enum=["upcoming", "completed"]
+        enum=["upcoming", "completed", "live"]
     ),
     page: int = Query(
         1,

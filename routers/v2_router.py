@@ -126,7 +126,7 @@ async def v2_match(
 @limiter.limit(RATE_LIMIT)
 async def v2_events(
     request: Request,
-    q: str = Query(None, description="Event type: upcoming or completed"),
+    q: str = Query(None, description="Event type: upcoming, completed, or live"),
     page: int = Query(1, description="Page number (completed events only)", ge=1, le=100),
 ):
     """
@@ -135,7 +135,8 @@ async def v2_events(
     Use this endpoint to discover events or build event directories. Each entry
     includes the event ID so you can drill down into details or match results.
 
-    - **upcoming**: Currently active or scheduled future events
+    - **live**: Events currently being played (homepage sidebar)
+    - **upcoming**: Scheduled future events
     - **completed**: Historical events that have finished
     - **omit q**: Both upcoming and completed events
 

@@ -305,7 +305,7 @@ async def test_vlr_events_does_not_cache_non_200_responses(monkeypatch):
         ("https://www.vlr.gg/events", None),
         ("https://www.vlr.gg/events", None),
     ]
-    assert cache_manager.get(CACHE_TTL_EVENTS, "events", True, True, 1) == second
+    assert cache_manager.get(CACHE_TTL_EVENTS, "events", True, True, 1, False) == second
     cache_manager.clear_all()
 
 
