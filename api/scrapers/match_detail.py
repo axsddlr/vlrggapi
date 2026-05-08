@@ -6,8 +6,6 @@ import asyncio
 import logging
 import re
 
-from selectolax.parser import HTMLParser
-
 from utils.cache_manager import cache_manager
 from utils.constants import (
     CACHE_TTL_MATCH_DETAIL,
@@ -17,7 +15,7 @@ from utils.constants import (
     VLR_BASE_URL,
 )
 from utils.error_handling import handle_scraper_errors, upstream_error_payload
-from utils.html_parsers import build_full_url, extract_text_content, normalize_image_url, parse_href_id_slug
+from utils.html_parsers import HTMLParser, build_full_url, extract_text_content, normalize_image_url, parse_href_id_slug, parse_html
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.id_mapper import id_mapper
 
@@ -538,7 +536,7 @@ async def _fetch_game_tab_html(
                 tab, game_id, resp.status_code,
             )
             return game_id, tab, None
-        return game_id, tab, HTMLParser(resp.text)
+        return game_id, tab, parse_html(resp.text)
     except Exception as exc:
         logger.warning("Failed to fetch %s tab for game %s: %s", tab, game_id, exc)
         return game_id, tab, None
@@ -716,7 +714,7 @@ async def vlr_match_detail(match_id: str) -> dict:
         if http_status >= 400:
             return upstream_error_payload(http_status, f"match detail {match_id}")
 
-        base_html = HTMLParser(base_resp.text)
+        base_html = parse_html(base_resp.text)
 
         game_ids = _extract_game_ids(base_html)
         first_game_id = game_ids[0] if game_ids else None

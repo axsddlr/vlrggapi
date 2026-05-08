@@ -1,7 +1,5 @@
 import logging
 
-from selectolax.parser import HTMLParser
-
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_BASE_URL, VLR_EVENTS_URL, CACHE_TTL_EVENTS, CACHE_TTL_EVENT_MATCHES
 from utils.cache_manager import cache_manager
@@ -14,6 +12,7 @@ from utils.html_parsers import (
     normalize_image_url,
     build_full_url,
     parse_href_id_slug,
+    parse_html,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,7 +118,7 @@ async def vlr_events(upcoming=True, completed=True, page=1, live=False):
             if status >= 400:
                 return upstream_error_payload(status, "events")
 
-            html = HTMLParser(resp.text)
+            html = parse_html(resp.text)
 
             if show_upcoming:
                 for section in html.css("div.wf-label.mod-large.mod-upcoming"):
@@ -137,7 +136,7 @@ async def vlr_events(upcoming=True, completed=True, page=1, live=False):
             client = get_http_client()
             home_resp = await fetch_with_retries(VLR_BASE_URL, client=client)
             if home_resp.status_code < 400:
-                home_html = HTMLParser(home_resp.text)
+                home_html = parse_html(home_resp.text)
                 live_container = home_html.css_first("div.js-home-events")
                 if live_container:
                     events.extend(_parse_home_sidebar_events_by_label(live_container, "live"))
@@ -167,7 +166,7 @@ async def vlr_event_matches(event_id: str):
         if status >= 400:
             return upstream_error_payload(status, f"event matches {event_id}")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         matches = []
         current_date = ""

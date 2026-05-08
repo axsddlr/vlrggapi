@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
+from selectolax.lexbor import LexborHTMLParser
+from selectolax.parser import HTMLParser  # re-exported for type hints
+
 from zoneinfo import ZoneInfo
 
 
@@ -305,6 +308,22 @@ def infer_platform(url: str) -> str:
         if any(d in host for d in domains):
             return platform
     return "other"
+
+
+_STRIP_RE = re.compile(
+    r'<(script|style)[^>]*>.*?</\1>|<!--.*?-->',
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def strip_html(html: str) -> str:
+    """Remove scripts, styles, and HTML comments."""
+    return _STRIP_RE.sub("", html)
+
+
+def parse_html(html: str):
+    """Strip noise from HTML then parse with selectolax (lexbor backend)."""
+    return LexborHTMLParser(strip_html(html))
 
 
 def parse_match_items(html, container_selector: str = "a.wf-module-item.match-item") -> list[dict]:

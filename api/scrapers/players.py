@@ -4,17 +4,17 @@ Scraper for VLR.GG player profile and match history pages.
 import logging
 import re
 
-from selectolax.parser import HTMLParser
-
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_PLAYER, CACHE_TTL_PLAYER_MATCHES, VLR_BASE_URL
 from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import (
+    HTMLParser,
     build_full_url,
     extract_region_from_flag,
     infer_platform,
     normalize_image_url,
     parse_href_id_slug,
+    parse_html,
 )
 from utils.http_client import fetch_with_retries, get_http_client
 
@@ -480,7 +480,7 @@ async def vlr_player(player_id: str, timespan: str = "90d") -> dict:
         if status >= 400:
             return upstream_error_payload(status, f"player {player_id}")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         player_info = _parse_player_info(html)
         current_team, past_teams = _parse_teams(html)
@@ -533,7 +533,7 @@ async def vlr_player_matches(player_id: str, page: int = 1) -> dict:
                 status, f"player matches {player_id} page {page}"
             )
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         matches: list[dict] = []
 

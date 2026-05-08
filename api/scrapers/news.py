@@ -1,7 +1,7 @@
 import logging
 import re
 
-from selectolax.parser import HTMLParser
+from utils.html_parsers import parse_html
 
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_NEWS_URL, CACHE_TTL_NEWS
@@ -82,7 +82,7 @@ async def vlr_news():
         status = resp.status_code
         raise_for_upstream_status(status, "news")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         result = []
         for item in html.css("a.wf-module-item"):

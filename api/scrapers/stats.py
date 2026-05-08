@@ -1,7 +1,5 @@
 import logging
 
-from selectolax.parser import HTMLParser
-
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_STATS_URL, CACHE_TTL_STATS
 from utils.cache_manager import cache_manager
@@ -11,7 +9,7 @@ from utils.error_handling import (
     validate_region,
     validate_timespan,
 )
-from utils.html_parsers import extract_text_content
+from utils.html_parsers import extract_text_content, parse_html
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +80,7 @@ async def vlr_stats(region_key: str, timespan: str):
         status = resp.status_code
         raise_for_upstream_status(status, "stats")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         result = []
         for item in html.css("tbody tr"):

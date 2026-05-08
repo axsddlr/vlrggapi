@@ -1,7 +1,7 @@
 import logging
 import re
 
-from selectolax.parser import HTMLParser
+from utils.html_parsers import parse_html
 
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.constants import VLR_RANKINGS_URL, CACHE_TTL_RANKINGS
@@ -109,7 +109,7 @@ async def vlr_rankings(region_key):
         status = resp.status_code
         raise_for_upstream_status(status, "rankings")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         result = []
         for item in html.css("div.rank-item"):

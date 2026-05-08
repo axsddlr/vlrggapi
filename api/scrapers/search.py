@@ -7,12 +7,10 @@ and series by name. Results are categorized by entity type.
 import logging
 from urllib.parse import quote_plus
 
-from selectolax.parser import HTMLParser
-
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_SEARCH, VLR_BASE_URL
 from utils.error_handling import handle_scraper_errors, raise_for_upstream_status
-from utils.html_parsers import extract_text_content, normalize_image_url, parse_href_id_slug
+from utils.html_parsers import extract_text_content, normalize_image_url, parse_href_id_slug, parse_html
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.id_mapper import id_mapper
 
@@ -61,7 +59,7 @@ async def vlr_search(query: str) -> dict:
         status = resp.status_code
         raise_for_upstream_status(status, f"search for '{query}'")
 
-        html = HTMLParser(resp.text)
+        html = parse_html(resp.text)
 
         players: list[dict] = []
         teams: list[dict] = []
