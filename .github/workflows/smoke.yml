@@ -1,0 +1,76 @@
+name: Smoke
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # 06:00 UTC every Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream:
+    name: Check upstream vlr.gg
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check vlr.gg homepage
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "https://www.vlr.gg")
+          echo "vlr.gg returned $status"
+          [ "$status" -eq 200 ] || exit 1
+
+      - name: Check vlr.gg events page
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "https://www.vlr.gg/events")
+          echo "vlr.gg/events returned $status"
+          [ "$status" -eq 200 ] || exit 1
+
+      - name: Check vlr.gg rankings page
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "https://www.vlr.gg/rankings")
+          echo "vlr.gg/rankings returned $status"
+          [ "$status" -eq 200 ] || exit 1
+
+  api-smoke:
+    name: API smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements.txt
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Start API server
+        run: |
+          python main.py &
+          sleep 3
+          echo "Server PID: $!"
+
+      - name: Smoke test endpoints
+        run: |
+          set -e
+          curl -sSf --max-time 10 "http://127.0.0.1:3001/v2/health" | python -c "import sys,json; d=json.load(sys.stdin); assert d['status'] == 'success', f'bad health: {d}'"
+          echo "health OK"
+
+          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/news" | python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no news'"
+          echo "news OK"
+
+          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/rankings?region=na" | python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no rankings'"
+          echo "rankings OK"
+
+          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/events" | python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no events'"
+          echo "events OK"
+
+          echo "All smoke tests passed"

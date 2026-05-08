@@ -2,17 +2,16 @@ import asyncio
 import logging
 import re
 
-from utils.http_client import fetch_with_retries, get_http_client
+from utils.cache_manager import cache_manager
 from utils.constants import (
-    VLR_BASE_URL,
-    VLR_MATCHES_URL,
-    CACHE_TTL_UPCOMING,
     CACHE_TTL_LIVE,
     CACHE_TTL_RESULTS,
+    CACHE_TTL_UPCOMING,
     LIVE_DETAIL_FETCH_CONCURRENCY,
     LIVE_DETAIL_FETCH_TIMEOUT,
+    VLR_BASE_URL,
+    VLR_MATCHES_URL,
 )
-from utils.cache_manager import cache_manager
 from utils.error_handling import handle_scraper_errors, raise_for_upstream_status
 from utils.html_parsers import (
     HTMLParser,
@@ -21,9 +20,10 @@ from utils.html_parsers import (
     extract_text_content,
     normalize_image_url,
     parse_href_id_slug,
-    parse_match_timestamp,
     parse_html,
+    parse_match_timestamp,
 )
+from utils.http_client import fetch_with_retries, get_http_client
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 
 logger = logging.getLogger(__name__)

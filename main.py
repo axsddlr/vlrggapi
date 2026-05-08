@@ -3,15 +3,14 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from routers.vlr_router import router as vlr_router
 from routers.v2_router import router as v2_router
+from routers.vlr_router import router as vlr_router
+from utils.constants import API_DESCRIPTION, API_PORT, API_TITLE
 from utils.http_client import close_http_client
-from utils.constants import API_TITLE, API_DESCRIPTION, API_PORT
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

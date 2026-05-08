@@ -1,19 +1,19 @@
 import logging
 
-from utils.http_client import fetch_with_retries, get_http_client
-from utils.constants import VLR_BASE_URL, VLR_EVENTS_URL, CACHE_TTL_EVENTS, CACHE_TTL_EVENT_MATCHES
 from utils.cache_manager import cache_manager
+from utils.constants import CACHE_TTL_EVENT_MATCHES, CACHE_TTL_EVENTS, VLR_BASE_URL, VLR_EVENTS_URL
 from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import (
-    extract_text_content,
-    extract_prize_value,
-    extract_date_range,
-    extract_region_from_flag,
-    normalize_image_url,
     build_full_url,
+    extract_date_range,
+    extract_prize_value,
+    extract_region_from_flag,
+    extract_text_content,
+    normalize_image_url,
     parse_href_id_slug,
     parse_html,
 )
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 

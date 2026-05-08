@@ -2,9 +2,9 @@ import logging
 
 import httpx
 
-from utils.http_client import fetch_with_retries, get_http_client
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_HEALTH_UPSTREAM
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 

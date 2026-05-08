@@ -1,8 +1,7 @@
 import logging
 
-from utils.http_client import fetch_with_retries, get_http_client
-from utils.constants import VLR_STATS_URL, CACHE_TTL_STATS
 from utils.cache_manager import cache_manager
+from utils.constants import CACHE_TTL_STATS, VLR_STATS_URL
 from utils.error_handling import (
     handle_scraper_errors,
     raise_for_upstream_status,
@@ -10,6 +9,7 @@ from utils.error_handling import (
     validate_timespan,
 )
 from utils.html_parsers import extract_text_content, parse_html
+from utils.http_client import fetch_with_retries, get_http_client
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,14 @@ from utils.constants import (
     VLR_BASE_URL,
 )
 from utils.error_handling import handle_scraper_errors, upstream_error_payload
-from utils.html_parsers import HTMLParser, build_full_url, extract_text_content, normalize_image_url, parse_href_id_slug, parse_html
+from utils.html_parsers import (
+    HTMLParser,
+    build_full_url,
+    extract_text_content,
+    normalize_image_url,
+    parse_href_id_slug,
+    parse_html,
+)
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.id_mapper import id_mapper
 
@@ -136,16 +143,7 @@ def _parse_teams(html: HTMLParser) -> list[dict]:
 
     # Scores
     score_elems = html.css(".match-header-vs-score span")
-    winner_score = ""
-    loser_score = ""
     winner_idx = -1
-
-    for span in score_elems:
-        cls = span.attributes.get("class") or ""
-        if "match-header-vs-score-winner" in cls:
-            winner_score = span.text(strip=True)
-        elif "match-header-vs-score-loser" in cls:
-            loser_score = span.text(strip=True)
 
     # Determine which team index is the winner based on score positioning.
     # VLR renders winner/loser spans in DOM order: left team first, right team second.

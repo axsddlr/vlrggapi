@@ -21,7 +21,7 @@ from routers.shared_handlers import (
     get_team_transactions_data,
     to_legacy_rankings_shape,
 )
-from utils.constants import RATE_LIMIT, MAX_MATCH_QUERY_BOUND
+from utils.constants import MAX_MATCH_QUERY_BOUND, RATE_LIMIT
 from utils.error_handling import (
     validate_id_param,
     validate_match_workload,

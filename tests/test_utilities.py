@@ -1,21 +1,20 @@
 """Tests for utility modules: pagination, html_parsers, error_handling, cache_manager."""
 import asyncio
-import pytest
-import httpx
 from datetime import timedelta
 
+import httpx
+import pytest
 from fastapi import HTTPException
 
-from utils.pagination import PaginationConfig, scrape_multiple_pages
-from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
-from utils.html_parsers import parse_eta_to_timedelta
-from utils.error_handling import validate_region, validate_timespan, validate_match_query, validate_event_query
-from utils.cache_manager import CacheManager, cache_manager
-from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
 from api.scrapers.events import vlr_event_matches, vlr_events
 from api.scrapers.match_detail import vlr_match_detail
 from api.scrapers.players import vlr_player, vlr_player_matches
-
+from utils.cache_manager import CacheManager, cache_manager
+from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
+from utils.error_handling import validate_event_query, validate_match_query, validate_region, validate_timespan
+from utils.html_parsers import parse_eta_to_timedelta
+from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
+from utils.pagination import PaginationConfig, scrape_multiple_pages
 
 # --- PaginationConfig.get_page_range ---
 

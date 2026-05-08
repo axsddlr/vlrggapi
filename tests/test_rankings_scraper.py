@@ -1,4 +1,5 @@
 import pytest
+from selectolax.parser import HTMLParser
 
 from api.scrapers.rankings import (
     _extract_last_played_summary,
@@ -6,8 +7,6 @@ from api.scrapers.rankings import (
     vlr_rankings,
 )
 from utils.cache_manager import cache_manager
-from selectolax.parser import HTMLParser
-
 
 RANKINGS_HTML = """
 <html>

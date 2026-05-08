@@ -8,12 +8,12 @@ from functools import wraps
 import httpx
 from fastapi import HTTPException
 
-from utils.http_client import CircuitOpenError
 from utils.constants import (
     MAX_MATCH_PAGE_WINDOW,
     MAX_MATCH_RETRIES,
     MAX_MATCH_TIMEOUT,
 )
+from utils.http_client import CircuitOpenError
 from utils.utils import region
 
 logger = logging.getLogger(__name__)

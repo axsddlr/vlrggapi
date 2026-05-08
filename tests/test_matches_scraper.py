@@ -1,9 +1,8 @@
-import pytest
 import httpx
+import pytest
 
 from api.scrapers.matches import vlr_live_score, vlr_upcoming_matches
 from utils.cache_manager import cache_manager
-
 
 UPCOMING_HTML = """
 <html>

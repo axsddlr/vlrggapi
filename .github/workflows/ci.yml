@@ -41,6 +41,12 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
+      - name: Lint with Ruff
+        run: uv pip install --system ruff && ruff check --output-format=github
+
+      - name: Audit dependencies
+        run: uv pip install --system pip-audit && pip-audit -r requirements.txt
+
       - name: Run tests
         run: pytest -q --cov --cov-report=term-missing --cov-fail-under=50
 
