@@ -1,9 +1,7 @@
 """
 V2 API router — standardized responses, validation, Pydantic models.
 """
-from fastapi import APIRouter, HTTPException, Query, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi import APIRouter, HTTPException, Query
 
 from models import V2Response
 from routers.shared_handlers import (
@@ -23,7 +21,7 @@ from routers.shared_handlers import (
     get_team_matches_data,
     get_team_transactions_data,
 )
-from utils.constants import MAX_MATCH_QUERY_BOUND, RATE_LIMIT
+from utils.constants import MAX_MATCH_QUERY_BOUND
 from utils.error_handling import (
     validate_event_query,
     validate_id_param,
@@ -33,7 +31,6 @@ from utils.error_handling import (
 )
 
 router = APIRouter(prefix="/v2", tags=["v2"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 def _wrap_v2(scraper_result: dict) -> dict:
@@ -52,17 +49,14 @@ def _wrap_v2(scraper_result: dict) -> dict:
 
 
 @router.get("/news", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
-async def v2_news(request: Request):
+async def v2_news():
     """Get the latest Valorant esports news from VLR.GG."""
     result = await get_news_data()
     return _wrap_v2(result)
 
 
 @router.get("/stats", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_stats(
-    request: Request,
     region: str = Query(..., description="Region shortname (na, eu, ap, la, etc.)"),
     timespan: str = Query(..., description="Timespan: 30, 60, 90, or all"),
 ):
@@ -76,9 +70,7 @@ async def v2_stats(
 
 
 @router.get("/rankings", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_rankings(
-    request: Request,
     region: str = Query(..., description="Region shortname (na, eu, ap, la, etc.)"),
 ):
     """
@@ -91,9 +83,7 @@ async def v2_rankings(
 
 
 @router.get("/match", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_match(
-    request: Request,
     q: str = Query(..., description="Match type: upcoming, upcoming_extended, live_score, results"),
     num_pages: int = Query(1, description="Number of pages to scrape", ge=1, le=MAX_MATCH_QUERY_BOUND),
     from_page: int = Query(None, description="Starting page number (1-based)", ge=1, le=MAX_MATCH_QUERY_BOUND),
@@ -123,9 +113,7 @@ async def v2_match(
 
 
 @router.get("/events", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_events(
-    request: Request,
     q: str = Query(None, description="Event type: upcoming, completed, or live"),
     page: int = Query(1, description="Page number (completed events only)", ge=1, le=100),
 ):
@@ -152,9 +140,7 @@ async def v2_events(
 
 
 @router.get("/match/details", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_match_detail(
-    request: Request,
     match_id: str = Query(..., description="VLR.GG match ID"),
 ):
     """
@@ -170,9 +156,7 @@ async def v2_match_detail(
 
 
 @router.get("/player", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_player(
-    request: Request,
     id: str = Query(..., description="VLR.GG player ID"),
     timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
 ):
@@ -188,9 +172,7 @@ async def v2_player(
 
 
 @router.get("/player/matches", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_player_matches(
-    request: Request,
     id: str = Query(..., description="VLR.GG player ID"),
     page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
 ):
@@ -201,9 +183,7 @@ async def v2_player_matches(
 
 
 @router.get("/team", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_team(
-    request: Request,
     id: str = Query(..., description="VLR.GG team ID"),
 ):
     """
@@ -217,9 +197,7 @@ async def v2_team(
 
 
 @router.get("/team/matches", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_team_matches(
-    request: Request,
     id: str = Query(..., description="VLR.GG team ID"),
     page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
 ):
@@ -230,9 +208,7 @@ async def v2_team_matches(
 
 
 @router.get("/team/transactions", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_team_transactions(
-    request: Request,
     id: str = Query(..., description="VLR.GG team ID"),
 ):
     """Get roster transaction history for a team (joins, leaves, benchings)."""
@@ -242,9 +218,7 @@ async def v2_team_transactions(
 
 
 @router.get("/events/matches", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_event_matches(
-    request: Request,
     event_id: str = Query(..., description="VLR.GG event ID"),
 ):
     """List all matches for a specific event — scores, teams, dates, tournament info.
@@ -262,9 +236,7 @@ async def v2_event_matches(
 
 
 @router.get("/event/{event_id}", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_event_detail(
-    request: Request,
     event_id: str,
 ):
     """
@@ -285,9 +257,7 @@ async def v2_event_detail(
 
 
 @router.get("/search", response_model=V2Response)
-@limiter.limit(RATE_LIMIT)
 async def v2_search(
-    request: Request,
     q: str = Query(..., description="Search query (player name, team name, event keyword)"),
 ):
     """

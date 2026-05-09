@@ -10,9 +10,6 @@ VLR_RANKINGS_URL = f"{VLR_BASE_URL}/rankings"
 VLR_STATS_URL = f"{VLR_BASE_URL}/stats"
 VLR_NEWS_URL = f"{VLR_BASE_URL}/news"
 
-# Rate limiting
-RATE_LIMIT = "600/minute"
-
 # API Settings
 API_TITLE = "vlrggapi"
 API_DESCRIPTION = (

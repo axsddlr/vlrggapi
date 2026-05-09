@@ -3,10 +3,8 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
+from api.utils.rate_limiter import RateLimitMiddleware
 from routers.v2_router import router as v2_router
 from routers.vlr_router import router as vlr_router
 from utils.constants import API_DESCRIPTION, API_PORT, API_TITLE
@@ -32,9 +30,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(vlr_router)
 app.include_router(v2_router)
