@@ -14,8 +14,7 @@ a reverse-proxy layer (e.g. Nginx, Vercel Edge middleware).
 
 import logging
 import time
-from collections import defaultdict
-from collections import deque
+from collections import defaultdict, deque
 from urllib.parse import parse_qs
 
 from fastapi import Request
