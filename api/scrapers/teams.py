@@ -452,15 +452,19 @@ def _parse_team_match_item(item) -> dict | None:
     ]
     event = event_lines[-1] if event_lines else ""
 
-    # Date
+    # Date / time
     date_elem = item.css_first(".m-item-date")
-    date = _normalize_ws(_text(date_elem)) if date_elem else ""
+    raw = _text(date_elem) if date_elem else ""
+    m = re.match(r"(\d{4}/\d{2}/\d{2})", raw)
+    date = m.group(1) if m else ""
+    time = raw[m.end():].strip() if m else raw.strip()
 
     return {
         "match_id": match_id,
         "url": match_url,
         "event": event,
         "date": date,
+        "time": time,
         "team1": teams[0],
         "team2": teams[1],
         "score": score,
