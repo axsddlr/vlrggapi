@@ -431,12 +431,13 @@ def _parse_team_match_item(item) -> dict | None:
 
     # Teams — VLR renders both teams; the "home" team is typically listed first
     team_elems = item.css(".m-item-team")
+    logo_imgs = item.css(".m-item-logo img")
     teams: list[dict] = []
-    for te in team_elems:
+    for i, te in enumerate(team_elems):
         t_name = _text(te.css_first(".m-item-team-name"))
         t_tag = _text(te.css_first(".m-item-team-tag"))
-        t_logo_img = te.css_first(".m-item-logo img") or te.css_first("img")
-        t_logo = normalize_image_url(_attr(t_logo_img, "src"))
+        t_logo_img = logo_imgs[i] if i < len(logo_imgs) else None
+        t_logo = normalize_image_url(_attr(t_logo_img, "src")) if t_logo_img else ""
         teams.append({"name": t_name, "tag": t_tag, "logo": t_logo})
 
     while len(teams) < 2:
@@ -453,7 +454,7 @@ def _parse_team_match_item(item) -> dict | None:
 
     # Date
     date_elem = item.css_first(".m-item-date")
-    date = _text(date_elem)
+    date = _normalize_ws(_text(date_elem)) if date_elem else ""
 
     return {
         "match_id": match_id,
