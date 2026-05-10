@@ -88,9 +88,8 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/event/{id}` | `event_id` (path) | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
-| `GET /v2/player` | `id`, `timespan` | 30 min |
-| `GET /v2/player/matches` | `id`, `page` | 10 min |
-| `GET /v2/team` | `id`, `q` (profile/matches/transactions), `page` | 30 min / 10 min / 1 hr |
+| `GET /v2/player` | `id`, `q` (profile/matches), `timespan`, `page` | 30 min / 10 min |
+| `GET /v2/team` | `id`, `q` (profile/matches/transactions/stats), `page` | 30 min / 10 min / 1 hr / 10 min |
 | `GET /v2/health` | — | none |
 
 See section below for full descriptions and response examples.
@@ -347,13 +346,14 @@ GET /v2/search?q=tenz
 </details>
 
 ### `GET /v2/player`
-**Params:** `id` (required), `timespan` (30d/60d/90d/all, default: 90d) | **Cache:** 30 min
+**Params:** `id` (required), `q` (profile/matches, default: profile), `timespan` (30d/60d/90d/all, default: 90d), `page` (1-based, default: 1) | **Cache:** varies
 
 ```
-GET /v2/player?id=9&timespan=all
+GET /v2/player?id=9&q=profile&timespan=all
+GET /v2/player?id=9&q=matches&page=1
 ```
 
-<details><summary>Response</summary>
+<details><summary>Profile response</summary>
 
 ```json
 {
@@ -370,14 +370,7 @@ GET /v2/player?id=9&timespan=all
 ```
 </details>
 
-### `GET /v2/player/matches`
-**Params:** `id` (required), `page` (default: 1) | **Cache:** 10 min
-
-```
-GET /v2/player/matches?id=9&page=1
-```
-
-<details><summary>Response</summary>
+<details><summary>Matches response</summary>
 
 ```json
 {
@@ -391,12 +384,13 @@ GET /v2/player/matches?id=9&page=1
 </details>
 
 ### `GET /v2/team`
-**Params:** `id` (required), `q` (profile/matches/transactions, default: profile), `page` (1-based, default: 1) | **Cache:** varies
+**Params:** `id` (required), `q` (profile/matches/transactions/stats, default: profile), `page` (1-based, default: 1) | **Cache:** varies
 
 ```
 GET /v2/team?id=2&q=profile
 GET /v2/team?id=2&q=matches&page=1
 GET /v2/team?id=2&q=transactions
+GET /v2/team?id=2&q=stats
 ```
 
 <details><summary>Profile response</summary>
@@ -435,6 +429,34 @@ GET /v2/team?id=2&q=transactions
   "status": "success",
   "data": {
     "transactions": [{ "date": "Jan 15, 2024", "action": "join", "player": "TenZ", "position": "Duelist" }]
+  }
+}
+```
+</details>
+
+<details><summary>Stats response</summary>
+
+```json
+{
+  "status": "success",
+  "data": {
+    "segments": [
+      {
+        "map": "Bind",
+        "games": 86,
+        "win_pct": "71%",
+        "wins": 61,
+        "losses": 25,
+        "atk_first": 54,
+        "def_first": 32,
+        "atk_rwin_pct": "60%",
+        "atk_rw": 575,
+        "atk_rl": 383,
+        "def_rwin_pct": "53%",
+        "def_rw": 458,
+        "def_rl": 408
+      }
+    ]
   }
 }
 ```
