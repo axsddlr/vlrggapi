@@ -49,41 +49,30 @@ def _wrap_v2(scraper_result: dict) -> dict:
     return {"status": "success", "data": scraper_result}
 
 
-@router.get("/news", response_model=V2Response)
+@router.get("/news", response_model=V2Response, summary="Latest news", description="Get the latest Valorant esports news headlines from VLR.GG.")
 async def v2_news():
-    """Get the latest Valorant esports news from VLR.GG."""
     result = await get_news_data()
     return _wrap_v2(result)
 
 
-@router.get("/stats", response_model=V2Response)
+@router.get("/stats", response_model=V2Response, summary="Player stats", description="Get player statistics for a region and timespan.")
 async def v2_stats(
-    region: str = Query(..., description="Region shortname (na, eu, ap, la, etc.)"),
+    region: str = Query(..., description="Region shortname (na, eu, ap, la, la-s, la-n, oce, kr, mn, gc, br, cn, jp, col)"),
     timespan: str = Query(..., description="Timespan: 30, 60, 90, or all"),
 ):
-    """
-    Get player statistics for a region and timespan.
-
-    Region shortnames: na, eu, ap, la, la-s, la-n, oce, kr, mn, gc, br, cn, jp, col
-    """
     result = await get_stats_data(region, timespan)
     return _wrap_v2(result)
 
 
-@router.get("/rankings", response_model=V2Response)
+@router.get("/rankings", response_model=V2Response, summary="Team rankings", description="Get team rankings for a region.")
 async def v2_rankings(
-    region: str = Query(..., description="Region shortname (na, eu, ap, la, etc.)"),
+    region: str = Query(..., description="Region shortname (na, eu, ap, la, la-s, la-n, oce, kr, mn, gc, br, cn, jp, col)"),
 ):
-    """
-    Get team rankings for a region.
-
-    Region shortnames: na, eu, ap, la, la-s, la-n, oce, kr, mn, gc, br, cn, jp, col
-    """
     result = await get_rankings_data(region)
     return _wrap_v2(result)
 
 
-@router.get("/match", response_model=V2Response)
+@router.get("/match", response_model=V2Response, summary="Matches by type", description="Get upcoming, live, or completed match data. Supports pagination for results and upcoming_extended.")
 async def v2_match(
     q: str = Query(..., description="Match type: upcoming, upcoming_extended, live_score, results"),
     num_pages: int = Query(1, description="Number of pages to scrape", ge=1, le=MAX_MATCH_QUERY_BOUND),
@@ -93,14 +82,6 @@ async def v2_match(
     request_delay: float = Query(1.0, description="Delay between requests (seconds)", ge=0.5, le=5.0),
     timeout: int = Query(30, description="Request timeout (seconds)", ge=10, le=120),
 ):
-    """
-    Get match data by type.
-
-    - **upcoming**: Upcoming matches from homepage
-    - **upcoming_extended**: Upcoming matches from paginated /matches page
-    - **live_score**: Live match scores with detail
-    - **results**: Completed match results
-    """
     validate_match_query(q)
 
     if q in {"upcoming_extended", "results"}:
@@ -113,26 +94,11 @@ async def v2_match(
     return _wrap_v2(result)
 
 
-@router.get("/events", response_model=V2Response)
+@router.get("/events", response_model=V2Response, summary="Browse events", description="Browse Valorant events — names, dates, status, and prize pools. Use q=upcoming, completed, or live to filter.")
 async def v2_events(
     q: str = Query(None, description="Event type: upcoming, completed, or live"),
     page: int = Query(1, description="Page number (completed events only)", ge=1, le=100),
 ):
-    """
-    Browse Valorant events — overview listing with names, dates, status, and prize pools.
-
-    Use this endpoint to discover events or build event directories. Each entry
-    includes the event ID so you can drill down into details or match results.
-
-    - **live**: Events currently being played (homepage sidebar)
-    - **upcoming**: Scheduled future events
-    - **completed**: Historical events that have finished
-    - **omit q**: Both upcoming and completed events
-
-    To get a single event's full details (prizes, teams, standings),
-    use GET /v2/event/{event_id}.
-    To get match results for a specific event, use GET /v2/events/matches.
-    """
     validate_event_query(q)
 
     result = await get_events_data(q, page)
@@ -140,62 +106,42 @@ async def v2_events(
     return _wrap_v2(result)
 
 
-@router.get("/match/details", response_model=V2Response)
+@router.get("/match/details", response_model=V2Response, summary="Match detail", description="Get full match detail including per-map stats, round data, head-to-head history, performance tab, and economy data.")
 async def v2_match_detail(
     match_id: str = Query(..., description="VLR.GG match ID"),
 ):
-    """
-    Get detailed match data.
-
-    Includes per-map stats (player K/D/A, ACS, rating), round-by-round data,
-    head-to-head history, performance tab (kill matrix, advanced stats),
-    and economy tab data.
-    """
     validate_id_param(match_id, "match_id")
     result = await get_match_detail_data(match_id)
     return _wrap_v2(result)
 
 
-@router.get("/player", response_model=V2Response)
+@router.get("/player", response_model=V2Response, summary="Player profile", description="Get player profile with agent stats, teams, event placements, news, and total winnings.")
 async def v2_player(
     id: str = Query(..., description="VLR.GG player ID"),
     timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
 ):
-    """
-    Get player profile.
-
-    Includes agent stats, current/past teams, event placements, news, and total winnings.
-    """
     validate_id_param(id)
     validate_player_timespan(timespan)
     result = await get_player_data(id, timespan)
     return _wrap_v2(result)
 
 
-@router.get("/player/matches", response_model=V2Response)
+@router.get("/player/matches", response_model=V2Response, summary="Player match history", description="Get paginated match history for a player.")
 async def v2_player_matches(
     id: str = Query(..., description="VLR.GG player ID"),
     page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
 ):
-    """Get paginated match history for a player."""
     validate_id_param(id)
     result = await get_player_matches_data(id, page)
     return _wrap_v2(result)
 
 
-@router.get("/team", response_model=V2Response)
+@router.get("/team", response_model=V2Response, summary="Team data", description="Get team profile, match history, or roster transactions via q parameter.")
 async def v2_team(
     id: str = Query(..., description="VLR.GG team ID"),
     q: str = Query("profile", description="Data type: profile, matches, transactions"),
     page: int = Query(1, description="Page number for matches (1-based)", ge=1, le=100),
 ):
-    """
-    Get team data by type.
-
-    - **profile** (default): Roster, rating, event placements, total winnings
-    - **matches**: Paginated match history
-    - **transactions**: Roster transaction history (joins, leaves, benchings)
-    """
     validate_id_param(id)
     validate_team_query(q)
 
@@ -209,60 +155,33 @@ async def v2_team(
     return _wrap_v2(result)
 
 
-@router.get("/events/matches", response_model=V2Response)
+@router.get("/events/matches", response_model=V2Response, summary="Event matches", description="List all matches for an event — scores, teams, dates. Use event IDs from GET /v2/events.")
 async def v2_event_matches(
     event_id: str = Query(..., description="VLR.GG event ID"),
 ):
-    """List all matches for a specific event — scores, teams, dates, tournament info.
-
-    Use this endpoint when you have an event ID and want to see its match results
-    or upcoming schedule. Each match entry includes team names, scores, flags,
-    and the match page URL.
-
-    To browse events (get event IDs and metadata), use GET /v2/events.
-    To get event details (prizes, team rosters, standings tables),
-    use GET /v2/event/{event_id}."""
     validate_id_param(event_id, "event_id")
     result = await get_event_matches_data(event_id)
     return _wrap_v2(result)
 
 
-@router.get("/event/{event_id}", response_model=V2Response)
+@router.get("/event/{event_id}", response_model=V2Response, summary="Event detail", description="Get full event detail — prizes, teams, standings, dates, and prize pool.")
 async def v2_event_detail(
     event_id: str,
 ):
-    """
-    Get full event detail — everything about a single event in one call.
-
-    Returns:
-    - **event**: name, series, subtitle, dates, prize pool amount, location, logo
-    - **prizes**: placement breakdown (1st, 2nd, 3rd-4th...) with amounts and team info
-    - **teams**: participating teams with player rosters, country flags, and qualification notes
-    - **standings**: group/stage tables with W/L, map diff, round diff columns
-
-    Event IDs come from GET /v2/events. To get matches for this event instead,
-    use GET /v2/events/matches?event_id={event_id}.
-    """
     validate_id_param(event_id, "event_id")
     result = await get_event_detail_data(event_id)
     return _wrap_v2(result)
 
 
-@router.get("/search", response_model=V2Response)
+@router.get("/search", response_model=V2Response, summary="Search", description="Search VLR.GG for teams, players, events, and series. Returns categorized results.")
 async def v2_search(
     q: str = Query(..., description="Search query (player name, team name, event keyword)"),
 ):
-    """
-    Search VLR.GG for teams, players, events, and series.
-
-    Returns categorized results with entity IDs, names, images, and descriptions.
-    """
     result = await get_search_data(q)
     return _wrap_v2(result)
 
 
-@router.get("/health", response_model=V2Response)
+@router.get("/health", response_model=V2Response, summary="Health check", description="Check API health and upstream VLR.GG reachability.")
 async def v2_health():
-    """Check API health and runtime readiness."""
     result = await get_health_data()
     return {"status": "success", "data": result}
