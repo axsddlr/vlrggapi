@@ -304,17 +304,18 @@ def _parse_event_placements(html: HTMLParser) -> tuple[list[dict], str]:
         if match and not total_winnings:
             total_winnings = "$" + match.group(1)
 
-    # Event placement rows — vlr uses anchor tags that link to the event
-    for event_anchor in container.css("a"):
+    # Event placement rows — vlr uses .team-event-item anchors inside .wf-card
+    for event_anchor in container.css("a.team-event-item"):
         href = _attr(event_anchor, "href")
         if not href:
             continue
         event_url = build_full_url(href)
 
-        # Event name: may be in a child span or as direct text
+        # Event name: sits in a div.text-of child
         event_name_elem = (
             event_anchor.css_first(".wf-title-med")
             or event_anchor.css_first(".event-item-title")
+            or event_anchor.css_first(".text-of")
             or event_anchor.css_first("div")
         )
         event_name = _text(event_name_elem) if event_name_elem else _text(event_anchor)
@@ -334,16 +335,20 @@ def _parse_event_placements(html: HTMLParser) -> tuple[list[dict], str]:
         if event_name or placement:
             placements.append(
                 {
-                    "event": event_name,
-                    "series": series,
-                    "placement": placement,
-                    "prize": prize,
-                    "date": date,
+                    "event": _normalize_ws(event_name),
+                    "series": _normalize_ws(series),
+                    "placement": _normalize_ws(placement),
+                    "prize": _normalize_ws(prize),
+                    "date": _normalize_ws(date),
                     "url": event_url,
                 }
             )
 
     return placements, total_winnings
+
+
+def _normalize_ws(text: str) -> str:
+    return re.sub(r'\s+', ' ', text).strip()
 
 
 def _extract_placement(text: str) -> str:
