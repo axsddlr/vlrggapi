@@ -28,6 +28,7 @@ from utils.error_handling import (
     validate_id_param,
     validate_match_query,
     validate_match_workload,
+    validate_player_query,
     validate_player_timespan,
     validate_team_query,
 )
@@ -116,24 +117,22 @@ async def v2_match_detail(
     return _wrap_v2(result)
 
 
-@router.get("/player", response_model=V2Response, summary="Player profile", description="Get player profile with agent stats, teams, event placements, news, and total winnings.")
+@router.get("/player", response_model=V2Response, summary="Player data", description="Get player profile or match history via q parameter.")
 async def v2_player(
     id: str = Query(..., description="VLR.GG player ID"),
-    timespan: str = Query("90d", description="Stats timespan: 30d, 60d, 90d, or all"),
+    q: str = Query("profile", description="Data type: profile, matches"),
+    timespan: str = Query("90d", description="Stats timespan for profile (30d, 60d, 90d, all)"),
+    page: int = Query(1, description="Page number for matches (1-based)", ge=1, le=100),
 ):
     validate_id_param(id)
-    validate_player_timespan(timespan)
-    result = await get_player_data(id, timespan)
-    return _wrap_v2(result)
+    validate_player_query(q)
 
+    if q == "matches":
+        result = await get_player_matches_data(id, page)
+    else:
+        validate_player_timespan(timespan)
+        result = await get_player_data(id, timespan)
 
-@router.get("/player/matches", response_model=V2Response, summary="Player match history", description="Get paginated match history for a player.")
-async def v2_player_matches(
-    id: str = Query(..., description="VLR.GG player ID"),
-    page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
-):
-    validate_id_param(id)
-    result = await get_player_matches_data(id, page)
     return _wrap_v2(result)
 
 

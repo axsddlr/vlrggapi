@@ -23,6 +23,7 @@ VALID_PLAYER_TIMESPANS = {"30d", "60d", "90d", "all"}
 VALID_MATCH_QUERIES = {"upcoming", "upcoming_extended", "live_score", "results"}
 VALID_EVENT_QUERIES = {"upcoming", "completed", "live", None}
 VALID_TEAM_QUERIES = {"profile", "matches", "transactions", "stats"}
+VALID_PLAYER_QUERIES = {"profile", "matches"}
 
 
 def upstream_error_payload(status_code: int, context: str) -> dict:
@@ -136,6 +137,15 @@ def validate_team_query(q: str):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid team query '{q}'. Valid values: {', '.join(sorted(VALID_TEAM_QUERIES))}",
+        )
+
+
+def validate_player_query(q: str):
+    """Validate player query parameter. Raises 400 on invalid."""
+    if q not in VALID_PLAYER_QUERIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid player query '{q}'. Valid values: {', '.join(sorted(VALID_PLAYER_QUERIES))}",
         )
 
 
