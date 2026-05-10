@@ -396,6 +396,63 @@ def _extract_date_from_text(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Stats scraper
+# ---------------------------------------------------------------------------
+
+
+async def vlr_team_stats(team_id: str) -> dict:
+    """Scrape per-map statistics from the team stats page."""
+    cache_key = ("team_stats", team_id)
+
+    async def build():
+        url = f"{VLR_BASE_URL}/team/stats/{team_id}/"
+        client = get_http_client()
+        resp = await fetch_with_retries(url, client=client)
+        status = resp.status_code
+
+        if status >= 400:
+            logger.warning("Non-200 response %d for team stats %s", status, team_id)
+            raise HTTPException(
+                status_code=status,
+                detail=f"VLR.GG returned status {status} for team stats {team_id}",
+            )
+
+        html = parse_html(resp.text)
+        rows = html.css("table.wf-table.mod-team-maps tbody tr")
+        maps: list[dict] = []
+
+        for row in rows:
+            tds = row.css("td")
+            if len(tds) < 13:
+                continue
+
+            map_raw = _text(tds[0])
+            m = re.match(r"(.+?)\s*\((\d+)\)", map_raw)
+            map_name = m.group(1).strip() if m else map_raw
+            map_games = m.group(2) if m else ""
+
+            maps.append({
+                "map": _normalize_ws(map_name),
+                "games": int(map_games) if map_games.isdigit() else 0,
+                "win_pct": _text(tds[2]),
+                "wins": int(_text(tds[3])) if _text(tds[3]).isdigit() else 0,
+                "losses": int(_text(tds[4])) if _text(tds[4]).isdigit() else 0,
+                "atk_first": int(_text(tds[5])) if _text(tds[5]).isdigit() else 0,
+                "def_first": int(_text(tds[6])) if _text(tds[6]).isdigit() else 0,
+                "atk_rwin_pct": _text(tds[7]),
+                "atk_rw": int(_text(tds[8])) if _text(tds[8]).isdigit() else 0,
+                "atk_rl": int(_text(tds[9])) if _text(tds[9]).isdigit() else 0,
+                "def_rwin_pct": _text(tds[10]),
+                "def_rw": int(_text(tds[11])) if _text(tds[11]).isdigit() else 0,
+                "def_rl": int(_text(tds[12])) if _text(tds[12]).isdigit() else 0,
+            })
+
+        return {"data": {"status": status, "segments": maps}}
+
+    return await cache_manager.get_or_create_async(CACHE_TTL_TEAM_STATS, build, *cache_key)
+
+
+# ---------------------------------------------------------------------------
 # Match history helpers (used by vlr_team_matches)
 # ---------------------------------------------------------------------------
 

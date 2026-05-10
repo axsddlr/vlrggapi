@@ -19,6 +19,7 @@ from routers.shared_handlers import (
     get_stats_data,
     get_team_data,
     get_team_matches_data,
+    get_team_stats_data,
     get_team_transactions_data,
 )
 from utils.constants import MAX_MATCH_QUERY_BOUND
@@ -136,10 +137,10 @@ async def v2_player_matches(
     return _wrap_v2(result)
 
 
-@router.get("/team", response_model=V2Response, summary="Team data", description="Get team profile, match history, or roster transactions via q parameter.")
+@router.get("/team", response_model=V2Response, summary="Team data", description="Get team profile, match history, roster transactions, or map stats via q parameter.")
 async def v2_team(
     id: str = Query(..., description="VLR.GG team ID"),
-    q: str = Query("profile", description="Data type: profile, matches, transactions"),
+    q: str = Query("profile", description="Data type: profile, matches, transactions, stats"),
     page: int = Query(1, description="Page number for matches (1-based)", ge=1, le=100),
 ):
     validate_id_param(id)
@@ -149,6 +150,8 @@ async def v2_team(
         result = await get_team_matches_data(id, page)
     elif q == "transactions":
         result = await get_team_transactions_data(id)
+    elif q == "stats":
+        result = await get_team_stats_data(id)
     else:
         result = await get_team_data(id)
 

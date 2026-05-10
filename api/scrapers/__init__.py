@@ -8,4 +8,4 @@ from .players import vlr_player, vlr_player_matches
 from .rankings import vlr_rankings
 from .search import vlr_search
 from .stats import vlr_stats
-from .teams import vlr_team, vlr_team_matches, vlr_team_transactions
+from .teams import vlr_team, vlr_team_matches, vlr_team_stats, vlr_team_transactions
