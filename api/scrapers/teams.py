@@ -329,9 +329,9 @@ def _parse_event_placements(html: HTMLParser) -> tuple[list[dict], str]:
         placement = _extract_placement(full_text)
         prize = _extract_prize_from_text(full_text)
 
-        # Year: sits in the last direct child div of the anchor (e.g. <div>2026</div>)
-        year_elem = event_anchor.last_child
-        date = _text(year_elem) if year_elem and year_elem.tag == "div" else ""
+        # Year: sits in the last child div of the anchor (e.g. <div>2026</div>)
+        all_divs = event_anchor.css("div")
+        date = _text(all_divs[-1]) if all_divs else ""
 
         if event_name or placement:
             placements.append(
