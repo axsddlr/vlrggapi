@@ -90,9 +90,7 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/search` | `q` | 5 min |
 | `GET /v2/player` | `id`, `timespan` | 30 min |
 | `GET /v2/player/matches` | `id`, `page` | 10 min |
-| `GET /v2/team` | `id` | 30 min |
-| `GET /v2/team/matches` | `id`, `page` | 10 min |
-| `GET /v2/team/transactions` | `id` | 1 hr |
+| `GET /v2/team` | `id`, `q` (profile/matches/transactions), `page` | 30 min / 10 min / 1 hr |
 | `GET /v2/health` | — | none |
 
 See section below for full descriptions and response examples.
@@ -393,13 +391,15 @@ GET /v2/player/matches?id=9&page=1
 </details>
 
 ### `GET /v2/team`
-**Params:** `id` (required) | **Cache:** 30 min
+**Params:** `id` (required), `q` (profile/matches/transactions, default: profile), `page` (1-based, default: 1) | **Cache:** varies
 
 ```
-GET /v2/team?id=2
+GET /v2/team?id=2&q=profile
+GET /v2/team?id=2&q=matches&page=1
+GET /v2/team?id=2&q=transactions
 ```
 
-<details><summary>Response</summary>
+<details><summary>Profile response</summary>
 
 ```json
 {
@@ -415,14 +415,7 @@ GET /v2/team?id=2
 ```
 </details>
 
-### `GET /v2/team/matches`
-**Params:** `id` (required), `page` (default: 1) | **Cache:** 10 min
-
-```
-GET /v2/team/matches?id=2&page=1
-```
-
-<details><summary>Response</summary>
+<details><summary>Matches response</summary>
 
 ```json
 {
@@ -435,14 +428,7 @@ GET /v2/team/matches?id=2&page=1
 ```
 </details>
 
-### `GET /v2/team/transactions`
-**Params:** `id` (required) | **Cache:** 1 hr
-
-```
-GET /v2/team/transactions?id=2
-```
-
-<details><summary>Response</summary>
+<details><summary>Transactions response</summary>
 
 ```json
 {

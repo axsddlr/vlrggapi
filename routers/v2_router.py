@@ -28,6 +28,7 @@ from utils.error_handling import (
     validate_match_query,
     validate_match_workload,
     validate_player_timespan,
+    validate_team_query,
 )
 
 router = APIRouter(prefix="/v2", tags=["v2"])
@@ -185,35 +186,26 @@ async def v2_player_matches(
 @router.get("/team", response_model=V2Response)
 async def v2_team(
     id: str = Query(..., description="VLR.GG team ID"),
+    q: str = Query("profile", description="Data type: profile, matches, transactions"),
+    page: int = Query(1, description="Page number for matches (1-based)", ge=1, le=100),
 ):
     """
-    Get team profile.
+    Get team data by type.
 
-    Includes roster, rating/ranking info, event placements, and total winnings.
+    - **profile** (default): Roster, rating, event placements, total winnings
+    - **matches**: Paginated match history
+    - **transactions**: Roster transaction history (joins, leaves, benchings)
     """
     validate_id_param(id)
-    result = await get_team_data(id)
-    return _wrap_v2(result)
+    validate_team_query(q)
 
+    if q == "matches":
+        result = await get_team_matches_data(id, page)
+    elif q == "transactions":
+        result = await get_team_transactions_data(id)
+    else:
+        result = await get_team_data(id)
 
-@router.get("/team/matches", response_model=V2Response)
-async def v2_team_matches(
-    id: str = Query(..., description="VLR.GG team ID"),
-    page: int = Query(1, description="Page number (1-based)", ge=1, le=100),
-):
-    """Get paginated match history for a team."""
-    validate_id_param(id)
-    result = await get_team_matches_data(id, page)
-    return _wrap_v2(result)
-
-
-@router.get("/team/transactions", response_model=V2Response)
-async def v2_team_transactions(
-    id: str = Query(..., description="VLR.GG team ID"),
-):
-    """Get roster transaction history for a team (joins, leaves, benchings)."""
-    validate_id_param(id)
-    result = await get_team_transactions_data(id)
     return _wrap_v2(result)
 
 
