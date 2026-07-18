@@ -16,6 +16,8 @@ from routers.shared_handlers import (
     get_stats_data,
     get_team_data,
     get_team_matches_data,
+    get_team_roster_data,
+    get_team_schedule_data,
     get_team_transactions_data,
     to_legacy_rankings_shape,
 )
@@ -61,6 +63,7 @@ async def VLR_news():
 async def VLR_stats(
     region: str = Query(..., description="Region: all, americas, emea, pacific, china, intl (deprecated aliases accepted)"),
     timespan: str = Query(..., description="Timespan (30, 60, 90, or all)"),
+    event_id: str = Query(None, description="Optional numeric event ID to filter stats by event"),
 ):
     """
     Get VLR stats with query parameters.
@@ -73,7 +76,7 @@ async def VLR_stats(
         ap, kr, jp, oce -> pacific\n
         cn -> china\n
     """
-    return await get_stats_data(region, timespan)
+    return await get_stats_data(region, timespan, event_id)
 
 
 @router.get("/rankings")
@@ -213,6 +216,24 @@ async def VLR_team_transactions(
     """Get roster transaction history for a team."""
     validate_id_param(id)
     return await get_team_transactions_data(id)
+
+
+@router.get("/team/roster")
+async def VLR_team_roster(
+    id: str = Query(..., description="VLR.GG team ID"),
+):
+    """Get grouped roster with active, staff, former, and benched players."""
+    validate_id_param(id)
+    return await get_team_roster_data(id)
+
+
+@router.get("/team/schedule")
+async def VLR_team_schedule(
+    id: str = Query(..., description="VLR.GG team ID"),
+):
+    """Get upcoming match schedule for a team."""
+    validate_id_param(id)
+    return await get_team_schedule_data(id)
 
 
 @router.get("/events/matches")

@@ -410,8 +410,8 @@ async def test_alias_normalizes_before_cache_key(monkeypatch):
     await vlr_stats("na", "60")
 
     # cache entry is keyed on the canonical region, not the alias
-    assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "americas", "60") is not None
-    assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "na", "60") is None
+    assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "americas", "60", "all") is not None
+    assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "na", "60", "all") is None
     # the fetched URL carries the canonical region
     data_calls = [c for c in fetch.calls if _region_of(c) is not None]
     assert "region=americas" in data_calls[0]
