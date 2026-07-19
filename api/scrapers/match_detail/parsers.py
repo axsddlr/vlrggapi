@@ -491,6 +491,7 @@ def _parse_maps(html: HTMLParser) -> list[dict]:
             if not map_name:
                 map_name = map_container.text(strip=True).split("\n")[0].strip()
                 map_name = re.sub(r"\s*\d{1,2}:\d{2}(?::\d{2})?\s*$", "", map_name).strip()
+                map_name = re.sub(r"\s*PICK\s*$", "", map_name, flags=re.IGNORECASE).strip()
 
         duration = ""
         dur_elem = game_elem.css_first(".map-duration")

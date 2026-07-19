@@ -1,8 +1,10 @@
 import asyncio
 
 import pytest
+from selectolax.parser import HTMLParser
 
 from api.scrapers.match_detail import vlr_match_detail
+from api.scrapers.match_detail.parsers import _parse_maps
 from utils.cache_manager import cache_manager
 
 PLAYER_ROW = """
@@ -63,6 +65,16 @@ BASE_MATCH_HTML = f"""
   </div>
 </html>
 """
+
+
+def test_parse_maps_excludes_pick_label_from_map_name():
+    html = HTMLParser(
+        '<div class="vm-stats-game" data-game-id="game-1">'
+        '<div class="vm-stats-game-header"><div class="map">Summit<span>PICK</span></div></div>'
+        "</div>"
+    )
+
+    assert _parse_maps(html)[0]["map_name"] == "Summit"
 
 
 def performance_html(opponent_name: str) -> str:
