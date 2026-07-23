@@ -1,0 +1,161 @@
+name: vlr.gg selector check
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily at 06:00 UTC
+  workflow_dispatch: # manual trigger
+  push:
+    paths:
+      - "tests/test_vlr_selectors.py"
+      - ".github/workflows/selector-check.yml"
+
+jobs:
+  check-selectors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install httpx selectolax anyio pytest
+
+      - name: Run selector validation
+        id: check
+        continue-on-error: true
+        env:
+          CI: "true"
+          SELECTOR_REPORT_PATH: selector-report.json
+          PYTHONPATH: "."
+        run: pytest tests/test_vlr_selectors.py -v --tb=short
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selector-report
+          path: selector-report.json
+          retention-days: 7
+
+      - name: Create issue on failure
+        if: steps.check.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync("selector-report.json", "utf8"));
+            } catch {
+              // fallback: reconstruct from empty report
+              report = [];
+            }
+
+            // Separate required vs optional failures
+            const failedRequired = report.filter(r => r.broken_required.length > 0);
+            const failedOptional = report.filter(r => r.broken_optional.length > 0 && r.broken_required.length === 0);
+            const fetchErrors = report.filter(r => r.fetch_error);
+            const okCount = report.filter(r => !r.failed && r.broken_optional.length === 0).length;
+
+            // Build issue body
+            const lines = [];
+
+            lines.push("## vlr.gg layout change detected");
+            lines.push("");
+            lines.push(
+              `Selector check ran against **${report.length}** pages: ` +
+              `**${okCount}** passed, **${failedRequired.length}** have broken required selectors, ` +
+              `**${failedOptional.length}** have missing optional selectors.`
+            );
+            lines.push("");
+
+            if (failedRequired.length > 0) {
+              lines.push("### Broken required selectors (will cause scraper errors)");
+              lines.push("");
+              lines.push("| Page | URL | Broken selector | Source file to fix | Fix guidance |");
+              lines.push("|------|-----|----------------|-------------------|-------------|");
+              for (const r of failedRequired) {
+                for (const sel of r.broken_required) {
+                  lines.push(
+                    `| ${r.page} | [vlr.gg](${r.url}) | \`${sel}\` | \`${r.source}\` | ` +
+                    `Inspect [${r.url}](${r.url}) for the new HTML element replacing \`${sel}\`, ` +
+                    `then update the selector in \`${r.source}\`. |`
+                  );
+                }
+              }
+              lines.push("");
+            }
+
+            if (failedOptional.length > 0) {
+              lines.push("### Missing optional selectors (fallback or degraded paths)");
+              lines.push("");
+              lines.push("| Page | URL | Missing selector | Source file | Action |");
+              lines.push("|------|-----|-----------------|-------------|--------|");
+              for (const r of failedOptional) {
+                for (const sel of r.broken_optional) {
+                  lines.push(
+                    `| ${r.page} | [vlr.gg](${r.url}) | \`${sel}\` | \`${r.source}\` | ` +
+                    `Check if the element still exists on the page. If the layout changed, ` +
+                    `update or add a fallback selector in \`${r.source}\`. |`
+                  );
+                }
+              }
+              lines.push("");
+            }
+
+            if (fetchErrors.length > 0) {
+              lines.push("### Fetch errors");
+              lines.push("");
+              for (const r of fetchErrors) {
+                lines.push(`- **${r.page}** (${r.url}): ${r.fetch_error}`);
+              }
+              lines.push("");
+            }
+
+            lines.push("### How to fix");
+            lines.push("");
+            lines.push("1. Open each affected page URL above in a browser");
+            lines.push("2. Inspect the new HTML structure (right-click → Inspect)");
+            lines.push("3. Find the new CSS class/selector that replaced the broken one");
+            lines.push("4. Update the selector in the `source` file listed above");
+            lines.push("5. Run `pytest tests/test_vlr_selectors.py -v` locally to verify");
+            lines.push("6. Re-run this workflow from the Actions tab to confirm the fix");
+            lines.push("");
+            lines.push(
+              `_Auto-generated by [selector-check workflow]` +
+              `(https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/selector-check.yml)_`
+            );
+
+            const body = lines.join("\n");
+
+            // Create or update issue
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["selector-check"],
+              state: "open",
+            });
+
+            const title = "vlr.gg layout change detected — scrapers may be broken";
+
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["selector-check", "bug"],
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues[0].issue_number,
+                body,
+              });
+            }
