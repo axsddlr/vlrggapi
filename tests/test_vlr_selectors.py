@@ -271,7 +271,7 @@ SELECTOR_SETS: ClassVar[list[SelectorSet]] = [
             ".player-real-name",
             ".wf-avatar.mod-player img",
             ".flag",
-            "table.wf-table",
+            "table.st-table.mod-agent-rows",
             ".wf-module-item.player-event-item",
             "a.wf-card.m-item",
             "a.wf-card.fc-flex.m-item",
@@ -405,7 +405,7 @@ SELECTOR_SETS: ClassVar[list[SelectorSet]] = [
     ),
     SelectorSet(
         label="team_transactions",
-        url=f"{_TEAM_URL}/transactions",
+        url=f"{VLR_BASE_URL}/team/transactions/2/sentinels",
         source="api/scrapers/teams/crawlers.py, api/scrapers/teams/parsers.py",
         required=[],
         optional=[
@@ -420,7 +420,7 @@ SELECTOR_SETS: ClassVar[list[SelectorSet]] = [
     ),
     SelectorSet(
         label="team_stats",
-        url=f"{_TEAM_URL}/stats",
+        url=f"{VLR_BASE_URL}/team/stats/2/sentinels",
         source="api/scrapers/teams/crawlers.py",
         required=[
             "h1.wf-title",

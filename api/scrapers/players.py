@@ -156,39 +156,37 @@ def _parse_teams(html: HTMLParser) -> tuple[dict, list[dict]]:
 
 def _parse_agent_stats(html: HTMLParser) -> list[dict]:
     """
-    Extract per-agent statistics from the wf-table on the player page.
+    Extract per-agent statistics from the st-table on the player page.
 
-    Table columns (17 total):
+    Table columns (16 total):
       [0]  Agent (img alt/title)
       [1]  Use (count + %) — e.g. "(206) 46%"
       [2]  RND (rounds)
       [3]  Rating 2.0
       [4]  ACS
       [5]  K:D
-      [6]  ADR
-      [7]  KAST
+      [6]  KAST
+      [7]  ADR
       [8]  KPR
       [9]  APR
-      [10] FKPR
-      [11] FDPR
-      [12] K (kills)
-      [13] D (deaths)
-      [14] A (assists)
-      [15] FK
-      [16] FD
+      [10] FK:FD
+      [11] K (kills)
+      [12] D (deaths)
+      [13] A (assists)
+      [14] FK
+      [15] FD
     """
     agent_stats: list[dict] = []
 
-    table = html.css_first("table.wf-table")
+    table = html.css_first("table.st-table.mod-agent-rows")
     if not table:
         return agent_stats
 
     for row in table.css("tbody tr"):
         cells = row.css("td")
-        if len(cells) < 17:
+        if len(cells) < 16:
             continue
 
-        # Agent name
         agent = ""
         img = cells[0].css_first("img")
         if img:
@@ -198,7 +196,6 @@ def _parse_agent_stats(html: HTMLParser) -> list[dict]:
         if not agent:
             continue
 
-        # Use column — split count and percentage
         use_text = cells[1].text(strip=True)
         usage_count = ""
         usage_pct = ""
@@ -220,17 +217,16 @@ def _parse_agent_stats(html: HTMLParser) -> list[dict]:
             "rating": val(3),
             "acs": val(4),
             "kd": val(5),
-            "adr": val(6),
-            "kast": val(7),
+            "kast": val(6),
+            "adr": val(7),
             "kpr": val(8),
             "apr": val(9),
-            "fkpr": val(10),
-            "fdpr": val(11),
-            "kills": val(12),
-            "deaths": val(13),
-            "assists": val(14),
-            "fk": val(15),
-            "fd": val(16),
+            "fk_fd": val(10),
+            "kills": val(11),
+            "deaths": val(12),
+            "assists": val(13),
+            "fk": val(14),
+            "fd": val(15),
         })
 
     return agent_stats
