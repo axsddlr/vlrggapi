@@ -76,7 +76,6 @@ SELECTOR_SETS: ClassVar[list[SelectorSet]] = [
             ".h-match-team-score",
             ".h-match-preview-event",
             ".h-match-preview-series",
-            ".h-match-eta.mod-live",
             ".h-match-eta.mod-upcoming",
             ".flag",
             "div.js-home-events",
@@ -411,7 +410,6 @@ SELECTOR_SETS: ClassVar[list[SelectorSet]] = [
         optional=[
             "tr.txn-item",
             ".txn-item",
-            "td.txn-item-date",
             "td.txn-item-action",
             "a[href*='/player/']",
             "img",
