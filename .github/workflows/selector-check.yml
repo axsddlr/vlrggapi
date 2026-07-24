@@ -22,7 +22,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install httpx selectolax anyio pytest
+          run: pip install httpx selectolax anyio pytest pytest-asyncio
 
       - name: Run selector validation
         id: check
@@ -155,7 +155,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: issues[0].issue_number,
+                issue_number: issues[0].number,
                 body,
               });
             }
