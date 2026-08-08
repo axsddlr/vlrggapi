@@ -1,7 +1,7 @@
 httpx==0.28.1
-cachetools==7.1.4
+cachetools==7.1.6
 uvicorn==0.51.0
-fastapi==0.139.0
+fastapi==0.139.2
 lxml==6.1.1
 selectolax==0.4.11
 pytest==9.1.1
