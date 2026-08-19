@@ -23,7 +23,7 @@ VALID_TIMESPANS = {"30", "60", "90", "all"}
 VALID_PLAYER_TIMESPANS = {"30d", "60d", "90d", "all"}
 VALID_MATCH_QUERIES = {"upcoming", "upcoming_extended", "live_score", "results"}
 VALID_EVENT_QUERIES = {"upcoming", "completed", "live", None}
-VALID_TEAM_QUERIES = {"profile", "matches", "transactions", "stats"}
+VALID_TEAM_QUERIES = {"profile", "matches", "transactions", "stats", "roster", "schedule"}
 VALID_PLAYER_QUERIES = {"profile", "matches"}
 
 
