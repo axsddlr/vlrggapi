@@ -22,7 +22,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install httpx selectolax anyio pytest pytest-asyncio
+        run: pip install -r requirements.txt
 
       - name: Run selector validation
         id: check
@@ -49,10 +49,13 @@ jobs:
             const fs = require("fs");
 
             let report;
+            let reportMissing = false;
             try {
               report = JSON.parse(fs.readFileSync("selector-report.json", "utf8"));
             } catch {
-              // fallback: reconstruct from empty report
+              // No report file: the suite failed before writing results
+              // (e.g. collection/import error). Surface that instead of "0 pages".
+              reportMissing = true;
               report = [];
             }
 
@@ -67,6 +70,14 @@ jobs:
 
             lines.push("## vlr.gg layout change detected");
             lines.push("");
+            if (reportMissing) {
+              lines.push(
+                "> ⚠️ The selector test run produced **no report file**, so no pages could be " +
+                "checked. The suite likely failed to start (e.g. a dependency/import error). " +
+                "**Check the workflow logs** for the real error rather than the table below."
+              );
+              lines.push("");
+            }
             lines.push(
               `Selector check ran against **${report.length}** pages: ` +
               `**${okCount}** passed, **${failedRequired.length}** have broken required selectors, ` +
