@@ -22,7 +22,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-          run: pip install httpx selectolax anyio pytest pytest-asyncio
+        run: pip install httpx selectolax anyio pytest pytest-asyncio
 
       - name: Run selector validation
         id: check
