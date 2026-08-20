@@ -492,13 +492,42 @@ _FULL_REPORT: list[dict] = []
     ids=[ss.label for ss in SELECTOR_SETS],
 )
 async def test_vlr_selectors(ss: SelectorSet):
-    """Validate every scraper CSS selector against live vlr.gg HTML."""
-    async with httpx.AsyncClient(
-        headers={"User-Agent": "vlrggapi-selector-check/1.0"},
-        follow_redirects=True,
-    ) as client:
-        html = await _fetch_html(client, ss.url)
-    result = _check_selectors(html, ss)
+    """Validate every scraper CSS selector against live vlr.gg HTML.
+
+    Re-checks up to 3 times before failing, to ride out transient
+    responses (e.g. an occasional HTTP 200 page without the expected
+    content). A real vlr.gg layout change persists across retries and
+    still fails.
+    """
+    async def _check_once() -> dict:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": "vlrggapi-selector-check/1.0"},
+            follow_redirects=True,
+        ) as client:
+            html = await _fetch_html(client, ss.url)
+        return _check_selectors(html, ss)
+
+    def _would_fail(result: dict) -> bool:
+        return bool(result["broken_required"]) or (
+            bool(result["broken_optional"]) and "CI" in os.environ
+        )
+
+    result = None
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            result = await _check_once()
+        except Exception as exc:  # transient network/server errors
+            last_exc = exc
+            result = None
+        if result is not None and not _would_fail(result):
+            break
+        if attempt < 2:
+            await asyncio.sleep(5 * (attempt + 1))
+
+    if result is None:
+        assert last_exc is not None
+        raise last_exc
 
     # Accumulate for JSON report and always write (last test wins with full data)
     if _REPORT_PATH:
