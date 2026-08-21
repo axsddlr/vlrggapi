@@ -1,4 +1,4 @@
-FROM python:3.14.5-alpine AS builder
+FROM python:3.14.7-alpine AS builder
 
 WORKDIR /vlrggapi
 
@@ -6,7 +6,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
 COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
-FROM python:3.14.5-alpine
+FROM python:3.14.7-alpine
 
 WORKDIR /vlrggapi
 
