@@ -1,8 +1,8 @@
 httpx==0.28.1
 cachetools==7.1.7
-uvicorn==0.52.1
+uvicorn==0.52.4
 fastapi==0.141.1
-lxml==6.1.1
+lxml==6.1.2
 selectolax==0.4.11
 pytest==9.1.1
 pytest-asyncio==1.4.0
