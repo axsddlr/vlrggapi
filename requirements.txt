@@ -1,5 +1,5 @@
 httpx==0.28.1
-cachetools==7.1.7
+cachetools==7.1.8
 uvicorn==0.52.4
 fastapi==0.141.1
 lxml==6.1.2
