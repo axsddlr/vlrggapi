@@ -3,7 +3,103 @@ import asyncio
 import pytest
 
 from api.scrapers.match_detail import vlr_match_detail
+from api.scrapers.match_detail.parsers import _parse_streams_vods
 from utils.cache_manager import cache_manager
+from utils.html_parsers import parse_html
+
+# vlr.gg markup since the late-2026 "sm-*" streams/VODs redesign (issue #183).
+# Streams live in .sm-pane-streams as .sm-btn blocks whose external URL is an
+# <a class="sm-ext"> sibling; VODs live in .sm-pane-vods as .sm-vod blocks with
+# a .sm-vod-name label. The old .match-streams-btn / .match-vods selectors are
+# gone from the page entirely.
+STREAMS_VODS_HTML = """
+<html>
+  <div class="sm-root js-sm-root mod-cols mod-vods">
+    <div class="sm-pane sm-pane-streams">
+      <div class="sm-group">
+        <label class="zx-chk"><input type="checkbox" class="js-sm-sw"><span>Official</span></label>
+      </div>
+      <div class="match-streams-container js-sm-grid">
+        <div class="sm-btn mod-embed" data-type="broadcast" data-site="twitch">
+          <div class="sm-body js-stream-embed-btn" data-site-id="valorant_americas" data-embed-site="twitch">
+            <i class="flag mod-us"></i><span class="sm-name">VCT Americas</span>
+          </div>
+          <a class="sm-ext" href="https://www.twitch.tv/valorant_americas" target="_blank" title="Open on Twitch">
+            <i class="sm-plat fa fa-twitch"></i>
+          </a>
+        </div>
+        <div class="sm-btn mod-embed" data-type="watchparty" data-site="kick">
+          <div class="sm-body js-stream-embed-btn" data-site-id="sliggy" data-embed-site="kick">
+            <span class="sm-name">Sliggy</span>
+          </div>
+          <a class="sm-ext" href="https://kick.com/sliggy" target="_blank" title="Open on Kick">
+            <i class="sm-plat fa fa-kick"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="sm-pane sm-pane-vods">
+      <div class="sm-vods match-streams-container mod-fill">
+        <div class="sm-vod mod-embed" data-site="youtube">
+          <div class="sm-body js-stream-embed-btn" data-embed-kind="vod" data-site-id="Jzj8AzjTxMM" data-embed-start="304">
+            <span class="sm-vod-num">1</span><span class="sm-vod-name">Summit</span>
+          </div>
+          <a class="sm-ext" href="https://youtu.be/Jzj8AzjTxMM?t=304" target="_blank" title="Open on Youtube">
+            <i class="sm-plat fa fa-youtube-play"></i>
+          </a>
+        </div>
+        <div class="sm-vod mod-embed" data-site="youtube">
+          <div class="sm-body js-stream-embed-btn" data-embed-kind="vod" data-site-id="Jzj8AzjTxMM" data-embed-start="3001">
+            <span class="sm-vod-num">2</span><span class="sm-vod-name">Haven</span>
+          </div>
+          <a class="sm-ext" href="https://youtu.be/Jzj8AzjTxMM?t=3001" target="_blank" title="Open on Youtube">
+            <i class="sm-plat fa fa-youtube-play"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</html>
+"""
+
+# Pre-redesign markup, kept working as a fallback.
+LEGACY_STREAMS_VODS_HTML = """
+<html>
+  <div class="match-streams">
+    <a class="match-streams-btn" href="https://www.twitch.tv/valorant">Valorant</a>
+  </div>
+  <div class="match-vods">
+    <a href="https://youtu.be/abc?t=10">Ascent</a>
+  </div>
+</html>
+"""
+
+
+def test_parse_streams_vods_reads_sm_panes():
+    streams, vods = _parse_streams_vods(parse_html(STREAMS_VODS_HTML))
+
+    assert streams == [
+        {"name": "VCT Americas", "url": "https://www.twitch.tv/valorant_americas"},
+        {"name": "Sliggy", "url": "https://kick.com/sliggy"},
+    ]
+    assert vods == [
+        {"name": "Summit", "url": "https://youtu.be/Jzj8AzjTxMM?t=304"},
+        {"name": "Haven", "url": "https://youtu.be/Jzj8AzjTxMM?t=3001"},
+    ]
+
+
+def test_parse_streams_vods_falls_back_to_legacy_markup():
+    streams, vods = _parse_streams_vods(parse_html(LEGACY_STREAMS_VODS_HTML))
+
+    assert streams == [{"name": "Valorant", "url": "https://www.twitch.tv/valorant"}]
+    assert vods == [{"name": "Ascent", "url": "https://youtu.be/abc?t=10"}]
+
+
+def test_parse_streams_vods_empty_when_match_has_no_watch_module():
+    streams, vods = _parse_streams_vods(parse_html("<html><body></body></html>"))
+
+    assert streams == []
+    assert vods == []
 
 PLAYER_ROW = """
 <tr>
