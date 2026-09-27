@@ -152,11 +152,49 @@ def _parse_teams(html: HTMLParser) -> list[dict]:
     return teams
 
 
+def _external_link(entry) -> str:
+    """Return the outbound URL of a watch-module entry.
+
+    vlr.gg renders each stream/VOD as a ``.sm-btn`` / ``.sm-vod`` block whose
+    clickable body is a plain ``<div class="sm-body js-stream-embed-btn">``
+    (it opens an inline player via JS) plus a sibling
+    ``<a class="sm-ext">`` holding the real outbound URL.
+    """
+    anchor = entry.css_first("a.sm-ext") or entry.css_first("a[href]")
+    if anchor:
+        return anchor.attributes.get("href", "") or ""
+    return ""
+
+
 def _parse_streams_vods(html: HTMLParser) -> tuple[list[dict], list[dict]]:
-    """Extract stream buttons and VOD links from the match page."""
+    """Extract stream buttons and VOD links from the match page.
+
+    Current markup uses the ``sm-*`` watch module: streams are ``.sm-btn``
+    entries inside ``.sm-pane-streams`` and VODs are ``.sm-vod`` entries
+    inside ``.sm-pane-vods``. The pre-redesign ``.match-streams-btn`` /
+    ``.match-vods`` markup is still parsed as a fallback.
+    """
     streams: list[dict] = []
     vods: list[dict] = []
 
+    for btn in html.css(".sm-btn"):
+        name_elem = btn.css_first(".sm-name")
+        name = extract_text_content(name_elem) if name_elem else extract_text_content(btn)
+        href = _external_link(btn)
+        if name or href:
+            streams.append({"name": name, "url": build_full_url(href)})
+
+    for vod in html.css(".sm-vod"):
+        name_elem = vod.css_first(".sm-vod-name")
+        name = extract_text_content(name_elem) if name_elem else extract_text_content(vod)
+        href = _external_link(vod)
+        if name or href:
+            vods.append({"name": name, "url": href})
+
+    if streams or vods:
+        return streams, vods
+
+    # Legacy markup fallback (.match-streams-btn / .match-vods).
     for btn in html.css(".match-streams-btn"):
         href = btn.attributes.get("href", "")
         name = extract_text_content(btn)
