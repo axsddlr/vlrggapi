@@ -9,15 +9,24 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import httpx
+import pytest
 from selectolax.parser import HTMLParser as SelectolaxParser
 
+import tests.test_vlr_selectors as selector_module
+from utils.constants import VLR_BASE_URL
 from tests.test_vlr_selectors import (
+    PAGE_CHECKS,
     PageCheck,
     PageData,
     _extract_match_ids,
     _extract_player_ids,
     _label_witnesses,
+    _no_witness_reason,
+    _no_witness_result,
+    _unverifiable_skip_message,
     grade_page,
+    resolve_witnesses,
 )
 
 # ---------------------------------------------------------------------------
@@ -298,7 +307,7 @@ def test_extract_player_ids_reads_player_links():
     assert _extract_player_ids(tree) == ["36245", "4774"]
 
 
-def test_label_witnesses_uses_discovered_ids_and_falls_back():
+def test_label_witnesses_uses_discovered_ids():
     ids = ["753450", "753449", "753459", "753460"]
 
     detail = _label_witnesses("match_detail", ids)
@@ -317,8 +326,161 @@ def test_label_witnesses_uses_discovered_ids_and_falls_back():
     econ = _label_witnesses("match_detail_econ", ids)
     assert econ[0] == "https://www.vlr.gg/753450/?game=all&tab=economy"
 
-    # Discovery failure falls back to the static fixture rather than nothing.
-    assert _label_witnesses("match_detail", []) == ["https://www.vlr.gg/706350"]
-    assert _label_witnesses("match_detail_perf", []) == [
-        "https://www.vlr.gg/706350/?game=all&tab=performance"
+
+def test_label_witnesses_has_no_static_fallback_when_discovery_is_empty():
+    """A hardcoded stand-in is what produced #183's false alarm every day.
+
+    ``/player/9`` still renders, but no longer renders the agent table (the data
+    window is empty for an inactive player), so grading a required selector
+    against it manufactures a "layout change" out of a quiet fixture. With no
+    discovered candidates the honest answer is "no witnesses", not a stale URL.
+    """
+    assert _label_witnesses("match_detail", []) == []
+    assert _label_witnesses("match_detail_perf", []) == []
+    assert _label_witnesses("match_detail_econ", []) == []
+
+
+def test_discovery_backed_page_types_declare_no_static_witness():
+    """Guard the root cause: discovery-backed checks must not ship a fixture."""
+    discovery_backed = [
+        pc for pc in PAGE_CHECKS if pc.discovery
     ]
+    assert {pc.label for pc in discovery_backed} == {
+        "match_detail",
+        "match_detail_perf",
+        "match_detail_econ",
+        "player",
+        "player_matches",
+    }
+    for pc in discovery_backed:
+        assert pc.urls == [], f"{pc.label} still ships a hardcoded witness: {pc.urls}"
+
+
+class _UnreachableClient:
+    """Stands in for vlr.gg being blocked/unreachable during discovery."""
+
+    async def get(self, url, **kwargs):  # noqa: ANN001, ANN003
+        raise httpx.ConnectError("simulated discovery failure")
+
+
+@pytest.mark.anyio
+async def test_resolve_witnesses_yields_nothing_when_discovery_fails():
+    try:
+        resolved = await resolve_witnesses(_UnreachableClient())
+    finally:
+        selector_module._DISCOVERY_ERRORS.clear()
+
+    for label in ("match_detail", "match_detail_perf", "player", "player_matches"):
+        assert resolved[label] == [], label
+    # Static page types keep their declared URLs; only discovery is affected.
+    assert resolved["homepage"] == [VLR_BASE_URL]
+
+
+def test_player_match_history_witnesses_the_page_the_scraper_parses():
+    """``vlr_player_matches`` reads ``/player/matches/{id}/``.
+
+    The check previously fetched ``/player/9/matches``, which vlr.gg serves as
+    the *profile* page, so the match-history markup was never actually graded.
+    """
+    pc = next(p for p in PAGE_CHECKS if p.label == "player_matches")
+    assert pc.discovery == "player_matches"
+    assert "api/scrapers/players.py" in pc.source
+
+
+def test_page_type_without_witnesses_is_unverifiable_not_broken():
+    """No witness means no evidence, so required selectors are not "broken"."""
+    result = _no_witness_result(watch_check(), [], "witness discovery returned nothing")
+
+    assert result["unverifiable"] is True
+    assert result["failed"] is False
+    assert result["broken_required"] == []
+    assert result["unwitnessed_required"] == []
+    assert result["broken_optional"] == []
+    assert result["ci_optional_failures"] == 0
+
+
+def test_no_witness_reason_names_the_discovery_failure():
+    """A blind check must say why, so it cannot pass silently in the report."""
+    pc = watch_check(label="player", discovery="player")
+
+    selector_module._DISCOVERY_ERRORS.pop("player", None)
+    try:
+        without_error = _no_witness_reason(pc)
+        assert "player" in without_error
+        assert "no selectors were asserted" in without_error
+
+        selector_module._DISCOVERY_ERRORS["player"] = "ConnectError: blocked"
+        with_error = _no_witness_reason(pc)
+    finally:
+        selector_module._DISCOVERY_ERRORS.pop("player", None)
+
+    assert "ConnectError: blocked" in with_error
+
+
+@pytest.mark.anyio
+async def test_successful_discovery_clears_a_stale_error():
+    """A later run must not inherit the previous run's failure message."""
+
+    class _ListingClient:
+        async def get(self, url, **kwargs):  # noqa: ANN001, ANN003
+            body = (
+                '<html><a href="/753450/team-a-vs-team-b">m</a></html>'
+                if "/matches/results" in url
+                else '<html><a href="/player/4774/name">p</a></html>'
+            )
+
+            class _Response:
+                status_code = 200
+                text = body
+
+                def raise_for_status(self):
+                    return None
+
+            return _Response()
+
+    selector_module._DISCOVERY_ERRORS["match"] = "ConnectError: stale"
+    try:
+        ids = await selector_module._discover(_ListingClient(), "match")
+        assert ids == ["753450"]
+        assert "match" not in selector_module._DISCOVERY_ERRORS
+    finally:
+        selector_module._DISCOVERY_ERRORS.pop("match", None)
+
+
+@pytest.mark.anyio
+async def test_grade_page_check_is_unverifiable_when_discovery_is_empty(monkeypatch):
+    """The exact wiring that reproduced #183: no witness must not read as broken.
+
+    Previously an empty discovery fell back to the rotted ``/player/9`` fixture,
+    which no longer renders the agent table, so the suite failed a required
+    selector and the daily workflow filed a fresh "layout change" comment.
+    """
+
+    async def no_witnesses(client):  # noqa: ANN001
+        return {pc.label: [] for pc in selector_module.PAGE_CHECKS}
+
+    monkeypatch.setattr(selector_module, "resolve_witnesses", no_witnesses)
+    monkeypatch.setattr(selector_module, "_WITNESSES", {})
+
+    player = next(pc for pc in selector_module.PAGE_CHECKS if pc.label == "player")
+    result = await selector_module._grade_page_check(player)
+
+    assert result["unverifiable"] is True
+    assert result["failed"] is False
+    assert result["broken_required"] == []
+    assert result["unwitnessed_required"] == []
+    assert "player" in result["unverifiable_reason"]
+
+
+def test_unverifiable_page_warns_and_explains_the_skip():
+    """Blindness has to be audible: pytest hides stdout for skipped tests."""
+    result = _no_witness_result(
+        watch_check(label="player"), [], "witness discovery returned no candidate pages"
+    )
+
+    with pytest.warns(UserWarning, match="no candidate pages"):
+        message = _unverifiable_skip_message(result)
+
+    assert "player" in message
+    assert "no candidate pages" in message
+    assert "0 page(s)" in message
