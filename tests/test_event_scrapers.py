@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 
 import api.scrapers.events as events_module
-from api.scrapers.event_detail import _parse_standings
+from api.scrapers.event_detail import _parse_prizes, _parse_standings
 from api.scrapers.events import _event_match_utc_offset, vlr_event_matches
 from utils.cache_manager import cache_manager
 from utils.html_parsers import parse_html
@@ -258,3 +258,40 @@ def test_parse_standings_names_each_group_of_a_multi_group_stage():
         ("Group Stage", "Group A", "Alpha"),
         ("Group Stage", "Group B", "Bravo"),
     ]
+
+
+# --- /event/{id}: prizes ---
+
+PRIZE_TABLE_HTML = """
+<div class="wf-label mod-large">Prize Distribution</div>
+<div class="wf-card mod-dark" style="margin-bottom: 30px; ">
+    <div class="wf-ptable wf-ptable--standings" role="table">
+        <div class="row" role="row">
+            <div class="cell" role="cell">Place</div>
+            <div class="cell" role="cell">Prize</div>
+            <div class="cell" role="cell">Team</div>
+        </div>
+        <div class="row " role="row">
+            <div class="cell" role="cell">1<sup>st</sup></div>
+            <div class="cell" role="cell">$1,000,000</div>
+            <div class="cell mod-team" role="cell">
+                <div class="ge-text-light">
+                    <img src="/img/vlr/tmp/vlr.png">
+                    TBD
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+"""
+
+
+def test_parse_prizes_finds_the_prize_table_after_group_cards():
+    # Group tables and group match cards are .wf-card.mod-dark as well and
+    # precede the prize table on a group-stage view
+    group_match_card = '<a class="wf-card event-group-series-match mod-dark" href="/755587/x">R1</a>'
+    html = parse_html(ROUND_ROBIN_HTML + group_match_card + PRIZE_TABLE_HTML)
+
+    prizes = _parse_prizes(html)
+
+    assert [(p["placement"], p["amount"], p["team"]["name"]) for p in prizes] == [("1st", "$1,000,000", "")]

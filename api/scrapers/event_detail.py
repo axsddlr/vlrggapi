@@ -116,12 +116,15 @@ def _parse_prizes(html: HTMLParser) -> list[dict]:
     """Parse the prize breakdown table from the event page."""
     prizes: list[dict] = []
 
-    prize_card = html.css_first(".wf-card.mod-dark")
-    if not prize_card:
-        return prizes
-
-    # The prize table uses div.wf-ptable with div.row elements
-    ptable = prize_card.css_first(".wf-ptable")
+    # The prize table uses div.wf-ptable with div.row elements, inside a
+    # .wf-card.mod-dark. Group tables and group match cards are mod-dark
+    # cards too and come first on group-stage views, so take the first
+    # mod-dark card that actually holds a ptable.
+    ptable = None
+    for card in html.css(".wf-card.mod-dark"):
+        ptable = card.css_first(".wf-ptable")
+        if ptable:
+            break
     if not ptable:
         return prizes
 
