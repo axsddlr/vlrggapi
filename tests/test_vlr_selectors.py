@@ -31,6 +31,14 @@ So every page type declares:
     delegated to a per-page-type ``discovery`` function, so "the page type is
     healthy" is established structurally before any selector can fail.
 
+**There is deliberately no static fallback fixture.** A hardcoded witness URL
+ages: ``/player/9`` still renders, but stops rendering the agent table once the
+player goes quiet, which is indistinguishable from a layout break and is exactly
+how #183 reported the same "broken" selector day after day. When discovery turns
+up no candidates the page type is reported as *unverifiable* — no evidence, no
+verdict — instead of being graded against a stand-in. A genuine break in a
+listing page still fails loudly, because each listing has its own page check.
+
 Usage:
     pytest tests/test_vlr_selectors.py -v           # full suite
     pytest tests/test_vlr_selectors.py -v -k homepage  # single page
@@ -43,6 +51,7 @@ import json
 import os
 import re
 import sys
+import warnings
 from dataclasses import dataclass, field
 from typing import Callable, ClassVar
 
@@ -151,11 +160,11 @@ async def discover_player_ids(client: httpx.AsyncClient) -> list[str]:
 # Page definitions
 # ---------------------------------------------------------------------------
 
-# Result pages carry the full watch module; these are only the static fallbacks
-# used when discovery yields nothing (in which case the report says so).
-_MATCH_DETAIL_URL = f"{VLR_BASE_URL}/706350"
+# Result pages carry the full watch module. Every match-backed page type below
+# discovers its witnesses at run time, so it deliberately declares NO static
+# URL: a fixed match ID eventually stops carrying streams/VODs and then looks
+# exactly like a layout break (see the module docstring and #183).
 _TEAM_URL = f"{VLR_BASE_URL}/team/2/sentinels"
-_PLAYER_URL = f"{VLR_BASE_URL}/player/9"
 
 PAGE_CHECKS: ClassVar[list[PageCheck]] = [
     # --- Homepage ---------------------------------------------------------
@@ -187,7 +196,7 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
     # --- Match detail -----------------------------------------------------
     PageCheck(
         label="match_detail",
-        urls=[_MATCH_DETAIL_URL],
+        urls=[],
         discovery="match_detail",
         source="api/scrapers/match_detail/parsers.py, api/scrapers/match_detail/crawler.py",
         anchors=[
@@ -254,7 +263,7 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
     # --- Match detail performance tab ------------------------------------
     PageCheck(
         label="match_detail_perf",
-        urls=[f"{_MATCH_DETAIL_URL}/?game=all&tab=performance"],
+        urls=[],
         discovery="match_detail_tabs",
         source="api/scrapers/match_detail/parsers.py",
         anchors=[
@@ -268,7 +277,7 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
     # --- Match detail economy tab ----------------------------------------
     PageCheck(
         label="match_detail_econ",
-        urls=[f"{_MATCH_DETAIL_URL}/?game=all&tab=economy"],
+        urls=[],
         discovery="match_detail_tabs",
         source="api/scrapers/match_detail/parsers.py",
         anchors=[
@@ -385,7 +394,7 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
     # --- Player profile ---------------------------------------------------
     PageCheck(
         label="player",
-        urls=[_PLAYER_URL],
+        urls=[],
         discovery="player",
         source="api/scrapers/players.py",
         anchors=[
@@ -566,7 +575,11 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
     ),
     PageCheck(
         label="player_matches",
-        urls=[f"{_PLAYER_URL}/matches"],
+        # The scraper reads /player/matches/{id}/, NOT /player/{id}/matches
+        # (which vlr.gg serves as the profile page), so the witness has to come
+        # from discovery too or this check grades the wrong markup.
+        urls=[],
+        discovery="player_matches",
         source="api/scrapers/players.py",
         anchors=[
             "h1.wf-title",
@@ -600,31 +613,94 @@ _DISCOVERY_ERRORS: dict[str, str] = {}
 
 
 async def _discover(client: httpx.AsyncClient, kind: str) -> list[str]:
+    if kind not in ("match", "player"):
+        raise ValueError(f"unknown discovery kind: {kind}")
     try:
-        if kind == "match":
-            return await discover_match_ids(client)
-        if kind == "player":
-            return await discover_player_ids(client)
+        ids = (
+            await discover_match_ids(client)
+            if kind == "match"
+            else await discover_player_ids(client)
+        )
     except Exception as exc:  # noqa: BLE001 - reported, never fatal
         _DISCOVERY_ERRORS[kind] = f"{type(exc).__name__}: {exc}"
         return []
-    raise ValueError(f"unknown discovery kind: {kind}")
+    # A successful discovery clears an earlier transient failure, so a stale
+    # message can never be blamed for a later empty witness list.
+    _DISCOVERY_ERRORS.pop(kind, None)
+    return ids
 
 
 def _label_witnesses(label: str, match_ids: list[str]) -> list[str]:
-    """Build the witness URL list for one page type from discovered IDs."""
+    """Build the witness URL list for one match-backed page type.
+
+    An empty ``match_ids`` yields an empty witness list on purpose — see the
+    module docstring: a stand-in fixture is how #183 reported a layout change
+    every day for a match that had simply gone quiet.
+    """
     if label == "match_detail":
-        urls = [f"{VLR_BASE_URL}/{match_id}/" for match_id in match_ids[:_MATCH_DETAIL_WITNESSES]]
-        return urls or [_MATCH_DETAIL_URL]
+        return [f"{VLR_BASE_URL}/{match_id}/" for match_id in match_ids[:_MATCH_DETAIL_WITNESSES]]
     if label in ("match_detail_perf", "match_detail_econ"):
         tab = "performance" if label.endswith("perf") else "economy"
-        urls = [
+        return [
             f"{VLR_BASE_URL}/{match_id}/?game=all&tab={tab}"
             for match_id in match_ids[:_MATCH_TAB_WITNESSES]
         ]
-        suffix = f"/?game=all&tab={tab}"
-        return urls or [f"{_MATCH_DETAIL_URL}{suffix}"]
     raise ValueError(f"no witness builder for label: {label}")
+
+
+def _discovery_kind(discovery: str) -> str:
+    """Map a page type's discovery key to the discovery error bucket."""
+    return "match" if discovery.startswith("match_detail") else "player"
+
+
+def _no_witness_reason(pc: PageCheck) -> str:
+    """Explain why a page type has nothing to grade.
+
+    Surfacing the discovery error matters: ``_DISCOVERY_ERRORS`` used to be
+    written and never read, so a blocked or restructured listing page silently
+    turned into a stale-fixture verdict against our own selectors.
+    """
+    error = _DISCOVERY_ERRORS.get(_discovery_kind(pc.discovery))
+    if error:
+        return (
+            f"witness discovery for {pc.label} could not read the vlr.gg listing "
+            f"({error}); no selectors were asserted"
+        )
+    return (
+        f"witness discovery for {pc.label} returned no candidate pages; "
+        f"no selectors were asserted"
+    )
+
+
+def _no_witness_result(pc: PageCheck, urls: list[str], reason: str) -> dict:
+    """Report a page type as unverifiable because there is nothing to grade.
+
+    Deliberately not a failure. With no witness there is no evidence about our
+    selectors, and asserting "broken" from a stand-in is the #183 false alarm.
+    """
+    return {
+        "page": pc.label,
+        "urls": list(urls),
+        "anchors": pc.anchors,
+        "source": pc.source,
+        "total_required": len(pc.anchors) + len(pc.required),
+        "broken_required": [],
+        "broken_anchors": [],
+        "unwitnessed_required": [],
+        "total_optional": len(pc.optional),
+        "broken_optional": [],
+        "data_conditional_missing": [],
+        "ci_optional_failures": 0,
+        "witnessed": {},
+        "witnessed_count": 0,
+        "pages_fetched": 0,
+        "pages_usable": 0,
+        "unusable_pages": [],
+        "unverifiable": True,
+        "unverifiable_reason": reason,
+        "fetch_error": None,
+        "failed": False,
+    }
 
 
 async def resolve_witnesses(client: httpx.AsyncClient) -> dict[str, list[str]]:
@@ -634,7 +710,9 @@ async def resolve_witnesses(client: httpx.AsyncClient) -> dict[str, list[str]]:
         for pc in PAGE_CHECKS
         if pc.discovery in ("match_detail", "match_detail_tabs")
     ]
-    needs_player = [pc.label for pc in PAGE_CHECKS if pc.discovery == "player"]
+    needs_player = [
+        pc.label for pc in PAGE_CHECKS if pc.discovery in ("player", "player_matches")
+    ]
 
     match_ids = await _discover(client, "match") if needs_match else []
     player_ids = await _discover(client, "player") if needs_player else []
@@ -646,8 +724,14 @@ async def resolve_witnesses(client: httpx.AsyncClient) -> dict[str, list[str]]:
         elif pc.discovery in ("match_detail", "match_detail_tabs"):
             resolved[pc.label] = _label_witnesses(pc.label, match_ids)
         elif pc.discovery == "player":
-            urls = [f"{VLR_BASE_URL}/player/{pid}/" for pid in player_ids[:_PLAYER_WITNESSES]]
-            resolved[pc.label] = urls or [_PLAYER_URL]
+            resolved[pc.label] = [
+                f"{VLR_BASE_URL}/player/{pid}/" for pid in player_ids[:_PLAYER_WITNESSES]
+            ]
+        elif pc.discovery == "player_matches":
+            resolved[pc.label] = [
+                f"{VLR_BASE_URL}/player/matches/{pid}/"
+                for pid in player_ids[:_PLAYER_WITNESSES]
+            ]
     return resolved
 
 
@@ -797,6 +881,12 @@ async def _grade_page_check(pc: PageCheck) -> dict:
         witnesses = await _witnesses_for(client)
         urls = witnesses[pc.label]
 
+        # Discovery-backed page types ship no stand-in fixture, so an empty
+        # witness list means "nothing to grade". Saying "broken" here would be
+        # blaming our selectors for a listing we could not read (#183).
+        if not urls:
+            return _no_witness_result(pc, urls, _no_witness_reason(pc))
+
         result: dict | None = None
         last_error: str | None = None
         for attempt in range(3):
@@ -838,6 +928,19 @@ async def _grade_page_check(pc: PageCheck) -> dict:
     return result
 
 
+def _unverifiable_skip_message(result: dict) -> str:
+    """Warn and build the skip reason for a page type we could not grade.
+
+    A skip is not a pass: with no witness the check is blind. pytest swallows
+    stdout for skipped tests, so the warning *is* the visibility mechanism — it
+    lands in the run's warnings summary, and in CI that reaches the Actions log
+    without failing the run and without filing a false "layout change" issue.
+    """
+    warn = f"{result['page']}: {result['unverifiable_reason']}"
+    warnings.warn(warn, stacklevel=2)
+    return f"{warn}; fetched {result['pages_fetched']} page(s)"
+
+
 async def _result_for(pc: PageCheck) -> dict:
     async with _RESULTS_LOCK:
         if pc.label not in _RESULTS:
@@ -865,11 +968,7 @@ async def test_vlr_selectors(pc: PageCheck):
     _write_report()
 
     if result["unverifiable"]:
-        pytest.skip(
-            f"{pc.label}: no usable witness page "
-            f"({result['unverifiable_reason']}); fetched "
-            f"{result['pages_fetched']} page(s)"
-        )
+        pytest.skip(_unverifiable_skip_message(result))
 
     if result["broken_required"]:
         report = json.dumps(result, indent=2)
@@ -914,6 +1013,11 @@ if __name__ == "__main__":
             witnesses = await _witnesses_for(client)
             for pc in PAGE_CHECKS:
                 urls = witnesses[pc.label]
+                if not urls:
+                    # No witness is not a break — see _no_witness_result.
+                    print(f"  [{pc.label:20s}] UNVERIFIABLE: {_no_witness_reason(pc)}")
+                    continue
+
                 pages, fetch_error = await fetch_pages(client, urls)
                 if not pages:
                     print(f"  [{pc.label:20s}] FETCH ERROR: {fetch_error}")
