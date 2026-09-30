@@ -8,8 +8,10 @@ from datetime import UTC, datetime
 import pytest
 
 import api.scrapers.events as events_module
+from api.scrapers.event_detail import _parse_standings
 from api.scrapers.events import _event_match_utc_offset, vlr_event_matches
 from utils.cache_manager import cache_manager
+from utils.html_parsers import parse_html
 
 
 class FakeResponse:
@@ -159,3 +161,100 @@ def test_event_match_utc_offset_skips_live_and_unparsed_rows():
         (datetime(2026, 9, 30, 14, 0), "3d 2h", 1),
     ]
     assert _event_match_utc_offset(rows, now) is None
+
+
+# --- /event/{id}: standings ---
+
+def _group_row(href, name, region, w, lo, t, maps, rounds, diff):
+    return f"""
+    <tr class=" mod-adv ">
+        <td style="border-right: 0; padding-right: 8px;">
+            <img src="/img/vlr/tmp/vlr.png" class="event-group-team-logo">
+        </td>
+        <td style="height: 53px;">
+            <a class="event-group-team" href="{href}">
+                <div class="event-group-team-name text-of">
+                    {name}
+                    <div class="ge-text-light event-group-team-region">
+                        {region}
+                    </div>
+                </div>
+            </a>
+            <div class="event-group-spoiler-placeholder"><div>Spoiler hidden</div><div>&nbsp;</div></div>
+        </td>
+        <td class="mod-center mod-record" style="font-weight: 700;">{w}</td>
+        <td class="mod-center mod-record" style="font-weight: 700;">{lo}</td>
+        <td class="mod-center mod-record">{t}</td>
+        <td class="mod-center mod-stat">{maps[0]}<span class="record-div">/</span>{maps[1]}</td>
+        <td class="mod-center mod-stat">{rounds[0]}<span class="record-div">/</span>{rounds[1]}</td>
+        <td class="mod-center mod-stat"><span class="diff mod-positive">{diff}</span></td>
+    </tr>"""
+
+
+def _group_table(title, rows):
+    return f"""
+    <div class="event-group-block wf-card mod-dark">
+        <table class="wf-table mod-simple mod-group">
+            <thead>
+                <tr>
+                    <th class="mod-title" colspan="2">{title}</th>
+                    <th class="mod-w mod-center" title="Wins">W</th>
+                    <th class="mod-l mod-center" title="Losses">L</th>
+                    <th class="mod-t mod-center" title="Ties">T</th>
+                    <th class="mod-center mod-maps mod-wide" title="Maps Won/Maps Lost">MAP</th>
+                    <th class="mod-center mod-rfra mod-wide" title="Rounds Won/Rounds Lost">RND</th>
+                    <th class="mod-center mod-dt mod-wide" title="Round Differential">&Delta;</th>
+                </tr>
+            </thead>
+            <tbody>{"".join(rows)}</tbody>
+        </table>
+    </div>"""
+
+
+# Trimmed from vlr.gg/event/3123 (Komplettligaen 2026: Autumn Division 1, group-stage view)
+ROUND_ROBIN_HTML = f"""
+<div class="event-content"><div style="display: flex; flex-direction: column;">
+<div style=" margin-bottom: 22px;">
+    <div class="wf-label mod-large">
+        Round Robin
+    </div>
+    <div class="event-group mod-fullwidth">
+        {_group_table("", [
+            _group_row("/team/23405/monark", "Monark", "Norway", 5, 0, 0, (6, 1), (87, 56), "+31"),
+            _group_row("/team/17599/uia-kraken", "UiA Kraken", "International", 4, 1, 0, (8, 3), (135, 102), "+33"),
+        ])}
+    </div>
+</div>
+</div></div>
+"""
+
+MULTI_GROUP_HTML = f"""
+<div class="wf-label mod-large">Group Stage</div>
+<div class="event-group">
+    {_group_table("Group A", [_group_row("/team/1/a", "Alpha", "Europe", 3, 0, 0, (6, 0), (78, 30), "+48")])}
+    {_group_table("Group B", [_group_row("/team/2/b", "Bravo", "Brazil", 2, 1, 0, (4, 3), (80, 70), "+10")])}
+</div>
+"""
+
+
+def test_parse_standings_reads_round_robin_group_tables():
+    standings = _parse_standings(parse_html(ROUND_ROBIN_HTML))
+
+    assert standings == [{
+        "stage": "Round Robin",
+        "group": "",
+        "columns": ["Team", "W", "L", "T", "MAP", "RND", "\u0394"],
+        "rows": [
+            {"Team": "Monark", "W": "5", "L": "0", "T": "0", "MAP": "6/1", "RND": "87/56", "\u0394": "+31"},
+            {"Team": "UiA Kraken", "W": "4", "L": "1", "T": "0", "MAP": "8/3", "RND": "135/102", "\u0394": "+33"},
+        ],
+    }]
+
+
+def test_parse_standings_names_each_group_of_a_multi_group_stage():
+    standings = _parse_standings(parse_html(MULTI_GROUP_HTML))
+
+    assert [(s["stage"], s["group"], s["rows"][0]["Team"]) for s in standings] == [
+        ("Group Stage", "Group A", "Alpha"),
+        ("Group Stage", "Group B", "Bravo"),
+    ]

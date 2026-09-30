@@ -275,6 +275,65 @@ def _parse_standings(html: HTMLParser) -> list[dict]:
 
         standings.append({"stage": stage, "columns": headers, "rows": rows})
 
+    standings.extend(_parse_group_tables(html))
+    return standings
+
+
+def _preceding_label(node, max_depth: int = 4) -> str:
+    """Text of the nearest .wf-label before ``node`` (checking up to ``max_depth`` ancestors)."""
+    current = node
+    for _ in range(max_depth):
+        sibling = current.prev
+        while sibling is not None:
+            if sibling.tag and "wf-label" in (sibling.attributes.get("class") or ""):
+                return extract_text_content(sibling)
+            sibling = sibling.prev
+        current = current.parent
+        if current is None:
+            break
+    return ""
+
+
+def _parse_group_tables(html: HTMLParser) -> list[dict]:
+    """Parse group / round-robin standings (table.wf-table.mod-group).
+
+    Each table sits under a stage label ("Round Robin", "Group Stage"); a
+    multi-group stage names the group in the table's th.mod-title.
+    """
+    standings: list[dict] = []
+
+    for table in html.css("table.wf-table.mod-group"):
+        header_cells = table.css("thead th")
+        if not header_cells:
+            continue
+        group = extract_text_content(header_cells[0])
+        # The title th spans the logo and team columns
+        columns = ["Team"] + [extract_text_content(th) for th in header_cells[1:]]
+
+        rows: list[dict[str, str]] = []
+        for tr in table.css("tbody tr"):
+            team_link = tr.css_first("a.event-group-team")
+            if not team_link:
+                continue
+            name_elem = team_link.css_first(".event-group-team-name") or team_link
+            team_name = extract_text_content(name_elem)
+            region_elem = name_elem.css_first(".event-group-team-region")
+            if region_elem:
+                team_name = team_name.replace(extract_text_content(region_elem), "").strip()
+
+            cells = tr.css("td")[2:]  # skip the logo and team cells
+            row_data = {"Team": team_name}
+            for label, cell in zip(columns[1:], cells, strict=False):
+                row_data[label] = extract_text_content(cell)
+            rows.append(row_data)
+
+        standings.append({
+            "stage": _preceding_label(table),
+            "group": group,
+            "columns": columns,
+            "rows": rows,
+        })
+
     return standings
 
 

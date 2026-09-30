@@ -311,8 +311,8 @@ GET /v2/event/2124
         "qualification": "NA Circuit Points"
       }],
       "standings": [{
-        "stage": "Group Stage", "columns": ["Team", "W", "L", "RD", "MRD"],
-        "rows": [{ "Team": "100 Thieves", "W": "4", "L": "1", "RD": "+42", "MRD": "+12" }]
+        "stage": "Group Stage", "group": "Group A", "columns": ["Team", "W", "L", "T", "MAP", "RND", "Δ"],
+        "rows": [{ "Team": "100 Thieves", "W": "4", "L": "1", "T": "0", "MAP": "8/3", "RND": "135/102", "Δ": "+33" }]
       }]
     }
   }
