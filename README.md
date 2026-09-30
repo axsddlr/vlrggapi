@@ -85,7 +85,7 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/rankings` | `region` | 1 hr |
 | `GET /v2/stats` | `region`, `timespan` | 30 min |
 | `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
-| `GET /v2/event/{id}` | `event_id` (path) | 30 min |
+| `GET /v2/event/{id}` | `event_id` (path), `stage` | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
 | `GET /v2/player` | `id`, `q` (profile/matches), `timespan`, `page` | 30 min / 10 min |
@@ -282,11 +282,14 @@ GET /v2/match/details?match_id=595657
 </details>
 
 ### `GET /v2/event/{event_id}`
-Event detail: prizes, team rosters, and standings tables.
-**Params:** `event_id` (path, required — from `/v2/events`) | **Cache:** 30 min
+Event detail: stages, prizes, team rosters, and standings tables.
+**Params:** `event_id` (path, required — from `/v2/events`), `stage` (optional — a slug from `stages`) | **Cache:** 30 min
+
+A multi-stage event page on vlr.gg shows one stage at a time, and its prize rows and standings are that stage's (a group-stage view lists only the placements decided there). Without `stage` you get vlr.gg's default view, usually the current stage; `stages` lists every stage with its `slug`, and `stage=<slug>` returns that stage's view. An unknown slug returns 404.
 
 ```
 GET /v2/event/2124
+GET /v2/event/2124?stage=playoffs
 ```
 
 <details><summary>Response</summary>
@@ -301,6 +304,10 @@ GET /v2/event/2124
         "dates": "Apr 15 - May 10, 2026", "prize": "$250,000 USD",
         "location": "Los Angeles, USA", "logo": "https://owcdn.net/img/..."
       },
+      "stages": [
+        { "name": "Playoffs", "slug": "playoffs", "dates": "May 2–10", "active": false },
+        { "name": "Group Stage", "slug": "group-stage", "dates": "Apr 15–27", "active": true }
+      ],
       "prizes": [
         { "placement": "1st", "amount": "$100,000", "team": { "id": "120", "name": "100 Thieves", "logo": "...", "region": "United States" } },
         { "placement": "2nd", "amount": "$60,000", "team": { "id": "2355", "name": "KRÜ Esports", "logo": "...", "region": "Chile" } }

@@ -6,9 +6,10 @@ event 2766, fetched 2026-09-30 17:44 UTC, rendered in CEST).
 from datetime import UTC, datetime
 
 import pytest
+from fastapi import HTTPException
 
 import api.scrapers.events as events_module
-from api.scrapers.event_detail import _parse_prizes, _parse_standings
+from api.scrapers.event_detail import _parse_event_stages, _parse_prizes, _parse_standings, vlr_event_detail
 from api.scrapers.events import _event_match_utc_offset, vlr_event_matches
 from utils.cache_manager import cache_manager
 from utils.html_parsers import parse_html
@@ -295,3 +296,80 @@ def test_parse_prizes_finds_the_prize_table_after_group_cards():
     prizes = _parse_prizes(html)
 
     assert [(p["placement"], p["amount"], p["team"]["name"]) for p in prizes] == [("1st", "$1,000,000", "")]
+
+
+# --- /event/{id}: stages ---
+
+def _stage_subnav(active: str) -> str:
+    """Stage tabs of vlr.gg/event/2766 with ``active`` marked mod-active."""
+    def tab(slug, dates, name):
+        mod = " mod-active" if slug == active else " "
+        return f"""
+        <a href="/event/2766/valorant-champions-2026/{slug}" class="wf-subnav-item{mod}">
+            <div>
+                <div class="ge-text-light" style="font-size: 10px; text-transform: uppercase;">
+                    {dates}
+                </div>
+                <div class="wf-subnav-item-title">
+                    {name}
+                </div>
+            </div>
+        </a>"""
+
+    return f"""<div class="wf-subnav">
+        {tab("playoffs", "Oct 7&ndash;18", "Playoffs")}
+        {tab("group-stage", "Sep 24&ndash;Oct 4", "Group Stage")}
+    </div>"""
+
+
+def _stage_page(active: str) -> str:
+    return f"<html><body>{_stage_subnav(active)}{PRIZE_TABLE_HTML}</body></html>"
+
+
+def test_parse_event_stages_lists_every_stage_tab():
+    stages = _parse_event_stages(parse_html(_stage_subnav("group-stage")))
+
+    assert stages == [
+        {"name": "Playoffs", "slug": "playoffs", "dates": "Oct 7–18", "active": False},
+        {"name": "Group Stage", "slug": "group-stage", "dates": "Sep 24–Oct 4", "active": True},
+    ]
+
+
+def test_parse_event_stages_is_empty_for_single_stage_events():
+    assert _parse_event_stages(parse_html("<html><body><div class='event-content'></div></body></html>")) == []
+
+
+@pytest.mark.anyio
+async def test_vlr_event_detail_fetches_the_requested_stage_view(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient({
+        "https://www.vlr.gg/event/2766": FakeResponse(200, _stage_page("group-stage")),
+        "https://www.vlr.gg/event/2766/-/playoffs": FakeResponse(200, _stage_page("playoffs")),
+    })
+    monkeypatch.setattr("api.scrapers.event_detail.get_http_client", lambda: client)
+
+    default = await vlr_event_detail("2766")
+    playoffs = await vlr_event_detail("2766", "playoffs")
+
+    assert client.calls == ["https://www.vlr.gg/event/2766", "https://www.vlr.gg/event/2766/-/playoffs"]
+    assert [s["slug"] for s in default["data"]["segments"]["stages"] if s["active"]] == ["group-stage"]
+    assert [s["slug"] for s in playoffs["data"]["segments"]["stages"] if s["active"]] == ["playoffs"]
+    assert playoffs["data"]["segments"]["prizes"][0]["placement"] == "1st"
+    cache_manager.clear_all()
+
+
+@pytest.mark.anyio
+async def test_vlr_event_detail_rejects_an_unknown_stage(monkeypatch):
+    cache_manager.clear_all()
+    # vlr.gg answers an unknown stage slug with the default stage's page
+    client = FakeAsyncClient({
+        "https://www.vlr.gg/event/2766/-/finals": FakeResponse(200, _stage_page("group-stage")),
+    })
+    monkeypatch.setattr("api.scrapers.event_detail.get_http_client", lambda: client)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await vlr_event_detail("2766", "finals")
+
+    assert exc_info.value.status_code == 404
+    assert "playoffs, group-stage" in exc_info.value.detail
+    cache_manager.clear_all()

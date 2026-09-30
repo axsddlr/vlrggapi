@@ -146,8 +146,8 @@ async def get_event_matches_data(event_id: str) -> dict:
     return await vlr_event_matches(event_id)
 
 
-async def get_event_detail_data(event_id: str) -> dict:
-    return await vlr_event_detail(event_id)
+async def get_event_detail_data(event_id: str, stage: str | None = None) -> dict:
+    return await vlr_event_detail(event_id, stage)
 
 
 async def get_health_data() -> dict:

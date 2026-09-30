@@ -1,10 +1,17 @@
 """
 Scraper for individual VLR.GG event detail pages.
 
-Extracts event header info, prize pool breakdown, participating teams,
-and group/stage standings tables.
+Extracts event header info, the event's stages, prize pool breakdown,
+participating teams, and group/stage standings tables.
+
+A multi-stage event page shows ONE stage at a time (vlr.gg picks the
+current one by default): the prize rows and standings on it are that
+stage's. The `stages` list names every stage; pass a stage slug to read
+another stage's view.
 """
 import logging
+
+from fastapi import HTTPException
 
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_EVENTS, VLR_BASE_URL
@@ -110,6 +117,28 @@ def _parse_event_header(html: HTMLParser) -> dict:
         "location": location,
         "logo": logo,
     }
+
+
+def _parse_event_stages(html: HTMLParser) -> list[dict]:
+    """Parse the stage tabs (.wf-subnav) of an event page.
+
+    Each tab links to /event/{id}/{event-slug}/{stage-slug}. Single-stage
+    events have no tabs and return [].
+    """
+    stages: list[dict] = []
+    for item in html.css(".wf-subnav a.wf-subnav-item"):
+        parts = item.attributes.get("href", "").strip("/").split("/")
+        if len(parts) != 4 or parts[0] != "event":
+            continue
+        title = item.css_first(".wf-subnav-item-title")
+        dates = item.css_first(".ge-text-light")
+        stages.append({
+            "name": extract_text_content(title),
+            "slug": parts[3],
+            "dates": extract_text_content(dates),
+            "active": "mod-active" in item.attributes.get("class", ""),
+        })
+    return stages
 
 
 def _parse_prizes(html: HTMLParser) -> list[dict]:
@@ -341,20 +370,35 @@ def _parse_group_tables(html: HTMLParser) -> list[dict]:
 
 
 @handle_scraper_errors
-async def vlr_event_detail(event_id: str) -> dict:
-    """Fetch full event detail: header, prizes, teams, and standings.
+async def vlr_event_detail(event_id: str, stage: str | None = None) -> dict:
+    """Fetch full event detail: header, stages, prizes, teams, and standings.
 
     Args:
         event_id: Numeric VLR.GG event ID.
+        stage: Optional stage slug from ``stages`` (e.g. "playoffs"). Without
+            it vlr.gg serves its default (usually the current) stage.
     """
     async def build():
-        base_url = f"{VLR_BASE_URL}/event/{event_id}"
+        if stage:
+            # vlr.gg ignores the event slug segment, so a placeholder avoids a lookup
+            base_url = f"{VLR_BASE_URL}/event/{event_id}/-/{stage}"
+        else:
+            base_url = f"{VLR_BASE_URL}/event/{event_id}"
         client = get_http_client()
         resp = await fetch_with_retries(base_url, client=client)
         status = resp.status_code
         raise_for_upstream_status(status, f"event detail {event_id}")
 
         html = parse_html(resp.text)
+
+        stages = _parse_event_stages(html)
+        # An unknown stage slug silently serves the default stage
+        if stage and not any(s["slug"] == stage and s["active"] for s in stages):
+            available = ", ".join(s["slug"] for s in stages) or "none"
+            raise HTTPException(
+                status_code=404,
+                detail=f"Stage '{stage}' not found for event {event_id}. Available stages: {available}",
+            )
 
         header = _parse_event_header(html)
         prizes = _parse_prizes(html)
@@ -366,6 +410,7 @@ async def vlr_event_detail(event_id: str) -> dict:
                 "status": status,
                 "segments": {
                     "event": header,
+                    "stages": stages,
                     "prizes": prizes,
                     "teams": teams,
                     "standings": standings,
@@ -375,5 +420,5 @@ async def vlr_event_detail(event_id: str) -> dict:
         return data
 
     return await cache_manager.get_or_create_async(
-        CACHE_TTL_EVENTS, build, "event_detail", event_id
+        CACHE_TTL_EVENTS, build, "event_detail", event_id, stage or ""
     )
