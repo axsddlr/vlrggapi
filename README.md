@@ -477,16 +477,25 @@ GET /v2/events/matches?event_id=2095
 {
   "status": "success",
   "data": {
-    "matches": [{
+    "status": 200,
+    "segments": [{
       "match_id": "595657",
-      "teams": [{ "name": "Sentinels", "score": "2", "is_winner": true }, { "name": "Cloud9", "score": "1", "is_winner": false }],
+      "url": "https://www.vlr.gg/595657/...",
+      "date": "Sun, April 24, 2024",
+      "time": "3:00 PM",
+      "unix_timestamp": "2024-04-24 19:00:00",
+      "status": "Completed",
+      "note": "",
+      "stage": "Playoffs",
       "event_series": "Grand Final",
-      "vods": [{ "name": "VOD", "url": "https://youtube.com/..." }],
-      "date": "Apr 24, 2024"
+      "team1": { "name": "Sentinels", "score": "2", "is_winner": true },
+      "team2": { "name": "Cloud9", "score": "1", "is_winner": false }
     }]
   }
 }
 ```
+
+`date` and `time` are as vlr.gg rendered them, in the timezone vlr.gg picked for the requesting server. `unix_timestamp` is UTC, derived from a minute-precision countdown on the same page; it is `""` when the page has none (e.g. an event whose every match is more than a day away or a day old).
 </details>
 
 ### `GET /v2/health`

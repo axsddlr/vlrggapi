@@ -181,27 +181,27 @@ def parse_eta_to_timedelta(eta_text: str) -> timedelta | None:
     return total if total > timedelta() else None
 
 
-def combine_date_and_time(date_str: str, time_text: str) -> str:
-    """Parse 'Mon, February 9, 2026' + '4:00 AM' -> UTC timestamp string.
+def parse_local_datetime(date_str: str, time_text: str, today=None) -> datetime | None:
+    """Parse 'Mon, February 9, 2026' + '4:00 AM' into a naive datetime.
 
-    Interprets times as US Eastern. Returns '' on failure.
+    The result carries no timezone: VLR renders these in the viewer's zone.
+    'Today' / 'Tomorrow' resolve against ``today`` (a date) when given.
+    Returns None on failure.
     """
     if not date_str or not time_text:
-        return ""
+        return None
     time_text = time_text.strip()
     if not time_text or time_text.upper() in ("TBD", "LIVE", "-"):
-        return ""
-
-    eastern = ZoneInfo("America/New_York")
+        return None
 
     # Clean up date_str: remove day-of-week prefix like "Mon, "
     cleaned_date = re.sub(r"^[A-Za-z]+,\s*", "", date_str.strip())
     # Handle "Today" / "Tomorrow" by skipping date parse
     if cleaned_date.lower() in ("today", "tomorrow"):
-        now_eastern = datetime.now(eastern)
-        if cleaned_date.lower() == "tomorrow":
-            now_eastern += timedelta(days=1)
-        cleaned_date = now_eastern.strftime("%B %d, %Y")
+        if today is None:
+            return None
+        day = today + timedelta(days=1) if cleaned_date.lower() == "tomorrow" else today
+        cleaned_date = day.strftime("%B %d, %Y")
 
     # Parse time: "4:00 AM" or "16:00"
     parsed_time = None
@@ -212,7 +212,7 @@ def combine_date_and_time(date_str: str, time_text: str) -> str:
         except ValueError:
             continue
     if parsed_time is None:
-        return ""
+        return None
 
     # Parse date: "February 9, 2026"
     parsed_date = None
@@ -223,10 +223,21 @@ def combine_date_and_time(date_str: str, time_text: str) -> str:
         except ValueError:
             continue
     if parsed_date is None:
-        return ""
+        return None
 
-    local_dt = datetime.combine(parsed_date, parsed_time, tzinfo=eastern)
-    utc_dt = local_dt.astimezone(UTC)
+    return datetime.combine(parsed_date, parsed_time)
+
+
+def combine_date_and_time(date_str: str, time_text: str) -> str:
+    """Parse 'Mon, February 9, 2026' + '4:00 AM' -> UTC timestamp string.
+
+    Interprets times as US Eastern. Returns '' on failure.
+    """
+    eastern = ZoneInfo("America/New_York")
+    local_dt = parse_local_datetime(date_str, time_text, today=datetime.now(eastern).date())
+    if local_dt is None:
+        return ""
+    utc_dt = local_dt.replace(tzinfo=eastern).astimezone(UTC)
     return utc_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
