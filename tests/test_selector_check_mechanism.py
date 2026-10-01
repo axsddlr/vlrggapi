@@ -14,7 +14,6 @@ import pytest
 from selectolax.parser import HTMLParser as SelectolaxParser
 
 import tests.test_vlr_selectors as selector_module
-from utils.constants import VLR_BASE_URL
 from tests.test_vlr_selectors import (
     PAGE_CHECKS,
     PageCheck,
@@ -28,6 +27,7 @@ from tests.test_vlr_selectors import (
     grade_page,
     resolve_witnesses,
 )
+from utils.constants import VLR_BASE_URL
 
 # ---------------------------------------------------------------------------
 # Fixtures
