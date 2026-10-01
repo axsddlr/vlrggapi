@@ -12,7 +12,7 @@ from api.scrapers.players import vlr_player, vlr_player_matches
 from utils.cache_manager import CacheManager, cache_manager
 from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
 from utils.error_handling import validate_event_query, validate_match_query, validate_region, validate_timespan
-from utils.html_parsers import parse_eta_to_timedelta
+from utils.html_parsers import HTMLParser, parse_eta_to_timedelta, parse_match_timestamp
 from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 
@@ -67,6 +67,26 @@ class TestParseEta:
 
     def test_none_returns_none(self):
         assert parse_eta_to_timedelta(None) is None
+
+
+class TestParseMatchTimestamp:
+    @staticmethod
+    def _item(ts: str):
+        return HTMLParser(f'<div><div class="moment-tz-convert" data-utc-ts="{ts}">2:20 AM CEST</div></div>').body
+
+    def test_data_utc_ts_is_eastern_summer(self):
+        # Match 706350: data-utc-ts 20:20 EDT is shown as 2:20 AM CEST
+        assert parse_match_timestamp(self._item("2026-07-16 20:20:00"), "") == "2026-07-17 00:20:00"
+
+    def test_data_utc_ts_is_eastern_winter(self):
+        assert parse_match_timestamp(self._item("2026-01-15 20:00:00"), "") == "2026-01-16 01:00:00"
+
+    def test_data_utc_ts_unix_number(self):
+        # Homepage: 1790845200 is shown as 11:00 AM CEST
+        assert parse_match_timestamp(self._item("1790845200"), "") == "2026-10-01 09:00:00"
+
+    def test_unparseable_data_utc_ts_falls_through(self):
+        assert parse_match_timestamp(self._item("soon"), "") == ""
 
 
 # --- Validators ---
