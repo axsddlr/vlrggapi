@@ -52,8 +52,9 @@ import os
 import re
 import sys
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, ClassVar
+from typing import ClassVar
 
 import httpx
 import pytest
