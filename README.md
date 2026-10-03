@@ -806,34 +806,22 @@ Original endpoints are not cached.
 ### Requirements
 
 - Python `3.11` (matches `.python-version`, CI, and the Docker image)
-- `pip`
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```bash
 git clone https://github.com/axsddlr/vlrggapi/
 cd vlrggapi
-python -m venv .venv
+uv sync
 ```
 
-Activate the virtual environment:
-
-```bash
-# macOS / Linux
-source .venv/bin/activate
-
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
+`uv sync` creates `.venv` and installs the exact versions pinned in `uv.lock`,
+including the `dev` dependency group. Prefix commands with `uv run` to run them
+inside that environment — there is nothing to activate by hand.
 
 ### Run locally
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 The API will be available at `http://127.0.0.1:3001` and the interactive docs will be at `http://127.0.0.1:3001/`.
@@ -854,7 +842,7 @@ docker compose up --build
 ### Testing
 
 ```bash
-python -m pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ## Built With
@@ -874,7 +862,7 @@ Recommended workflow:
 
 1. Branch from `master`.
 2. Install dependencies and verify the app starts locally.
-3. Run `python -m pytest tests/ -v`.
+3. Run `uv run pytest tests/ -v`.
 4. Open a pull request against `master`.
 
 Open a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/master) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).

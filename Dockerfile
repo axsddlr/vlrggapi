@@ -1,18 +1,28 @@
 FROM python:3.14.7-alpine AS builder
 
+COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
+
 WORKDIR /vlrggapi
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
-COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
+
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
 
 FROM python:3.14.7-alpine
 
 WORKDIR /vlrggapi
 
+ENV PATH="/vlrggapi/.venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 RUN addgroup -S vlrggapi && adduser -S -G vlrggapi -h /vlrggapi -s /sbin/nologin vlrggapi
 
-COPY --from=builder --chown=vlrggapi:vlrggapi /usr/local /usr/local
+COPY --from=builder --chown=vlrggapi:vlrggapi /vlrggapi/.venv /vlrggapi/.venv
 COPY --chown=vlrggapi:vlrggapi api ./api
 COPY --chown=vlrggapi:vlrggapi models ./models
 COPY --chown=vlrggapi:vlrggapi routers ./routers

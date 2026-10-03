@@ -34,6 +34,9 @@ jobs:
   api-smoke:
     name: API smoke test
     runs-on: ubuntu-latest
+    # UV_PYTHON wins over .python-version, which pins 3.11.
+    env:
+      UV_PYTHON: "3.13"
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -42,35 +45,30 @@ jobs:
         uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-          cache-dependency-glob: requirements.txt
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv pip install --system -r requirements.txt
+        run: uv sync --locked
 
       - name: Start API server
         run: |
-          python main.py &
+          uv run python main.py &
           sleep 3
           echo "Server PID: $!"
 
       - name: Smoke test endpoints
         run: |
           set -e
-          curl -sSf --max-time 10 "http://127.0.0.1:3001/v2/health" | python -c "import sys,json; d=json.load(sys.stdin); assert d['status'] == 'success', f'bad health: {d}'"
+          curl -sSf --max-time 10 "http://127.0.0.1:3001/v2/health" | uv run python -c "import sys,json; d=json.load(sys.stdin); assert d['status'] == 'success', f'bad health: {d}'"
           echo "health OK"
 
-          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/news" | python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no news'"
+          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/news" | uv run python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no news'"
           echo "news OK"
 
-          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/rankings?region=na" | python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no rankings'"
+          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/rankings?region=na" | uv run python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no rankings'"
           echo "rankings OK"
 
-          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/events" | python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no events'"
+          curl -sSf --max-time 15 "http://127.0.0.1:3001/v2/events" | uv run python -c "import sys,json; d=json.load(sys.stdin); assert len(d['data']['segments']) > 0, 'no events'"
           echo "events OK"
 
           echo "All smoke tests passed"

@@ -22,6 +22,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+    # UV_PYTHON wins over .python-version, which would otherwise pin every
+    # matrix job to the project's single pinned interpreter.
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
 
     steps:
       - name: Checkout code
@@ -31,24 +35,19 @@ jobs:
         uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-          cache-dependency-glob: requirements.txt
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv pip install --system -r requirements.txt
+        run: uv sync --locked
 
       - name: Lint with Ruff
-        run: uv pip install --system ruff && ruff check --output-format=github
+        run: uv run ruff check --output-format=github
 
       - name: Audit dependencies
-        run: uv pip install --system pip-audit && pip-audit -r requirements.txt
+        run: uv run pip-audit
 
       - name: Run tests
-        run: pytest -q --cov --cov-report=term-missing --cov-fail-under=50
+        run: uv run pytest -q --cov --cov-report=term-missing --cov-fail-under=50
 
   docker-smoke:
     name: Docker smoke build

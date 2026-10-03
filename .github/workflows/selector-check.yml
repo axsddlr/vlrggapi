@@ -13,16 +13,21 @@ jobs:
   check-selectors:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # UV_PYTHON wins over .python-version, which pins 3.11.
+    env:
+      UV_PYTHON: "3.12"
 
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
         with:
+          enable-cache: true
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: uv sync --locked
 
       - name: Run selector validation
         id: check
@@ -31,7 +36,7 @@ jobs:
           CI: "true"
           SELECTOR_REPORT_PATH: selector-report.json
           PYTHONPATH: "."
-        run: pytest tests/test_vlr_selectors.py -v --tb=short
+        run: uv run pytest tests/test_vlr_selectors.py -v --tb=short
 
       - name: Upload report artifact
         if: always()
@@ -205,7 +210,7 @@ jobs:
             lines.push("2. Inspect the new HTML structure (right-click → Inspect)");
             lines.push("3. Find the new CSS class/selector that replaced the broken one");
             lines.push("4. Update the selector in the `source` file listed above");
-            lines.push("5. Run `pytest tests/test_vlr_selectors.py -v` locally to verify");
+            lines.push("5. Run `uv run pytest tests/test_vlr_selectors.py -v` locally to verify");
             lines.push("6. Re-run this workflow from the Actions tab to confirm the fix");
             lines.push("");
             lines.push(
