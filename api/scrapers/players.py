@@ -5,7 +5,7 @@ import logging
 import re
 
 from utils.cache_manager import cache_manager
-from utils.constants import CACHE_TTL_PLAYER, CACHE_TTL_PLAYER_MATCHES, VLR_BASE_URL
+from utils.constants import CACHE_TTL_PLAYER, CACHE_TTL_PLAYER_MATCHES, VLR_PLAYER_URL
 from utils.error_handling import handle_scraper_errors, upstream_error_payload
 from utils.html_parsers import (
     HTMLParser,
@@ -13,6 +13,7 @@ from utils.html_parsers import (
     extract_region_from_flag,
     infer_platform,
     normalize_image_url,
+    pad_to_length,
     parse_href_id_slug,
     parse_html,
 )
@@ -423,8 +424,7 @@ def _parse_player_match_item(item) -> dict | None:
             logo = normalize_image_url(logo_el.attributes.get("src", ""))
         teams.append({"name": name, "tag": tag, "logo": logo})
 
-    while len(teams) < 2:
-        teams.append({"name": "", "tag": "", "logo": ""})
+    pad_to_length(teams, 2, lambda: {"name": "", "tag": "", "logo": ""})
 
     # Event name
     event_elem = item.css_first(".m-item-event")
@@ -469,7 +469,7 @@ async def vlr_player(player_id: str, timespan: str = "90d") -> dict:
     cache_key = ("player", player_id, timespan)
 
     async def build():
-        url = f"{VLR_BASE_URL}/player/{player_id}/?timespan={timespan}"
+        url = f"{VLR_PLAYER_URL}/{player_id}/?timespan={timespan}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -520,7 +520,7 @@ async def vlr_player_matches(player_id: str, page: int = 1) -> dict:
     cache_key = ("player_matches", player_id, page)
 
     async def build():
-        url = f"{VLR_BASE_URL}/player/matches/{player_id}/?page={page}"
+        url = f"{VLR_PLAYER_URL}/matches/{player_id}/?page={page}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code

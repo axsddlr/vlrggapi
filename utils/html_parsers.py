@@ -151,8 +151,7 @@ def extract_match_teams(item, selector: str = ".h-match-team") -> tuple[dict, di
 
         teams.append({"name": name, "flag": flag, "score": score})
 
-    while len(teams) < 2:
-        teams.append({"name": "TBD", "flag": "", "score": ""})
+    pad_to_length(teams, 2, lambda: {"name": "TBD", "flag": "", "score": ""})
 
     return teams[0], teams[1]
 
@@ -340,6 +339,30 @@ def parse_html(html: str):
     return LexborHTMLParser(strip_html(html))
 
 
+def find_elements_by_selectors(html, selectors) -> list:
+    """Return the first non-empty ``html.css(selector)`` result from *selectors*.
+
+    vlr.gg ships markup changes unevenly, so several scrapers try selectors in
+    order and use whichever still matches. Returns ``[]`` when none match.
+    """
+    for selector in selectors:
+        elements = html.css(selector)
+        if elements:
+            return elements
+    return []
+
+
+def pad_to_length(items: list, length: int, factory) -> list:
+    """Grow *items* in place to *length*, building each filler via *factory*.
+
+    ``factory`` is called per filler so padded entries never alias each other.
+    Lists already at or beyond *length* are left untouched. Returns *items*.
+    """
+    while len(items) < length:
+        items.append(factory())
+    return items
+
+
 def parse_match_items(html, container_selector: str = "a.wf-module-item.match-item") -> list[dict]:
     """Parse match list items shared by player/team match history pages.
 
@@ -361,8 +384,7 @@ def parse_match_items(html, container_selector: str = "a.wf-module-item.match-it
             name = name_el.text(strip=True) if name_el else "TBD"
             score = score_el.text(strip=True) if score_el else ""
             teams.append({"name": name, "score": score})
-        while len(teams) < 2:
-            teams.append({"name": "TBD", "score": ""})
+        pad_to_length(teams, 2, lambda: {"name": "TBD", "score": ""})
 
         # Event
         event_el = item.css_first(".match-item-event")

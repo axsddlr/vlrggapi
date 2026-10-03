@@ -12,6 +12,7 @@ from utils.html_parsers import (
     extract_region_from_flag,
     extract_text_content,
     normalize_image_url,
+    pad_to_length,
     parse_eta_to_timedelta,
     parse_href_id_slug,
     parse_html,
@@ -225,8 +226,7 @@ async def vlr_event_matches(event_id: str):
                 is_winner = "mod-winner" in te.attributes.get("class", "")
                 teams.append({"name": name, "score": score, "is_winner": is_winner})
 
-            while len(teams) < 2:
-                teams.append({"name": "TBD", "score": "", "is_winner": False})
+            pad_to_length(teams, 2, lambda: {"name": "TBD", "score": "", "is_winner": False})
 
             series_el = elem.css_first(".match-item-event-series")
             event_series = series_el.text(strip=True) if series_el else ""

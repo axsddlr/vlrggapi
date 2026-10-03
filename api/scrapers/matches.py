@@ -19,6 +19,7 @@ from utils.html_parsers import (
     extract_match_teams,
     extract_text_content,
     normalize_image_url,
+    pad_to_length,
     parse_href_id_slug,
     parse_html,
     parse_match_timestamp,
@@ -41,7 +42,7 @@ def _safe_flag(team_node) -> str:
 
 
 @handle_scraper_errors
-async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
+async def vlr_upcoming_matches():
     """Get upcoming matches from VLR.GG homepage."""
     async def build():
         client = get_http_client()
@@ -93,7 +94,7 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
 
 
 @handle_scraper_errors
-async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
+async def vlr_live_score():
     """Get live match scores from VLR.GG. Fetches match detail pages concurrently."""
     async def build():
         client = get_http_client()
@@ -124,14 +125,10 @@ async def vlr_live_score(num_pages=1, from_page=None, to_page=None):
                 round_text_t = round_info_t[0].text().strip() if round_info_t else "N/A"
                 round_texts.append({"ct": round_text_ct, "t": round_text_t})
 
-            while len(teams) < 2:
-                teams.append("TBD")
-            while len(flags) < 2:
-                flags.append("")
-            while len(scores) < 2:
-                scores.append("")
-            while len(round_texts) < 2:
-                round_texts.append({"ct": "N/A", "t": "N/A"})
+            pad_to_length(teams, 2, lambda: "TBD")
+            pad_to_length(flags, 2, lambda: "")
+            pad_to_length(scores, 2, lambda: "")
+            pad_to_length(round_texts, 2, lambda: {"ct": "N/A", "t": "N/A"})
 
             match_event = extract_text_content(match.css_first(".h-match-preview-event"))
             match_series = extract_text_content(match.css_first(".h-match-preview-series"))
@@ -267,12 +264,9 @@ def _parse_single_match(item, date_str, page):
         score_elem = team_div.css_first(".match-item-vs-team-score")
         scores_list.append(score_elem.text().strip() if score_elem else "")
 
-    while len(teams) < 2:
-        teams.append("TBD")
-    while len(flags) < 2:
-        flags.append("")
-    while len(scores_list) < 2:
-        scores_list.append("")
+    pad_to_length(teams, 2, lambda: "TBD")
+    pad_to_length(flags, 2, lambda: "")
+    pad_to_length(scores_list, 2, lambda: "")
 
     match_event_elem = item.css_first(".match-item-event-series")
     match_series = ""
@@ -387,10 +381,8 @@ def _parse_results_page(html: HTMLParser, page: int) -> list[dict]:
                     teams.append(name_el.text().strip() if name_el else "TBD")
                     sc_el = td.css_first(".match-item-vs-team-score")
                     scores.append(sc_el.text().strip() if sc_el else "")
-                while len(teams) < 2:
-                    teams.append("TBD")
-                while len(scores) < 2:
-                    scores.append("")
+                pad_to_length(teams, 2, lambda: "TBD")
+                pad_to_length(scores, 2, lambda: "")
                 team1, team2 = teams[0], teams[1]
                 score1, score2 = scores[0], scores[1]
             else:

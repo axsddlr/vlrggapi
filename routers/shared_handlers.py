@@ -82,13 +82,13 @@ async def get_match_data(
     _validate_non_paginated_match_query(q, num_pages, from_page, to_page)
 
     if q == "upcoming":
-        return await vlr_upcoming_matches(num_pages, from_page, to_page)
+        return await vlr_upcoming_matches()
     if q == "upcoming_extended":
         return await vlr_upcoming_matches_extended(
             num_pages, from_page, to_page, max_retries, request_delay, timeout
         )
     if q == "live_score":
-        return await vlr_live_score(num_pages, from_page, to_page)
+        return await vlr_live_score()
     if q == "results":
         return await vlr_match_results(
             num_pages, from_page, to_page, max_retries, request_delay, timeout

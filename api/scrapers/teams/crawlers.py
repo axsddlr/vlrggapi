@@ -22,10 +22,10 @@ from utils.constants import (
     CACHE_TTL_TEAM_SCHEDULE,
     CACHE_TTL_TEAM_STATS,
     CACHE_TTL_TEAM_TRANSACTIONS,
-    VLR_BASE_URL,
+    VLR_TEAM_URL,
 )
 from utils.error_handling import handle_scraper_errors
-from utils.html_parsers import parse_html
+from utils.html_parsers import find_elements_by_selectors, parse_html
 from utils.http_client import fetch_with_retries, get_http_client
 
 from .parsers import (
@@ -50,7 +50,7 @@ async def vlr_team_stats(team_id: str) -> dict:
     cache_key = ("team_stats", team_id)
 
     async def build():
-        url = f"{VLR_BASE_URL}/team/stats/{team_id}/"
+        url = f"{VLR_TEAM_URL}/stats/{team_id}/"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -103,7 +103,7 @@ async def vlr_team(team_id: str) -> dict:
     cache_key = ("team", team_id)
 
     async def build():
-        url = f"{VLR_BASE_URL}/team/{team_id}"
+        url = f"{VLR_TEAM_URL}/{team_id}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -142,7 +142,7 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
     cache_key = ("team_matches", team_id, page)
 
     async def build():
-        url = f"{VLR_BASE_URL}/team/matches/{team_id}/?page={page}"
+        url = f"{VLR_TEAM_URL}/matches/{team_id}/?page={page}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -162,12 +162,9 @@ async def vlr_team_matches(team_id: str, page: int = 1) -> dict:
         html = parse_html(resp.text)
         matches: list[dict] = []
 
-        selectors = ["a.wf-card.m-item", ".wf-card a.m-item", "a.m-item"]
-        items = []
-        for sel in selectors:
-            items = html.css(sel)
-            if items:
-                break
+        items = find_elements_by_selectors(
+            html, ["a.wf-card.m-item", ".wf-card a.m-item", "a.m-item"]
+        )
 
         if not items:
             content = html.css_first(".col.mod-1") or html.css_first(".col")
@@ -199,7 +196,7 @@ async def vlr_team_transactions(team_id: str) -> dict:
     cache_key = ("team_transactions", team_id)
 
     async def build():
-        url = f"{VLR_BASE_URL}/team/transactions/{team_id}/"
+        url = f"{VLR_TEAM_URL}/transactions/{team_id}/"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -214,12 +211,9 @@ async def vlr_team_transactions(team_id: str) -> dict:
         html = parse_html(resp.text)
         transactions: list[dict] = []
 
-        selectors = ["tr.txn-item", ".txn-item", ".wf-card .txn-item"]
-        items = []
-        for sel in selectors:
-            items = html.css(sel)
-            if items:
-                break
+        items = find_elements_by_selectors(
+            html, ["tr.txn-item", ".txn-item", ".wf-card .txn-item"]
+        )
 
         if not items:
             items = [
@@ -277,7 +271,7 @@ async def vlr_team_roster(team_id: str) -> dict:
     cache_key = ("team_roster", team_id)
 
     async def build():
-        url = f"{VLR_BASE_URL}/team/{team_id}"
+        url = f"{VLR_TEAM_URL}/{team_id}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -366,7 +360,7 @@ async def vlr_team_schedule(team_id: str) -> dict:
     cache_key = ("team_schedule", team_id)
 
     async def build():
-        url = f"{VLR_BASE_URL}/team/{team_id}"
+        url = f"{VLR_TEAM_URL}/{team_id}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code
@@ -384,16 +378,14 @@ async def vlr_team_schedule(team_id: str) -> dict:
         fixtures: list[dict] = []
 
         # Try a sequence of selectors ordered by specificity
-        selectors = [
-            "a.wf-card.m-item",
-            "a.m-item",
-            ".wf-card a.m-item",
-        ]
-        items = []
-        for sel in selectors:
-            items = html.css(sel)
-            if items:
-                break
+        items = find_elements_by_selectors(
+            html,
+            [
+                "a.wf-card.m-item",
+                "a.m-item",
+                ".wf-card a.m-item",
+            ],
+        )
 
         if not items:
             content = html.css_first(".col.mod-1") or html.css_first(".col")

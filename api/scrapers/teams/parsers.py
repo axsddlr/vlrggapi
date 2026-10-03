@@ -14,6 +14,7 @@ from utils.html_parsers import (
     extract_region_from_flag,
     infer_platform,
     normalize_image_url,
+    pad_to_length,
     parse_href_id_slug,
 )
 
@@ -340,8 +341,7 @@ def _parse_team_match_item(item) -> dict | None:
         t_logo = normalize_image_url(_attr(t_logo_img, "src")) if t_logo_img else ""
         teams.append({"name": t_name, "tag": t_tag, "logo": t_logo})
 
-    while len(teams) < 2:
-        teams.append({"name": "", "tag": "", "logo": ""})
+    pad_to_length(teams, 2, lambda: {"name": "", "tag": "", "logo": ""})
 
     event_elem = item.css_first(".m-item-event")
     event_lines = [
@@ -534,8 +534,7 @@ def _parse_team_fixture(item) -> dict | None:
         t_logo = normalize_image_url(_attr(t_logo_img, "src")) if t_logo_img else ""
         teams.append({"name": t_name, "tag": t_tag, "logo": t_logo})
 
-    while len(teams) < 2:
-        teams.append({"name": "", "tag": "", "logo": ""})
+    pad_to_length(teams, 2, lambda: {"name": "", "tag": "", "logo": ""})
 
     event_elem = item.css_first(".m-item-event")
     event_lines = [
