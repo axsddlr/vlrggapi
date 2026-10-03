@@ -17,14 +17,14 @@ If this API helps your projects, you can support ongoing maintenance and develop
 
 ## Quick Start
 
-- **Public base URL:** `https://vlrggapi.vercel.app`
-- **Local base URL:** `http://127.0.0.1:3001`
+- **Public base URL:** `https://vlrggapi.vercel.app` — currently down, see the notice above
+- **Local base URL:** `http://127.0.0.1:3001` (see [Installation](#installation))
 - **Interactive docs:** `/`
 - **Version info:** `/version`
 
 ```bash
-curl https://vlrggapi.vercel.app/v2/news
-curl "https://vlrggapi.vercel.app/v2/match?q=live_score"
+curl "http://127.0.0.1:3001/v2/news"
+curl "http://127.0.0.1:3001/v2/match?q=live_score"
 curl "http://127.0.0.1:3001/v2/player?id=9&timespan=all"
 ```
 
@@ -62,8 +62,8 @@ Both the original and V2 endpoints coexist. The original endpoints (`/news`, `/m
 | Feature | Original | V2 |
 |---|---|---|
 | Response shape | Varies per endpoint | Consistent `{"status": "success", "data": {...}}` |
-| Input validation | None | HTTP 400 on invalid params |
-| Caching | None | Per-endpoint TTL cache |
+| Input validation | HTTP 400 on most routes (`/match` and `/events` are looser) | HTTP 400 on invalid params |
+| Caching | Shared in-memory TTL cache | Per-endpoint TTL cache |
 
 Interactive Swagger docs are available at `/`.
 
@@ -71,7 +71,7 @@ Interactive Swagger docs are available at `/`.
 
 - **Recommended base path** - use `/v2` for new integrations
 - **Current version endpoint** - `GET /version` returns the current API version and default API
-- **Rate limit** - requests are limited to `600/minute`
+- **Rate limit** - tiered sliding-window limits, applied per client IP. `200/min` (`/health`, `/version`), `60/min` (`/news`, `/events`, `/event/{id}`, `/events/matches`, `/rankings`, `/search`, and `/match` with `q=upcoming` or `q=live_score`), `20/min` (`/match/details`, `/stats`, `/player`, `/team`, and `/match` with `q=results` or `q=upcoming_extended`). The `/v2` prefix shares each tier with its unversioned route. Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining` headers. Limits are per worker process, so a multi-worker deployment enforces them independently in each worker.
 - **Error handling** - V2 returns HTTP 400 for invalid input and propagates upstream failures with HTTP error codes
 - **Deployment targets** - Vercel for the hosted API, Docker for containerized self-hosting
 
@@ -80,16 +80,16 @@ Interactive Swagger docs are available at `/`.
 | Route | Query Params | Cache |
 |---|---|---|
 | `GET /v2/news` | — | 10 min |
-| `GET /v2/match` | `q` (upcoming/upcoming_extended/live_score/results), `num_pages`, `from_page`, `to_page`, `max_retries`, `request_delay`, `timeout` | 30s–60s |
+| `GET /v2/match` | `q` (upcoming/upcoming_extended/live_score/results); pagination params `num_pages`, `from_page`, `to_page` apply to `upcoming_extended`/`results` only; also `max_retries`, `request_delay`, `timeout` | 30s–5 min |
 | `GET /v2/match/details` | `match_id` | 5 min |
 | `GET /v2/rankings` | `region` | 1 hr |
-| `GET /v2/stats` | `region`, `timespan` | 30 min |
+| `GET /v2/stats` | `region`, `timespan`, `event_id` | 30 min |
 | `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
 | `GET /v2/event/{id}` | `event_id` (path), `stage` | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
 | `GET /v2/player` | `id`, `q` (profile/matches), `timespan`, `page` | 30 min / 10 min |
-| `GET /v2/team` | `id`, `q` (profile/matches/transactions/stats), `page` | 30 min / 10 min / 1 hr / 10 min |
+| `GET /v2/team` | `id`, `q` (profile/matches/transactions/stats/roster/schedule), `page` | 30 min / 10 min / 1 hr / 10 min / 30 min / 5 min |
 | `GET /v2/health` | — | none |
 
 See section below for full descriptions and response examples.
@@ -128,7 +128,9 @@ GET /v2/news
 
 ### `GET /v2/match`
 **Params:** `q` (required: upcoming/upcoming_extended/live_score/results), `num_pages`, `from_page`, `to_page`, `max_retries`, `request_delay`, `timeout`
-**Cache:** 30s (live_score), 5min (upcoming), 60s (results)
+**Cache:** 30s (live_score), 5min (upcoming, upcoming_extended), 60s (results)
+
+The pagination params (`num_pages`, `from_page`, `to_page`) apply to `upcoming_extended` and `results` only. Passing any of them with `q=upcoming` or `q=live_score` returns HTTP 400, since those read a single fixed page. For the paginated queries the page window is capped at 20 pages, `max_retries` at 3, and `timeout` at 45 seconds.
 
 ```
 GET /v2/match?q=upcoming
@@ -185,7 +187,7 @@ GET /v2/rankings?region=na
 </details>
 
 ### `GET /v2/stats`
-**Params:** `region` (required), `timespan` (required: 30/60/90/all) | **Cache:** 30 min
+**Params:** `region` (required), `timespan` (required: 30/60/90/all), `event_id` (optional — numeric event ID, filters the stats to a single event) | **Cache:** 30 min
 
 **Regions** (the `/stats` page taxonomy, distinct from `/rankings`): `all`, `americas`, `emea`, `pacific`, `china`, `intl`. Deprecated aliases are still accepted and normalized: `na`/`br` → `americas`, `eu` → `emea`, `ap`/`kr`/`jp`/`oce` → `pacific`, `cn` → `china`.
 
@@ -234,9 +236,10 @@ GET /v2/events?q=live
     "status": 200,
     "segments": [
       {
-        "title": "VCT 2025: Pacific Stage 2", "status": "ongoing",
-        "prize": "$250,000", "dates": "Jul 15—Aug 31", "region": "kr",
-        "url_path": "https://www.vlr.gg/event/..."
+        "title": "VCT 2026: Pacific Stage 2", "event_id": "2776", "status": "completed",
+        "prize": "$250,000", "dates": "Jul 15—Sep 6", "region": "kr",
+        "thumb": "https://owcdn.net/img/...",
+        "url_path": "https://www.vlr.gg/event/2776/vct-2026-pacific-stage-2"
       }
     ]
   }
@@ -394,13 +397,15 @@ GET /v2/player?id=9&q=matches&page=1
 </details>
 
 ### `GET /v2/team`
-**Params:** `id` (required), `q` (profile/matches/transactions/stats, default: profile), `page` (1-based, default: 1) | **Cache:** varies
+**Params:** `id` (required), `q` (profile/matches/transactions/stats/roster/schedule, default: profile), `page` (1-based, default: 1) | **Cache:** 30 min (profile, roster), 10 min (matches, stats), 1 hr (transactions), 5 min (schedule)
 
 ```
 GET /v2/team?id=2&q=profile
 GET /v2/team?id=2&q=matches&page=1
 GET /v2/team?id=2&q=transactions
 GET /v2/team?id=2&q=stats
+GET /v2/team?id=2&q=roster
+GET /v2/team?id=2&q=schedule
 ```
 
 <details><summary>Profile response</summary>
@@ -472,6 +477,60 @@ GET /v2/team?id=2&q=stats
 ```
 </details>
 
+<details><summary>Roster response</summary>
+
+```json
+{
+  "status": "success",
+  "data": {
+    "status": 200,
+    "segments": [{
+      "active": [{
+        "id": "1265", "url": "https://www.vlr.gg/player/1265/johnqt",
+        "alias": "johnqt", "real_name": "Mohamed Amine Ouarid",
+        "avatar": "https://owcdn.net/img/...", "country": "ma",
+        "is_captain": true, "role": "", "is_staff": false
+      }],
+      "staff": [],
+      "former": [],
+      "benched": [],
+      "transactions": [{
+        "date": "Gurjiwan Gill", "action": "inactive",
+        "player": { "name": "Jerrwin", "id": "34057", "url": "https://www.vlr.gg/player/34057/gurjiwan-gill", "avatar": "", "country": "in" },
+        "role": ""
+      }]
+    }]
+  }
+}
+```
+
+`segments` holds a single object with the roster split into `active`, `staff`, `former`, and `benched`. `transactions` mirrors `q=transactions`, but note vlr.gg renders that table's columns as name and source link rather than a date, so `date` carries a person's full name and `role` carries a URL on `join`/`leave` entries.
+</details>
+
+<details><summary>Schedule response</summary>
+
+```json
+{
+  "status": "success",
+  "data": {
+    "status": 200,
+    "segments": [{
+      "match_id": "729757",
+      "url": "https://www.vlr.gg/729757/sentinels-vs-kr-esports-...",
+      "event": "LR2",
+      "date": "2026/08/22",
+      "time": "7:10 pm",
+      "eta": "",
+      "team1": { "name": "Sentinels", "tag": "SEN", "logo": "https://owcdn.net/img/..." },
+      "team2": { "name": "KRÜ Esports", "tag": "KRÜ", "logo": "https://owcdn.net/img/..." }
+    }]
+  }
+}
+```
+
+`segments` is a flat list of upcoming matches. `eta` is a countdown string when vlr.gg renders one and `""` otherwise.
+</details>
+
 ### `GET /v2/events/matches`
 **Params:** `event_id` (required) | **Cache:** 10 min
 
@@ -509,6 +568,8 @@ GET /v2/events/matches?event_id=2095
 ### `GET /v2/health`
 **Params:** none | **Cache:** none
 
+Reports local service readiness — the app itself and its shared HTTP client. It does **not** call vlr.gg, so it is safe to use as a container liveness probe.
+
 ```
 GET /v2/health
 ```
@@ -519,34 +580,42 @@ GET /v2/health
 {
   "status": "success",
   "data": {
-    "https://vlrggapi.vercel.app": { "status": "Healthy", "status_code": 200 },
-    "https://vlr.gg": { "status": "Healthy", "status_code": 200 }
-  }
+    "service": { "status": "Healthy" },
+    "http_client": { "status": "Healthy", "status_code": null }
+  },
+  "meta": null,
+  "message": null
 }
 ```
 </details>
 
 ## Original Endpoints
 
-Preserved for backwards compatibility. Most return `{"data": {"status": int, "segments": [...]}}`. Rankings uses `{"status": int, "data": [...]}`. Response shapes mirror their V2 counterparts — see [V2 Endpoints](#v2-endpoints) for examples.
+Preserved for backwards compatibility. Most return `{"data": {"status": int, "segments": [...]}}`, mirroring their V2 counterparts — see [V2 Endpoints](#v2-endpoints) for examples. Three differ:
+
+- `/rankings` returns `{"status": int, "data": [...]}` — the segment list is unwrapped.
+- `/health` returns the bare `{"service": {...}, "http_client": {...}}` object with no envelope.
+- `/match/details` omits the `id` field from every entry in `teams`.
 
 | Route | Query Params |
 |---|---|
 | `GET /news` | — |
-| `GET /match` | `q` (upcoming/upcoming_extended/live_score/results), pagination params |
+| `GET /match` | `q` (upcoming/upcoming_extended/live_score/results); pagination params for `upcoming_extended`/`results` only |
 | `GET /match/details` | `match_id` |
-| `GET /stats` | `region`, `timespan` |
+| `GET /stats` | `region`, `timespan`, `event_id` |
 | `GET /rankings` | `region` |
 | `GET /events` | `q` (upcoming/completed/live), `page` |
-| `GET /event/{id}` | — (path param) |
 | `GET /events/matches` | `event_id` |
-| `GET /search` | `q` |
 | `GET /player` | `id`, `timespan` |
 | `GET /player/matches` | `id`, `page` |
 | `GET /team` | `id` |
 | `GET /team/matches` | `id`, `page` |
 | `GET /team/transactions` | `id` |
+| `GET /team/roster` | `id` |
+| `GET /team/schedule` | `id` |
 | `GET /health` | — |
+
+`/search` and `/event/{id}` exist only under `/v2` — there is no unversioned equivalent.
 
 <details>
 <summary><code>GET /match?q=upcoming</code> — response example</summary>
@@ -724,13 +793,12 @@ Note: `/rankings` uses a different response shape than other endpoints.
 
 ```json
 {
-  "https://vlrggapi.vercel.app": {
-    "status": "Healthy",
-    "status_code": 200
+  "service": {
+    "status": "Healthy"
   },
-  "https://vlr.gg": {
+  "http_client": {
     "status": "Healthy",
-    "status_code": 200
+    "status_code": null
   }
 }
 ```
@@ -758,14 +826,19 @@ Note: `/rankings` uses a different response shape than other endpoints.
 
 ## Validation & Error Handling
 
-V2 endpoints validate input and return HTTP 400 with descriptive error messages:
+V2 endpoints validate input and return HTTP 400 with a `detail` message:
 
-- **Invalid region** — must be one of the codes listed above
+- **Invalid region** — `/rankings` accepts the 14 codes listed above. `/stats` uses its own taxonomy (`all`, `americas`, `emea`, `pacific`, `china`, `intl`) and normalizes the deprecated aliases instead of rejecting them
 - **Invalid timespan** — must be `30`, `60`, `90`, or `all`
 - **Invalid player timespan** — must be `30d`, `60d`, `90d`, or `all`
 - **Invalid match query** — must be `upcoming`, `upcoming_extended`, `live_score`, or `results`
 - **Invalid event query** — must be `upcoming`, `completed`, or `live`
-- **Invalid ID** — `match_id`, `event_id`, player `id`, and team `id` must be positive integers
+- **Invalid player query** — must be `profile` or `matches`
+- **Invalid team query** — must be `profile`, `matches`, `transactions`, `stats`, `roster`, or `schedule`
+- **Invalid stage** — must be a vlr.gg slug such as `group-stage` (lowercase letters, digits, and hyphens)
+- **Invalid ID** — `match_id`, `event_id`, player `id`, and team `id` must be numeric
+- **Unsupported pagination** — `num_pages`, `from_page`, and `to_page` are rejected for `q=upcoming` and `q=live_score`
+- **Excessive workload** — for the paginated match queries the page window is capped at 20 pages, `max_retries` at 3, and `timeout` at 45 seconds
 
 ```json
 {
@@ -773,7 +846,15 @@ V2 endpoints validate input and return HTTP 400 with descriptive error messages:
 }
 ```
 
-Original endpoints do not validate input (preserved for backwards compatibility).
+`/stats` reports its own vocabulary in the same shape:
+
+```json
+{
+  "detail": "Invalid region 'xyz'. Valid regions: all, americas, china, emea, intl, pacific"
+}
+```
+
+The unversioned endpoints are not uniformly unvalidated — most (`/rankings`, `/stats`, `/player`, `/player/matches`, `/team`, `/team/matches`, `/team/transactions`, `/team/roster`, `/team/schedule`, `/match/details`, `/events/matches`) reuse these same validators and return the same HTTP 400. Two are deliberately looser for backwards compatibility: `/match` answers an unknown `q` with HTTP 200 and `{"error": "Invalid query parameter"}`, and `/events` ignores an unknown `q` and returns the unfiltered event list.
 
 ## Caching
 
@@ -787,25 +868,28 @@ V2 endpoints use an in-memory TTL cache to reduce load on vlr.gg. Cache duration
 | Upcoming matches | 5 minutes |
 | Match detail | 5 minutes |
 | Search | 5 minutes |
+| Team schedule | 5 minutes |
 | News | 10 minutes |
 | Player matches | 10 minutes |
 | Team matches | 10 minutes |
+| Team stats | 10 minutes |
 | Event matches | 10 minutes |
 | Stats | 30 minutes |
 | Events | 30 minutes |
 | Event detail | 30 minutes |
 | Player profile | 30 minutes |
 | Team profile | 30 minutes |
+| Team roster | 30 minutes |
 | Rankings | 1 hour |
 | Team transactions | 1 hour |
 
-Original endpoints are not cached.
+Original endpoints share the same in-memory TTL cache as their V2 counterparts, so the same scrape is never repeated across the two versions. `/health` is the exception: it is never cached, since it only reports in-process state.
 
 ## Installation
 
 ### Requirements
 
-- Python `3.11` (matches `.python-version`, CI, and the Docker image)
+- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.13`, and the Docker image runs Python `3.14`
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```bash
@@ -851,8 +935,9 @@ uv run pytest tests/ -v
 - [httpx](https://www.python-httpx.org/)
 - [Selectolax](https://github.com/rushter/selectolax)
 - [cachetools](https://github.com/tkem/cachetools)
-- [slowapi](https://github.com/laurentS/slowapi)
 - [uvicorn](https://www.uvicorn.org/)
+
+Rate limiting is implemented in-house (`api/utils/rate_limiter.py`) with no additional dependency.
 
 ## Contributing
 
@@ -860,12 +945,12 @@ Issues and pull requests are welcome.
 
 Recommended workflow:
 
-1. Branch from `master`.
-2. Install dependencies and verify the app starts locally.
+1. Branch from `dev`, the active integration branch (`master` is the default branch).
+2. Run `uv sync` and verify the app starts locally.
 3. Run `uv run pytest tests/ -v`.
-4. Open a pull request against `master`.
+4. Open a pull request against `dev`.
 
-Open a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/master) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).
+Open a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/dev) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).
 
 ## License
 
