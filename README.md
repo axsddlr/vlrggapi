@@ -149,7 +149,8 @@ GET /v2/match?q=upcoming
         "match_series": "Regular Season: Week 3",
         "match_event": "Champions Tour 2024: Americas Stage 1",
         "unix_timestamp": "2024-04-24 21:00:00",
-        "match_page": "https://www.vlr.gg/..."
+        "match_page": "https://www.vlr.gg/...",
+        "match_id": "312784"
       }
     ]
   }
