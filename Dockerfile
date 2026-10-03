@@ -1,4 +1,4 @@
-FROM python:3.14.7-alpine AS builder
+FROM python:3.15.0rc2-alpine AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
 
@@ -12,7 +12,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project
 
-FROM python:3.14.7-alpine
+FROM python:3.15.0rc2-alpine
 
 WORKDIR /vlrggapi
 
