@@ -204,3 +204,26 @@ async def test_v2_match_rejects_pagination_for_upcoming_query(client):
 async def test_original_match_rejects_pagination_for_live_score_query(client):
     resp = await client.get("/match?q=live_score&from_page=2")
     assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_v2_event_detail_passes_stage_through(client, monkeypatch):
+    seen = {}
+
+    async def fake_event_detail(event_id, stage=None):
+        seen["args"] = (event_id, stage)
+        return {"data": {"status": 200, "segments": {"stages": [], "prizes": []}}}
+
+    monkeypatch.setattr("routers.v2_router.get_event_detail_data", fake_event_detail)
+
+    resp = await client.get("/v2/event/2766?stage=playoffs")
+
+    assert resp.status_code == 200
+    assert seen["args"] == ("2766", "playoffs")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("stage", ["Playoffs", "group_stage", "../x", "-playoffs"])
+async def test_v2_event_detail_rejects_invalid_stage_slug(client, stage):
+    resp = await client.get("/v2/event/2766", params={"stage": stage})
+    assert resp.status_code == 400

@@ -85,7 +85,7 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/rankings` | `region` | 1 hr |
 | `GET /v2/stats` | `region`, `timespan` | 30 min |
 | `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
-| `GET /v2/event/{id}` | `event_id` (path) | 30 min |
+| `GET /v2/event/{id}` | `event_id` (path), `stage` | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
 | `GET /v2/player` | `id`, `q` (profile/matches), `timespan`, `page` | 30 min / 10 min |
@@ -282,11 +282,14 @@ GET /v2/match/details?match_id=595657
 </details>
 
 ### `GET /v2/event/{event_id}`
-Event detail: prizes, team rosters, and standings tables.
-**Params:** `event_id` (path, required — from `/v2/events`) | **Cache:** 30 min
+Event detail: stages, prizes, team rosters, and standings tables.
+**Params:** `event_id` (path, required — from `/v2/events`), `stage` (optional — a slug from `stages`) | **Cache:** 30 min
+
+A multi-stage event page on vlr.gg shows one stage at a time, and its prize rows and standings are that stage's (a group-stage view lists only the placements decided there). Without `stage` you get vlr.gg's default view, usually the current stage; `stages` lists every stage with its `slug`, and `stage=<slug>` returns that stage's view. An unknown slug returns 404.
 
 ```
 GET /v2/event/2124
+GET /v2/event/2124?stage=playoffs
 ```
 
 <details><summary>Response</summary>
@@ -301,6 +304,10 @@ GET /v2/event/2124
         "dates": "Apr 15 - May 10, 2026", "prize": "$250,000 USD",
         "location": "Los Angeles, USA", "logo": "https://owcdn.net/img/..."
       },
+      "stages": [
+        { "name": "Playoffs", "slug": "playoffs", "dates": "May 2–10", "active": false },
+        { "name": "Group Stage", "slug": "group-stage", "dates": "Apr 15–27", "active": true }
+      ],
       "prizes": [
         { "placement": "1st", "amount": "$100,000", "team": { "id": "120", "name": "100 Thieves", "logo": "...", "region": "United States" } },
         { "placement": "2nd", "amount": "$60,000", "team": { "id": "2355", "name": "KRÜ Esports", "logo": "...", "region": "Chile" } }
@@ -311,8 +318,8 @@ GET /v2/event/2124
         "qualification": "NA Circuit Points"
       }],
       "standings": [{
-        "stage": "Group Stage", "columns": ["Team", "W", "L", "RD", "MRD"],
-        "rows": [{ "Team": "100 Thieves", "W": "4", "L": "1", "RD": "+42", "MRD": "+12" }]
+        "stage": "Group Stage", "group": "Group A", "columns": ["Team", "W", "L", "T", "MAP", "RND", "Δ"],
+        "rows": [{ "Team": "100 Thieves", "W": "4", "L": "1", "T": "0", "MAP": "8/3", "RND": "135/102", "Δ": "+33" }]
       }]
     }
   }
@@ -477,16 +484,25 @@ GET /v2/events/matches?event_id=2095
 {
   "status": "success",
   "data": {
-    "matches": [{
+    "status": 200,
+    "segments": [{
       "match_id": "595657",
-      "teams": [{ "name": "Sentinels", "score": "2", "is_winner": true }, { "name": "Cloud9", "score": "1", "is_winner": false }],
+      "url": "https://www.vlr.gg/595657/...",
+      "date": "Sun, April 24, 2024",
+      "time": "3:00 PM",
+      "unix_timestamp": "2024-04-24 19:00:00",
+      "status": "Completed",
+      "note": "",
+      "stage": "Playoffs",
       "event_series": "Grand Final",
-      "vods": [{ "name": "VOD", "url": "https://youtube.com/..." }],
-      "date": "Apr 24, 2024"
+      "team1": { "name": "Sentinels", "score": "2", "is_winner": true },
+      "team2": { "name": "Cloud9", "score": "1", "is_winner": false }
     }]
   }
 }
 ```
+
+`date` and `time` are as vlr.gg rendered them, in the timezone vlr.gg picked for the requesting server. `unix_timestamp` is UTC, derived from a minute-precision countdown on the same page; it is `""` when the page has none (e.g. an event whose every match is more than a day away or a day old).
 </details>
 
 ### `GET /v2/health`

@@ -32,6 +32,7 @@ from utils.error_handling import (
     validate_match_workload,
     validate_player_query,
     validate_player_timespan,
+    validate_slug_param,
     validate_team_query,
 )
 
@@ -175,12 +176,15 @@ async def v2_event_matches(
     return _wrap_v2(result)
 
 
-@router.get("/event/{event_id}", response_model=V2Response, summary="Event detail", description="Get full event detail — prizes, teams, standings, dates, and prize pool.")
+@router.get("/event/{event_id}", response_model=V2Response, summary="Event detail", description="Get full event detail — stages, prizes, teams, standings, dates, and prize pool. Prizes and standings are those of one stage: the default (usually current) one, or the one named by stage.")
 async def v2_event_detail(
     event_id: str,
+    stage: str = Query(None, description="Optional stage slug from the response's stages list (e.g. playoffs)"),
 ):
     validate_id_param(event_id, "event_id")
-    result = await get_event_detail_data(event_id)
+    if stage is not None:
+        validate_slug_param(stage, "stage")
+    result = await get_event_detail_data(event_id, stage)
     return _wrap_v2(result)
 
 
