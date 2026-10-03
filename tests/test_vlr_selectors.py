@@ -92,11 +92,15 @@ class PageCheck:
     anchors: list[str] = field(default_factory=list)  # must hold on every URL
     required: list[str] = field(default_factory=list)  # must hold on >= 1 URL
     optional: list[str] = field(default_factory=list)  # reported if on no URL
-    # Optional selectors that only render in a rare data state (e.g. .mod-ot
-    # exists only on a match that went to overtime). Absence from the witness
-    # set is expected, so these are reported but never fail the build. Add a
-    # selector here ONLY after checking that it really does render on some
-    # live page — this list is where a false alarm could hide.
+    # Optional selectors whose absence from the witness set is *explained*, so
+    # they are reported but never fail the build. Two reasons qualify, and both
+    # must be verified against a live page before being listed here — this list
+    # is where a false alarm could hide:
+    #   * a rare data state — .mod-ot renders only on a match that went to
+    #     overtime;
+    #   * a page-level markup variant — .match-h2h-matches survives on a subset
+    #     of pages while vlr.gg finishes rolling out its replacement.
+    # Anything else belongs in ``optional``, where CI does escalate absence.
     data_conditional: list[str] = field(default_factory=list)
     discovery: str = ""  # witness-discovery key, resolved in default_witnesses()
 
@@ -254,11 +258,20 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             ".match-h2h-matches",
             ".vm-stats-gamesnav-item",
         ],
-        # Verified live: .mod-ot renders on overtime matches (e.g. /755377,
-        # /743608) and is absent otherwise, so it cannot be witnessed from an
-        # arbitrary match sample.
+        # Verified live on a 12-page sample:
+        #   .mod-ot            2/12 — renders only on a match that went to
+        #                      overtime (e.g. /755377, /743608).
+        #   .match-h2h-matches 5/12 — legacy head-to-head container, still
+        #                      served on some pages while vlr.gg rolls out the
+        #                      replacement. The parser reads the modern
+        #                      .match-histories-item markup (12/12) and only
+        #                      falls back to this container, so three discovered
+        #                      witnesses can miss it for an entire window and
+        #                      report a layout change that is not one (#190).
+        #                      Drop it if it ever settles at 0/12.
         data_conditional=[
             ".mod-ot",
+            ".match-h2h-matches",
         ],
     ),
     # --- Match detail performance tab ------------------------------------

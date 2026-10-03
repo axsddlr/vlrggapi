@@ -108,9 +108,12 @@ jobs:
             lines.push(
               "> Witness pages are **discovered from vlr.gg listings at run time**, so a selector " +
               "is only reported when it is missing from *every* page fetched for that page type. " +
-              "A selector that renders only in a rare data state (for example `.mod-ot` on a " +
-              "match that went to overtime) is declared `data_conditional` in " +
-              "`tests/test_vlr_selectors.py` and is reported without being escalated."
+              "A selector whose absence is explained is declared `data_conditional` in " +
+              "`tests/test_vlr_selectors.py` and is reported without being escalated. Two " +
+              "reasons qualify: a rare data state (for example `.mod-ot` renders only on a " +
+              "match that went to overtime) or a page-level markup variant (for example the " +
+              "legacy `.match-h2h-matches` container still served on a subset of pages while " +
+              "vlr.gg rolls out its replacement)."
             );
             lines.push("");
 
@@ -158,7 +161,9 @@ jobs:
               lines.push(
                 "Missing from **every** witness page for that page type. Selectors listed as " +
                 "data-conditional are excluded here — their absence is explained by the data " +
-                "state (for example \`.mod-ot\` only renders on a match that went to overtime)."
+                "state (for example \`.mod-ot\` only renders on a match that went to overtime) " +
+                "or by a page-level markup variant (for example the legacy " +
+                "\`.match-h2h-matches\` container, still served on only some pages)."
               );
               lines.push("");
               lines.push("| Page | Witness URL | Missing selector | Source file | Action |");
@@ -171,8 +176,9 @@ jobs:
                     `| ${r.page} | [vlr.gg](${r.urls[0]}) | \`${sel}\` | \`${r.source}\` | ` +
                     `Missing from all ${r.urls.length} witness page(s). Check if the element ` +
                     `still exists on the page. If the layout changed, update or add a fallback ` +
-                    `selector in \`${r.source}\`. If it only renders in a rare data state, add ` +
-                    `it to \`data_conditional\` in \`tests/test_vlr_selectors.py\`. |`
+                    `selector in \`${r.source}\`. If its absence is explained — a rare data ` +
+                    `state or a page-level markup variant — add it to \`data_conditional\` in ` +
+                    `\`tests/test_vlr_selectors.py\`. |`
                   );
                 }
               }
@@ -203,7 +209,8 @@ jobs:
             lines.push("6. Re-run this workflow from the Actions tab to confirm the fix");
             lines.push("");
             lines.push(
-              "If a selector genuinely only renders in a rare data state, add it to that page " +
+              "If a selector's absence is explained — it renders only in a rare data state, or " +
+              "only on a subset of pages while a markup rollout completes — add it to that page " +
               "type's `data_conditional` list in `tests/test_vlr_selectors.py` instead of " +
               "loosening the selector — but verify on a live page first, since that list is " +
               "where a real break could hide."
