@@ -389,8 +389,18 @@ GET /v2/player?id=9&q=matches&page=1
 {
   "status": "success",
   "data": {
-    "matches": [{ "match_id": "595657", "event": "Champions Tour 2024: Americas Stage 1", "teams": { "team1": "Sentinels", "team2": "Cloud9" }, "score": "2-1", "date": "Apr 24, 2024" }],
-    "page": 1
+    "status": 200,
+    "segments": [{
+      "match_id": "719455",
+      "url": "https://www.vlr.gg/719455/...",
+      "event": "Twitch Rivals 2026",
+      "date": "2026/07/24 8:50 pm",
+      "team1": { "name": "Team TenZ", "tag": "Team TenZ", "logo": "" },
+      "team2": { "name": "Team s0m", "tag": "Team s0m", "logo": "" },
+      "score": "2:0",
+      "result": "win"
+    }],
+    "meta": { "page": 1 }
   }
 }
 ```
@@ -430,11 +440,24 @@ GET /v2/team?id=2&q=schedule
 {
   "status": "success",
   "data": {
-    "matches": [{ "match_id": "595657", "event": "Champions Tour 2024: Americas Stage 1", "teams": { "team1": "Sentinels", "team2": "Cloud9" }, "score": "2-1", "date": "Apr 24, 2024" }],
-    "page": 1
+    "status": 200,
+    "segments": [{
+      "match_id": "729757",
+      "url": "https://www.vlr.gg/729757/sentinels-vs-kr-esports-...",
+      "event": "LR2",
+      "date": "2026/08/22",
+      "time": "7:10 pm",
+      "team1": { "name": "Sentinels", "tag": "SEN", "logo": "https://owcdn.net/img/..." },
+      "team2": { "name": "KRÜ Esports", "tag": "KRÜ", "logo": "https://owcdn.net/img/..." },
+      "score": "0:2",
+      "result": "loss"
+    }],
+    "meta": { "page": 1 }
   }
 }
 ```
+
+Unlike the player equivalent, each segment also carries a separate `time` field; the player `date` folds both together.
 </details>
 
 <details><summary>Transactions response</summary>
@@ -443,10 +466,18 @@ GET /v2/team?id=2&q=schedule
 {
   "status": "success",
   "data": {
-    "transactions": [{ "date": "Jan 15, 2024", "action": "join", "player": "TenZ", "position": "Duelist" }]
+    "status": 200,
+    "segments": [{
+      "date": "Gurjiwan Gill",
+      "action": "inactive",
+      "player": { "name": "Jerrwin", "id": "34057", "url": "https://www.vlr.gg/player/34057/gurjiwan-gill", "avatar": "", "country": "in" },
+      "role": ""
+    }]
   }
 }
 ```
+
+As with the roster's `transactions` list, `player` is a nested object and `date` carries a person's full name rather than a date — see the roster note above.
 </details>
 
 <details><summary>Stats response</summary>
