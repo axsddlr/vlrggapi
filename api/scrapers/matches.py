@@ -66,7 +66,9 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
             match_event = extract_text_content(item.css_first(".h-match-preview-event"))
             match_series = extract_text_content(item.css_first(".h-match-preview-series"))
             timestamp = parse_match_timestamp(item, "")
-            url_path = build_full_url(item.attributes.get("href", ""))
+            href = item.attributes.get("href", "")
+            match_id, _ = parse_href_id_slug(href)
+            url_path = build_full_url(href)
 
             result.append(
                 {
@@ -79,6 +81,7 @@ async def vlr_upcoming_matches(num_pages=1, from_page=None, to_page=None):
                     "match_event": match_event,
                     "unix_timestamp": timestamp,
                     "match_page": url_path,
+                    "match_id": match_id,
                 }
             )
 
@@ -236,6 +239,7 @@ def _parse_single_match(item, date_str, page):
         return None
 
     href = item.attributes.get("href", "")
+    match_id, _ = parse_href_id_slug(href)
     url_path = "https://www.vlr.gg" + href if href else ""
 
     eta = item.css_first(".ml-status").text().strip() if item.css_first(".ml-status") else ""
@@ -307,6 +311,7 @@ def _parse_single_match(item, date_str, page):
         "match_page": url_path,
         "tournament_icon": tourney_icon_url,
         "page_number": page,
+        "match_id": match_id,
     }
 
 
@@ -355,7 +360,8 @@ def _parse_results_page(html: HTMLParser, page: int) -> list[dict]:
 
     for item in items:
         try:
-            href = item.attributes["href"]
+            href = item.attributes.get("href", "")
+            match_id, _ = parse_href_id_slug(href)
             url_path = build_full_url(href)
             eta = item.css_first("div.ml-eta").text() + " ago"
             rounds = (
@@ -365,32 +371,45 @@ def _parse_results_page(html: HTMLParser, page: int) -> list[dict]:
                 .replace("\n", "")
                 .replace("\t", "")
             )
-            tourney = (
-                item.css_first("div.match-item-event")
-                .text()
-                .replace("\t", " ")
-                .strip()
-                .split("\n")[1]
-                .strip()
-            )
+            tourney_elem = item.css_first("div.match-item-event")
+            tourney = ""
+            if tourney_elem:
+                tourney_lines = [line.strip() for line in tourney_elem.text().split("\n") if line.strip()]
+                tourney = tourney_lines[-1] if tourney_lines else ""
             tourney_icon_url = f"https:{item.css_first('img').attributes['src']}"
 
-            try:
+            team_divs = item.css(".match-item-vs-team")
+            if team_divs:
+                teams = []
+                scores = []
+                for td in team_divs:
+                    name_el = td.css_first(".match-item-vs-team-name")
+                    teams.append(name_el.text().strip() if name_el else "TBD")
+                    sc_el = td.css_first(".match-item-vs-team-score")
+                    scores.append(sc_el.text().strip() if sc_el else "")
+                while len(teams) < 2:
+                    teams.append("TBD")
+                while len(scores) < 2:
+                    scores.append("")
+                team1, team2 = teams[0], teams[1]
+                score1, score2 = scores[0], scores[1]
+            else:
+                try:
+                    team_array = (
+                        item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
+                    )
+                except Exception:
+                    team_array = "TBD"
                 team_array = (
-                    item.css_first("div.match-item-vs").css_first("div:nth-child(2)").text()
+                    team_array.replace("\t", " ")
+                    .replace("\n", " ")
+                    .strip()
+                    .split("                                  ")
                 )
-            except Exception:
-                team_array = "TBD"
-            team_array = (
-                team_array.replace("\t", " ")
-                .replace("\n", " ")
-                .strip()
-                .split("                                  ")
-            )
-            team1 = team_array[0]
-            score1 = team_array[1].replace(" ", "").strip()
-            team2 = team_array[4].strip()
-            score2 = team_array[-1].replace(" ", "").strip()
+                team1 = team_array[0] if len(team_array) > 0 else "TBD"
+                score1 = team_array[1].replace(" ", "").strip() if len(team_array) > 1 else ""
+                team2 = team_array[4].strip() if len(team_array) > 4 else "TBD"
+                score2 = team_array[-1].replace(" ", "").strip() if len(team_array) > 1 else ""
 
             flag_list = [
                 flag_parent.attributes["class"].replace(" mod-", "_")
@@ -413,6 +432,7 @@ def _parse_results_page(html: HTMLParser, page: int) -> list[dict]:
                     "match_page": url_path,
                     "tournament_icon": tourney_icon_url,
                     "page_number": page,
+                    "match_id": match_id,
                 }
             )
         except Exception as e:
