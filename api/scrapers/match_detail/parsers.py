@@ -715,34 +715,91 @@ def _parse_advanced_stats(html: HTMLParser) -> list[dict]:
 # Economy tab parser
 # ---------------------------------------------------------------------------
 
+def _econ_key(label: str) -> str:
+    """Slug an economy-table label: 'On Half buy' -> 'half_buy', 'vs. Eco' -> 'eco'."""
+    label = re.sub(r"^(on|vs\.?)\s+", "", label.strip(), flags=re.IGNORECASE)
+    return re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+
+
+def _econ_score(cell) -> tuple[int, int] | None:
+    """Read a ``won/played`` economy cell; a dash cell (no rounds) reads as 0/0."""
+    score = cell.css_first(".ecm-score")
+    if score is None:
+        return (0, 0)
+    match = re.fullmatch(r"(\d+)\s*/\s*(\d+)", extract_text_content(score))
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def _format_score(score: tuple[int, int] | None) -> str:
+    return f"{score[0]}/{score[1]}" if score else ""
+
+
 def _parse_economy(html: HTMLParser) -> list[dict]:
     """
-    Parse the economy table from the economy tab.
+    Parse the economy summary of the requested game from the economy tab.
 
-    Rows per team with pistol/eco/semi-buy/full-buy win rates.
+    Every ``?game=<id>&tab=economy`` page carries the economy block of every
+    game; the requested one is ``.vm-stats-game.mod-active``. A block holds
+    four ``table.ecm`` tables (vlr.gg markup since 15-10-2026):
+
+    - ``table.ecm.ecm-open``: one row per team — Pistol, Conv. (round after a
+      won pistol) and Bonus, each ``won/played``;
+    - one table per own buy tier (On Eco <10k, On Half buy 10–18k, On Full buy
+      18k+), one row per team in the same order, columns vs. the opponent's
+      Eco / Half / Full buy.
+
+    Returns one dict per team: ``team``, ``pistol``, ``converted``, ``bonus``,
+    per-tier totals (``eco``, ``half_buy``, ``full_buy``) and the nine
+    ``<tier>_vs_<opponent tier>`` cells, every value a ``won/played`` string
+    (``0/0`` where vlr.gg shows a dash). An unplayed game has no tables and
+    yields ``[]``.
     """
+    scope = html.css_first("div.vm-stats-game.mod-active") or html
+    summary = scope.css_first("table.ecm.ecm-open")
+    if summary is None:
+        return []
+    # The tier tables are the summary's siblings (``.ecm-groups``), so a page
+    # without a marked game never mixes two games' blocks.
+    tables = summary.parent.css("table.ecm") if summary.parent else [summary]
+
+    rows = summary.css("tr")
+    columns = [
+        _econ_key(th.attributes.get("title") or extract_text_content(th))
+        for th in (rows[0].css("th")[1:] if rows else [])
+    ]
+
     economy: list[dict] = []
-
-    table = html.css_first("table.wf-table-inset.mod-econ")
-    if not table:
-        return economy
-
-    header_row = table.css_first("thead tr")
-    headers: list[str] = []
-    if header_row:
-        for th in header_row.css("th"):
-            headers.append(extract_text_content(th))
-
-    for row in table.css("tbody tr"):
+    for row in rows[1:]:
         cells = row.css("td")
         if not cells:
             continue
-
-        row_dict: dict[str, str] = {}
+        team = row.css_first("th")
+        entry: dict[str, str] = {"team": (team.attributes.get("title") or extract_text_content(team)) if team else ""}
         for idx, cell in enumerate(cells):
-            label = headers[idx] if idx < len(headers) else str(idx)
-            row_dict[label] = extract_text_content(cell)
+            label = columns[idx] if idx < len(columns) else str(idx)
+            entry[label] = _format_score(_econ_score(cell))
+        economy.append(entry)
 
-        economy.append(row_dict)
+    for table in tables:
+        tier_th = table.css_first("th.ecm-gt")
+        if tier_th is None:  # the summary table itself
+            continue
+        tier_label = tier_th.css_first(".ecm-gt-t span")
+        tier = _econ_key(extract_text_content(tier_label or tier_th))
+        opponents = [_econ_key(extract_text_content(th)) for th in table.css("th.ecm-foot")]
+        team_rows = [row for row in table.css("tr") if row.css("td")]
+        for entry, row in zip(economy, team_rows, strict=False):
+            entry[tier] = ""
+            won = played = 0
+            for idx, cell in enumerate(row.css("td")):
+                opponent = opponents[idx] if idx < len(opponents) else str(idx)
+                score = _econ_score(cell)
+                entry[f"{tier}_vs_{opponent}"] = _format_score(score)
+                if score:
+                    won += score[0]
+                    played += score[1]
+            entry[tier] = f"{won}/{played}"
 
     return economy

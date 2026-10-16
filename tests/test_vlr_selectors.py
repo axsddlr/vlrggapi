@@ -298,7 +298,8 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             ".match-header-super",
         ],
         required=[
-            "table.wf-table-inset.mod-econ",
+            "table.ecm.ecm-open",
+            "table.ecm th.ecm-gt",
         ],
     ),
     # --- Matches listing --------------------------------------------------

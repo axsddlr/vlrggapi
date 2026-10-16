@@ -1,9 +1,10 @@
 import asyncio
+from pathlib import Path
 
 import pytest
 
 from api.scrapers.match_detail import vlr_match_detail
-from api.scrapers.match_detail.parsers import _parse_streams_vods
+from api.scrapers.match_detail.parsers import _parse_economy, _parse_streams_vods
 from utils.cache_manager import cache_manager
 from utils.html_parsers import parse_html
 
@@ -179,10 +180,13 @@ def performance_html(opponent_name: str) -> str:
 def economy_html(team_name: str) -> str:
     return f"""
     <html>
-      <table class="wf-table-inset mod-econ">
-        <thead><tr><th>Team</th><th>Pistol</th></tr></thead>
-        <tbody><tr><td>{team_name}</td><td>50%</td></tr></tbody>
-      </table>
+      <div class="vm-stats-game mod-active"><div class="ecm-groups">
+        <table class="ecm ecm-open">
+          <tr><th></th><th class="ecm-step">Pistol</th></tr>
+          <tr><th class="ecm-team-th" title="{team_name}"><span>{team_name}</span></th>
+            <td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/2</span></div></td></tr>
+        </table>
+      </div></div>
     </html>
     """
 
@@ -244,7 +248,7 @@ async def test_vlr_match_detail_fetches_performance_and_economy_for_all_games(mo
     ]
     assert segment["performance"]["kill_matrix"] == [{"player": "TenZ", "kills_vs": {"Opponent A": "5"}}]
     assert segment["performance"]["advanced_stats"] == [{"player": "TenZ", "2K": "3"}]
-    assert segment["economy"] == [{"Team": "Team One", "Pistol": "50%"}]
+    assert segment["economy"] == [{"team": "Team One", "pistol": "1/2"}]
     assert segment["performance"]["by_map"] == [
         {
             "game_id": "game-1",
@@ -258,19 +262,19 @@ async def test_vlr_match_detail_fetches_performance_and_economy_for_all_games(mo
         },
     ]
     assert segment["economy_by_map"] == [
-        {"game_id": "game-1", "rows": [{"Team": "Team One", "Pistol": "50%"}]},
-        {"game_id": "game-2", "rows": [{"Team": "Team Two", "Pistol": "50%"}]},
+        {"game_id": "game-1", "rows": [{"team": "Team One", "pistol": "1/2"}]},
+        {"game_id": "game-2", "rows": [{"team": "Team Two", "pistol": "1/2"}]},
     ]
     assert segment["maps"][0]["performance"] == {
         "kill_matrix": [{"player": "TenZ", "kills_vs": {"Opponent A": "5"}}],
         "advanced_stats": [{"player": "TenZ", "2K": "3"}],
     }
-    assert segment["maps"][0]["economy"] == [{"Team": "Team One", "Pistol": "50%"}]
+    assert segment["maps"][0]["economy"] == [{"team": "Team One", "pistol": "1/2"}]
     assert segment["maps"][1]["performance"] == {
         "kill_matrix": [{"player": "TenZ", "kills_vs": {"Opponent B": "5"}}],
         "advanced_stats": [{"player": "TenZ", "2K": "3"}],
     }
-    assert segment["maps"][1]["economy"] == [{"Team": "Team Two", "Pistol": "50%"}]
+    assert segment["maps"][1]["economy"] == [{"team": "Team Two", "pistol": "1/2"}]
     assert len(client.calls) == 5
     cache_manager.clear_all()
 
@@ -361,3 +365,75 @@ async def test_vlr_match_detail_uses_empty_team_id_when_header_link_is_missing(m
     assert teams[0]["id"] == "100"
     assert teams[1]["id"] == ""
     cache_manager.clear_all()
+
+
+ECONOMY_FIXTURE = Path(__file__).parent / "fixtures" / "match_detail_economy.html"
+
+
+def _economy_fixture() -> str:
+    return ECONOMY_FIXTURE.read_text(encoding="utf-8")
+
+
+def test_parse_economy_reads_the_active_game_ecm_tables():
+    # Real vlr.gg markup: game 281336 is the requested (mod-active) game and
+    # comes after game 281335 in the page.
+    rows = _parse_economy(parse_html(_economy_fixture()))
+
+    assert rows == [
+        {
+            "team": "FLY",
+            "pistol": "1/2",
+            "converted": "1/1",
+            "bonus": "1/1",
+            "eco": "0/2",
+            "eco_vs_eco": "0/0",
+            "eco_vs_half": "0/0",
+            "eco_vs_full": "0/2",
+            "half_buy": "0/2",
+            "half_buy_vs_eco": "0/0",
+            "half_buy_vs_half": "0/0",
+            "half_buy_vs_full": "0/2",
+            "full_buy": "3/9",
+            "full_buy_vs_eco": "0/0",
+            "full_buy_vs_half": "1/1",
+            "full_buy_vs_full": "2/8",
+        },
+        {
+            "team": "MIBR.GC",
+            "pistol": "1/2",
+            "converted": "1/1",
+            "bonus": "1/1",
+            "eco": "0/0",
+            "eco_vs_eco": "0/0",
+            "eco_vs_half": "0/0",
+            "eco_vs_full": "0/0",
+            "half_buy": "0/1",
+            "half_buy_vs_eco": "0/0",
+            "half_buy_vs_half": "0/0",
+            "half_buy_vs_full": "0/1",
+            "full_buy": "10/12",
+            "full_buy_vs_eco": "2/2",
+            "full_buy_vs_half": "2/2",
+            "full_buy_vs_full": "6/8",
+        },
+    ]
+
+
+def test_parse_economy_without_active_game_reads_only_the_first_block():
+    html = _economy_fixture().replace("vm-stats-game mod-active", "vm-stats-game ")
+    rows = _parse_economy(parse_html(html))
+
+    # Game 281335: FLY 2/2 pistols, MIBR.GC lost both; no tier table of the
+    # later block leaks in.
+    assert [(r["team"], r["pistol"], r["converted"], r["full_buy"]) for r in rows] == [
+        ("FLY", "2/2", "1/2", "7/11"),
+        ("MIBR.GC", "0/2", "0/0", "5/12"),
+    ]
+    assert rows[1]["eco_vs_full"] == "0/3"
+
+
+def test_parse_economy_unplayed_game_returns_empty():
+    html = _economy_fixture().replace("vm-stats-game mod-active", "vm-stats-game ")
+    html = html.replace('class="vm-stats-game " data-game-id="285690"', 'class="vm-stats-game mod-active" data-game-id="285690"')
+    assert 'mod-active" data-game-id="285690"' in html
+    assert _parse_economy(parse_html(html)) == []
