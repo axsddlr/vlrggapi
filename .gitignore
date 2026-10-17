@@ -143,3 +143,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Local agent/assistant files (kept out of version control)
+/AGENTS.md
+.claude/settings.local.json
+tasks/todo.md
+tasks/lessons.md
+/debug_*.py
+/docs/
