@@ -217,3 +217,65 @@ async def test_v2_event_detail_passes_stage_through(async_client, monkeypatch):
 async def test_v2_event_detail_rejects_invalid_stage_slug(async_client, stage):
     resp = await async_client.get("/v2/event/2766", params={"stage": stage})
     assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_v2_match_logs_passes_game_id_through(async_client, monkeypatch):
+    seen = {}
+
+    async def fake_logs(match_id, game_id=None):
+        seen["args"] = (match_id, game_id)
+        return {"data": {"status": 200, "segments": [{"match_id": match_id, "game_id": game_id, "rounds": []}]}}
+
+    monkeypatch.setattr("routers.v2_router.get_match_logs_data", fake_logs)
+
+    resp = await async_client.get("/v2/match/logs?match_id=766311&game_id=285688")
+
+    assert resp.status_code == 200
+    assert seen["args"] == ("766311", "285688")
+    assert resp.json()["data"]["segments"][0]["game_id"] == "285688"
+
+
+@pytest.mark.anyio
+async def test_v2_match_logs_allows_missing_game_id(async_client, monkeypatch):
+    seen = {}
+
+    async def fake_logs(match_id, game_id=None):
+        seen["args"] = (match_id, game_id)
+        return {"data": {"status": 200, "segments": []}}
+
+    monkeypatch.setattr("routers.v2_router.get_match_logs_data", fake_logs)
+
+    resp = await async_client.get("/v2/match/logs?match_id=766311")
+
+    assert resp.status_code == 200
+    assert seen["args"] == ("766311", None)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("query", ["match_id=abc", "match_id=123&game_id=xyz"])
+async def test_v2_match_logs_rejects_invalid_ids(async_client, query):
+    resp = await async_client.get(f"/v2/match/logs?{query}")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_original_match_logs_route(async_client, monkeypatch):
+    async def fake_logs(match_id, game_id=None):
+        return {"data": {"status": 200, "segments": [{"match_id": match_id, "game_id": game_id}]}}
+
+    monkeypatch.setattr("routers.vlr_router.get_match_logs_data", fake_logs)
+
+    resp = await async_client.get("/match/logs?match_id=766311")
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["segments"][0]["match_id"] == "766311"
+
+
+def test_match_logs_falls_in_the_expensive_rate_limit_tier():
+    """A logs request costs two scrapes, so it must not land in a cheap tier."""
+    from api.utils.rate_limiter import _match_tier
+
+    assert _match_tier("/v2/match/logs", "") == "expensive"
+    assert _match_tier("/match/logs", "") == "expensive"
+

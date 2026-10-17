@@ -326,6 +326,12 @@ def test_label_witnesses_uses_discovered_ids():
     econ = _label_witnesses("match_detail_econ", ids)
     assert econ[0] == "https://www.vlr.gg/753450/?game=all&tab=economy"
 
+    logs = _label_witnesses("match_detail_logs", ids)
+    assert logs == [
+        "https://www.vlr.gg/753450/?game=all&tab=logs",
+        "https://www.vlr.gg/753449/?game=all&tab=logs",
+    ]
+
 
 def test_label_witnesses_has_no_static_fallback_when_discovery_is_empty():
     """A hardcoded stand-in is what produced #183's false alarm every day.
@@ -349,6 +355,7 @@ def test_discovery_backed_page_types_declare_no_static_witness():
         "match_detail",
         "match_detail_perf",
         "match_detail_econ",
+        "match_detail_logs",
         "player",
         "player_matches",
     }

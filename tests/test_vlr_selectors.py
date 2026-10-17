@@ -308,6 +308,29 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             "table.ecm",
         ],
     ),
+    # --- Match detail logs tab (2D replay) --------------------------------
+    # The replay viewer landed in October 2026. Each round embeds its replay as
+    # JSON in div.lg-map[data-map]; the scraper also reads the score band, the
+    # per-player buy rows and the round strip, so all three are asserted.
+    PageCheck(
+        label="match_detail_logs",
+        urls=[],
+        discovery="match_detail_tabs",
+        source="api/scrapers/match_logs.py",
+        anchors=[
+            ".match-header-super",
+        ],
+        required=[
+            ".lg-round",
+            "div.lg-map[data-map]",
+            ".lg-band",
+        ],
+        optional=[
+            ".lg-strip .js-lg-round",
+            ".lg-mir-row",
+            ".lg-map-art",
+        ],
+    ),
     # --- Matches listing --------------------------------------------------
     PageCheck(
         label="matches",
@@ -630,6 +653,13 @@ _MATCH_DETAIL_WITNESSES = 3
 _MATCH_TAB_WITNESSES = 2
 _PLAYER_WITNESSES = 2
 
+# Which stats tab a match-detail page check grades.
+_MATCH_TAB_BY_LABEL = {
+    "match_detail_perf": "performance",
+    "match_detail_econ": "economy",
+    "match_detail_logs": "logs",
+}
+
 _DISCOVERY_ERRORS: dict[str, str] = {}
 
 
@@ -660,8 +690,8 @@ def _label_witnesses(label: str, match_ids: list[str]) -> list[str]:
     """
     if label == "match_detail":
         return [f"{VLR_BASE_URL}/{match_id}/" for match_id in match_ids[:_MATCH_DETAIL_WITNESSES]]
-    if label in ("match_detail_perf", "match_detail_econ"):
-        tab = "performance" if label.endswith("perf") else "economy"
+    if label in _MATCH_TAB_BY_LABEL:
+        tab = _MATCH_TAB_BY_LABEL[label]
         return [
             f"{VLR_BASE_URL}/{match_id}/?game=all&tab={tab}"
             for match_id in match_ids[:_MATCH_TAB_WITNESSES]

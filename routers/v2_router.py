@@ -11,6 +11,7 @@ from routers.shared_handlers import (
     get_health_data,
     get_match_data,
     get_match_detail_data,
+    get_match_logs_data,
     get_news_data,
     get_player_data,
     get_player_matches_data,
@@ -120,6 +121,18 @@ async def v2_match_detail(
 ):
     validate_id_param(match_id, "match_id")
     result = await get_match_detail_data(match_id)
+    return _wrap_v2(result)
+
+
+@router.get("/match/logs", response_model=V2Response, summary="Match 2D replay", description="Per-round replay of one map: round result, each player's buy, and every kill, spike plant and defuse with player positions and health. Omit game_id to use the match's first played map. Takes the `tab=logs` page on vlr.gg.")
+async def v2_match_logs(
+    match_id: str = Query(..., description="VLR.GG match ID"),
+    game_id: str = Query(None, description="Optional game (map) ID; defaults to the first played map"),
+):
+    validate_id_param(match_id, "match_id")
+    if game_id is not None:
+        validate_id_param(game_id, "game_id")
+    result = await get_match_logs_data(match_id, game_id)
     return _wrap_v2(result)
 
 
