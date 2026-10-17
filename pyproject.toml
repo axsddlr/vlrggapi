@@ -7,10 +7,10 @@ license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "httpx==0.28.1",
-    "cachetools==7.2.0",
-    "uvicorn==0.53.0",
-    "fastapi==0.141.1",
-    "selectolax==0.4.12",
+    "cachetools==7.2.1",
+    "uvicorn==0.54.0",
+    "fastapi==0.142.2",
+    "selectolax==0.4.13",
     "tzdata>=2024.1; sys_platform == 'win32'",
 ]
 
