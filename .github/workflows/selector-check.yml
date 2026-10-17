@@ -9,6 +9,12 @@ on:
       - "tests/test_vlr_selectors.py"
       - ".github/workflows/selector-check.yml"
 
+# The repo default workflow token is read-write. This job reads code, parses
+# live vlr.gg HTML, and files an issue — nothing else.
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   check-selectors:
     runs-on: ubuntu-latest
