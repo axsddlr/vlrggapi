@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     # UV_PYTHON wins over .python-version, which would otherwise pin every
     # matrix job to the project's single pinned interpreter.
     env:
