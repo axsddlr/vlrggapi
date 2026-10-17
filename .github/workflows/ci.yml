@@ -52,7 +52,6 @@ jobs:
 
   docker-smoke:
     name: Docker smoke build
-    timeout-minutes: 25
     needs: test
     if: github.event_name == 'pull_request'
     uses: ./.github/workflows/container.yml
@@ -61,7 +60,6 @@ jobs:
 
   publish:
     name: Publish Docker image
-    timeout-minutes: 25
     needs: test
     if: >
       github.event_name == 'push' &&
