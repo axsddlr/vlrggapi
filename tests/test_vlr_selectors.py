@@ -289,6 +289,12 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
         ],
     ),
     # --- Match detail economy tab ----------------------------------------
+    # The economy widget moved from table.wf-table-inset.mod-econ to the
+    # .ecm-groups / table.ecm markup in October 2026 (issue #194). The old
+    # selector is still the parser's fallback but is no longer witnessed on any
+    # page, so it is deliberately not asserted here. .vm-stats-game.mod-active
+    # is required rather than optional: every map's block is on the page and the
+    # parser scopes its rows to the requested game through that wrapper.
     PageCheck(
         label="match_detail_econ",
         urls=[],
@@ -298,7 +304,8 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             ".match-header-super",
         ],
         required=[
-            "table.wf-table-inset.mod-econ",
+            ".vm-stats-game.mod-active",
+            "table.ecm",
         ],
     ),
     # --- Matches listing --------------------------------------------------

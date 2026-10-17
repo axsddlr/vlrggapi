@@ -279,7 +279,11 @@ GET /v2/match/details?match_id=595657
       "kill_matrix": [{ "player": "TenZ", "kills_vs": { "opponent1": "5" } }],
       "advanced_stats": [{ "player": "TenZ", "2K": "3", "3K": "1" }]
     },
-    "economy": [{ "Team": "Sentinels", "Pistol": "50%", "Eco": "33%", "Full": "72%" }]
+    "economy": [{
+      "Team": "Sentinels", "Pistol": "1/2", "Conv.": "1/1", "Bonus": "0/1",
+      "On Eco <10k: vs. Full": "0/2", "On Half buy 10–18k: vs. Full": "0/3",
+      "On Full buy 18k+: vs. Eco": "2/2", "On Full buy 18k+: vs. Half": "1/1", "On Full buy 18k+: vs. Full": "4/8"
+    }]
   }
 }
 ```
