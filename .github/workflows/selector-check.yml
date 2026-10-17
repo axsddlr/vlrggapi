@@ -260,3 +260,10 @@ jobs:
                 body,
               });
             }
+
+      # `continue-on-error` above keeps the report/issue steps running, but the
+      # job must still go red so the scheduled failure (and its notification)
+      # is not silent.
+      - name: Fail the run when selectors broke
+        if: steps.check.outcome == 'failure'
+        run: exit 1
