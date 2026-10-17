@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   check-selectors:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # UV_PYTHON wins over .python-version, which pins 3.11.
     env:

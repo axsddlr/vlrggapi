@@ -11,7 +11,8 @@ permissions:
 jobs:
   upstream:
     name: Check upstream vlr.gg
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Check vlr.gg homepage
         run: |
@@ -33,7 +34,8 @@ jobs:
 
   api-smoke:
     name: API smoke test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     # UV_PYTHON wins over .python-version, which pins 3.11.
     env:
       UV_PYTHON: "3.13"
