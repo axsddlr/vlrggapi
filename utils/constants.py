@@ -10,6 +10,10 @@ VLR_RANKINGS_URL = f"{VLR_BASE_URL}/rankings"
 VLR_STATS_URL = f"{VLR_BASE_URL}/stats"
 VLR_NEWS_URL = f"{VLR_BASE_URL}/news"
 
+# Entity URL prefixes — scrapers append the id and any query string
+VLR_PLAYER_URL = f"{VLR_BASE_URL}/player"
+VLR_TEAM_URL = f"{VLR_BASE_URL}/team"
+
 # API Settings
 API_TITLE = "vlrggapi"
 API_DESCRIPTION = (
@@ -18,6 +22,11 @@ API_DESCRIPTION = (
     "Made by [axsddlr](https://github.com/axsddlr)"
 )
 API_PORT = 3001
+
+# Single runtime source of truth for the API version. Packaging declares its own
+# copy in pyproject.toml (which is not copied into the Docker image);
+# tests/test_version_consistency.py fails if the two ever drift apart.
+API_VERSION = "2.0.0"
 
 # Pagination limits
 MAX_PAGE_LIMIT = 100
@@ -69,7 +78,6 @@ CACHE_TTL_TEAM_STATS = 600
 CACHE_TTL_TEAM_ROSTER = 1800
 CACHE_TTL_TEAM_SCHEDULE = 300
 CACHE_TTL_EVENT_MATCHES = 600
-CACHE_TTL_HEALTH_UPSTREAM = 60
 
 # /stats region vocabulary
 # The /stats page uses a DIFFERENT region taxonomy from /rankings. vlr.gg's

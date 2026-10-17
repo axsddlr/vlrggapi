@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from api.scrapers.match_detail import vlr_match_detail
-from api.scrapers.match_detail.parsers import _parse_streams_vods
+from api.scrapers.match_detail.parsers import _parse_economy, _parse_streams_vods
 from utils.cache_manager import cache_manager
 from utils.html_parsers import parse_html
 
@@ -176,7 +176,83 @@ def performance_html(opponent_name: str) -> str:
     """
 
 
+# Economy tab markup as vlr.gg serves it since the 2026-10 redesign (issue #194),
+# captured live from /766311/?game=285688&tab=economy. One .ecm-groups block per
+# map holds four table.ecm blocks: the first carries the team names plus
+# Pistol/Conv./Bonus, then "On Eco", "On Half buy" and "On Full buy" tables whose
+# team rows either repeat the name (th.ecm-team-th.ecm-xt) or omit it and rely on
+# row order. The first .vm-stats-game block is a decoy: every map's block is on
+# the page and only .mod-active belongs to the requested game.
+NEW_ECONOMY_HTML = """
+<html><body>
+  <div class="vm-stats-game">
+    <div class="ecs-top">
+      <div class="ecm-groups">
+        <table class="ecm ecm-open"><tbody>
+          <tr><th></th><th class="ecm-step">Pistol</th></tr>
+          <tr><th class="ecm-team-th" title="Decoy FC"><span class="ecm-team mod-1"><span>Decoy FC</span></span></th><td class="mod-hit"><div class="ecm-score">9<span class="ecm-of">/9</span></div></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="vm-stats-game mod-active">
+    <div class="ecs-top">
+      <div class="ecm-groups"><table class="ecm ecm-open"><tbody>
+        <tr><th></th><th class="ecm-step">Pistol</th><th class="ecm-step" title="Converted">Conv.</th><th>Bonus</th></tr>
+        <tr><th class="ecm-team-th" title="AKV.GC"><span class="ecm-team mod-1"><img src="//owcdn.net/img/61da5f0488060.png"><span>AKV.GC</span></span></th><td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/2</span></div></td><td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/1</span></div></td><td class="mod-hit"><div class="ecm-score">0<span class="ecm-of">/1</span></div></td></tr>
+        <tr><th class="ecm-team-th" title="MIBR.GC"><span class="ecm-team mod-2"><img src="//owcdn.net/img/632be7626d6d9.png"><span>MIBR.GC</span></span></th><td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/2</span></div></td><td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/1</span></div></td><td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/1</span></div></td></tr>
+      </tbody></table>
+      <table class="ecm"><tbody>
+        <tr><th colspan="3" class="ecm-gt"><span class="ecm-gt-in"><span class="ecc-sq mod-b1"><span class="ecc-q mod-q1"></span></span><span class="ecm-gt-t"><span>On Eco</span><span class="ecm-gt-r">&lt;10k</span></span></span></th></tr>
+        <tr><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-hit"><div class="ecm-score">0<span class="ecm-of">/2</span></div></td></tr>
+        <tr><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-hit"><div class="ecm-score">0<span class="ecm-of">/2</span></div></td></tr>
+        <tr><th class="ecm-foot"><span class="ecm-vs">vs.</span> Eco</th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Half</th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Full</th></tr>
+      </tbody></table>
+      <table class="ecm"><tbody>
+        <tr><th class="ecm-xt"></th><th colspan="3" class="ecm-gt"><span class="ecm-gt-in"><span class="ecc-sq mod-b2"><span class="ecc-q mod-q2"></span></span><span class="ecm-gt-t"><span>On Half buy</span><span class="ecm-gt-r">10&ndash;18k</span></span></span></th></tr>
+        <tr><th class="ecm-team-th ecm-xt" title="AKV.GC"><span class="ecm-team mod-1"><img src="//owcdn.net/img/61da5f0488060.png"><span>AKV.GC</span></span></th><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-hit"><div class="ecm-score">0<span class="ecm-of">/3</span></div></td></tr>
+        <tr><th class="ecm-team-th ecm-xt" title="MIBR.GC"><span class="ecm-team mod-2"><img src="//owcdn.net/img/632be7626d6d9.png"><span>MIBR.GC</span></span></th><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-empty"><span class="ecm-dash">&ndash;</span></td><td class="mod-hit"><div class="ecm-score">0<span class="ecm-of">/1</span></div></td></tr>
+        <tr><th class="ecm-xt"></th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Eco</th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Half</th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Full</th></tr>
+      </tbody></table>
+      <table class="ecm"><tbody>
+        <tr><th colspan="3" class="ecm-gt"><span class="ecm-gt-in"><span class="ecc-sq mod-b3"><span class="ecc-q mod-q3"></span></span><span class="ecm-gt-t"><span>On Full buy</span><span class="ecm-gt-r">18k+</span></span></span></th></tr>
+        <tr><td class="mod-hit"><div class="ecm-score">2<span class="ecm-of">/2</span></div></td><td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/1</span></div></td><td class="mod-hit"><div class="ecm-score">4<span class="ecm-of">/8</span></div></td></tr>
+        <tr><td class="mod-hit"><div class="ecm-score">2<span class="ecm-of">/2</span></div></td><td class="mod-hit"><div class="ecm-score">3<span class="ecm-of">/3</span></div></td><td class="mod-hit"><div class="ecm-score">4<span class="ecm-of">/8</span></div></td></tr>
+        <tr><th class="ecm-foot"><span class="ecm-vs">vs.</span> Eco</th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Half</th><th class="ecm-foot"><span class="ecm-vs">vs.</span> Full</th></tr>
+      </tbody></table>
+      </div>
+    </div>
+  </div>
+</body></html>
+"""
+
+
 def economy_html(team_name: str) -> str:
+    """Economy tab in the post-redesign .ecm markup, as the crawler sees it."""
+    return f"""
+    <html>
+      <div class="vm-stats-game mod-active">
+        <div class="ecs-top">
+          <div class="ecm-groups">
+            <table class="ecm ecm-open">
+              <tbody>
+                <tr><th></th><th class="ecm-step">Pistol</th><th class="ecm-step" title="Converted">Conv.</th><th>Bonus</th></tr>
+                <tr>
+                  <th class="ecm-team-th" title="{team_name}"><span class="ecm-team mod-1"><span>{team_name}</span></span></th>
+                  <td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/2</span></div></td>
+                  <td class="mod-hit"><div class="ecm-score">2<span class="ecm-of">/2</span></div></td>
+                  <td class="mod-hit"><div class="ecm-score">1<span class="ecm-of">/3</span></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </html>
+    """
+
+
+def economy_legacy_html(team_name: str) -> str:
     return f"""
     <html>
       <table class="wf-table-inset mod-econ">
@@ -244,7 +320,7 @@ async def test_vlr_match_detail_fetches_performance_and_economy_for_all_games(mo
     ]
     assert segment["performance"]["kill_matrix"] == [{"player": "TenZ", "kills_vs": {"Opponent A": "5"}}]
     assert segment["performance"]["advanced_stats"] == [{"player": "TenZ", "2K": "3"}]
-    assert segment["economy"] == [{"Team": "Team One", "Pistol": "50%"}]
+    assert segment["economy"] == [{"Team": "Team One", "Pistol": "1/2", "Conv.": "2/2", "Bonus": "1/3"}]
     assert segment["performance"]["by_map"] == [
         {
             "game_id": "game-1",
@@ -258,19 +334,19 @@ async def test_vlr_match_detail_fetches_performance_and_economy_for_all_games(mo
         },
     ]
     assert segment["economy_by_map"] == [
-        {"game_id": "game-1", "rows": [{"Team": "Team One", "Pistol": "50%"}]},
-        {"game_id": "game-2", "rows": [{"Team": "Team Two", "Pistol": "50%"}]},
+        {"game_id": "game-1", "rows": [{"Team": "Team One", "Pistol": "1/2", "Conv.": "2/2", "Bonus": "1/3"}]},
+        {"game_id": "game-2", "rows": [{"Team": "Team Two", "Pistol": "1/2", "Conv.": "2/2", "Bonus": "1/3"}]},
     ]
     assert segment["maps"][0]["performance"] == {
         "kill_matrix": [{"player": "TenZ", "kills_vs": {"Opponent A": "5"}}],
         "advanced_stats": [{"player": "TenZ", "2K": "3"}],
     }
-    assert segment["maps"][0]["economy"] == [{"Team": "Team One", "Pistol": "50%"}]
+    assert segment["maps"][0]["economy"] == [{"Team": "Team One", "Pistol": "1/2", "Conv.": "2/2", "Bonus": "1/3"}]
     assert segment["maps"][1]["performance"] == {
         "kill_matrix": [{"player": "TenZ", "kills_vs": {"Opponent B": "5"}}],
         "advanced_stats": [{"player": "TenZ", "2K": "3"}],
     }
-    assert segment["maps"][1]["economy"] == [{"Team": "Team Two", "Pistol": "50%"}]
+    assert segment["maps"][1]["economy"] == [{"Team": "Team Two", "Pistol": "1/2", "Conv.": "2/2", "Bonus": "1/3"}]
     assert len(client.calls) == 5
     cache_manager.clear_all()
 
@@ -361,3 +437,38 @@ async def test_vlr_match_detail_uses_empty_team_id_when_header_link_is_missing(m
     assert teams[0]["id"] == "100"
     assert teams[1]["id"] == ""
     cache_manager.clear_all()
+
+
+def test_parse_economy_reads_new_ecm_markup():
+    """Issue #194: the economy tab moved from table.wf-table-inset.mod-econ to table.ecm."""
+    rows = _parse_economy(parse_html(NEW_ECONOMY_HTML))
+
+    assert [row["Team"] for row in rows] == ["AKV.GC", "MIBR.GC"]
+
+    assert rows[0]["Pistol"] == "1/2"
+    assert rows[0]["Conv."] == "1/1"
+    assert rows[0]["Bonus"] == "0/1"
+    assert rows[0]["On Half buy 10\u201318k: vs. Full"] == "0/3"
+    assert rows[0]["On Full buy 18k+: vs. Eco"] == "2/2"
+    assert rows[0]["On Full buy 18k+: vs. Half"] == "1/1"
+    assert rows[0]["On Full buy 18k+: vs. Full"] == "4/8"
+    # .mod-empty cells render a dash; "no data" is an empty string, not a glyph.
+    assert rows[0]["On Eco <10k: vs. Eco"] == ""
+    assert rows[0]["On Eco <10k: vs. Half"] == ""
+    assert rows[0]["On Eco <10k: vs. Full"] == "0/2"
+    # The "On Eco" table has no name column, so its rows follow the previous table's order.
+    assert rows[1]["Team"] == "MIBR.GC"
+    assert rows[1]["Bonus"] == "1/1"
+    assert rows[1]["On Half buy 10\u201318k: vs. Full"] == "0/1"
+    assert rows[1]["On Full buy 18k+: vs. Half"] == "3/3"
+    # Only .vm-stats-game.mod-active belongs to the requested game; other map
+    # blocks are on the same page and must not leak in.
+    assert "Decoy FC" not in [row["Team"] for row in rows]
+    assert all("9/9" not in value for row in rows for value in row.values())
+
+
+def test_parse_economy_keeps_legacy_table_fallback():
+    """Markup served before the redesign still parses through the old selector."""
+    rows = _parse_economy(parse_html(economy_legacy_html("Team One")))
+
+    assert rows == [{"Team": "Team One", "Pistol": "50%"}]

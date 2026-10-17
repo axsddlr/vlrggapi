@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from api.utils.rate_limiter import RateLimitMiddleware
 from routers.v2_router import router as v2_router
 from routers.vlr_router import router as vlr_router
-from utils.constants import API_DESCRIPTION, API_PORT, API_TITLE
+from utils.constants import API_DESCRIPTION, API_PORT, API_TITLE, API_VERSION
 from utils.http_client import close_http_client
 
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +38,7 @@ app.include_router(v2_router)
 
 @app.get("/version", tags=["Meta"])
 def version():
-    return {"version": "2.0.0", "default_api": "v2"}
+    return {"version": API_VERSION, "default_api": "v2"}
 
 
 if __name__ == "__main__":

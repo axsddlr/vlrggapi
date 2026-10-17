@@ -1,20 +1,10 @@
 """Endpoint smoke tests for original and v2 routers."""
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from main import app
-
-
-@pytest.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
 
 
 @pytest.mark.anyio
-async def test_version_endpoint(client):
-    resp = await client.get("/version")
+async def test_version_endpoint(async_client):
+    resp = await async_client.get("/version")
     assert resp.status_code == 200
     data = resp.json()
     assert data["version"] == "2.0.0"
@@ -22,8 +12,8 @@ async def test_version_endpoint(client):
 
 
 @pytest.mark.anyio
-async def test_v2_health(client):
-    resp = await client.get("/v2/health")
+async def test_v2_health(async_client):
+    resp = await async_client.get("/v2/health")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "success"
@@ -31,66 +21,66 @@ async def test_v2_health(client):
 
 
 @pytest.mark.anyio
-async def test_v2_invalid_region_returns_400(client):
-    resp = await client.get("/v2/rankings?region=invalid_xyz")
+async def test_v2_invalid_region_returns_400(async_client):
+    resp = await async_client.get("/v2/rankings?region=invalid_xyz")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_v2_invalid_match_query_returns_400(client):
-    resp = await client.get("/v2/match?q=bad_query")
+async def test_v2_invalid_match_query_returns_400(async_client):
+    resp = await async_client.get("/v2/match?q=bad_query")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_v2_invalid_timespan_returns_400(client):
-    resp = await client.get("/v2/stats?region=na&timespan=45")
+async def test_v2_invalid_timespan_returns_400(async_client):
+    resp = await async_client.get("/v2/stats?region=na&timespan=45")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_v2_invalid_event_query_returns_400(client):
-    resp = await client.get("/v2/events?q=bad_query")
+async def test_v2_invalid_event_query_returns_400(async_client):
+    resp = await async_client.get("/v2/events?q=bad_query")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_original_news_not_redirect(client):
+async def test_original_news_not_redirect(async_client):
     """Original /news endpoint should respond directly (not redirect)."""
-    resp = await client.get("/news", follow_redirects=False)
+    resp = await async_client.get("/news", follow_redirects=False)
     # Should not be a 301 redirect — it serves directly
     assert resp.status_code != 301
 
 
 @pytest.mark.anyio
-async def test_original_invalid_match_returns_error(client):
+async def test_original_invalid_match_returns_error(async_client):
     """Original /match with bad q should return error dict, not 400."""
-    resp = await client.get("/match?q=bad_query", follow_redirects=False)
+    resp = await async_client.get("/match?q=bad_query", follow_redirects=False)
     assert resp.status_code == 200
     data = resp.json()
     assert "error" in data
 
 
 @pytest.mark.anyio
-async def test_original_player_rejects_invalid_id(client):
-    resp = await client.get("/player?id=abc")
+async def test_original_player_rejects_invalid_id(async_client):
+    resp = await async_client.get("/player?id=abc")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_original_player_rejects_invalid_timespan(client):
-    resp = await client.get("/player?id=9&timespan=45d")
+async def test_original_player_rejects_invalid_timespan(async_client):
+    resp = await async_client.get("/player?id=9&timespan=45d")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_original_match_detail_rejects_invalid_id(client):
-    resp = await client.get("/match/details?match_id=abc")
+async def test_original_match_detail_rejects_invalid_id(async_client):
+    resp = await async_client.get("/match/details?match_id=abc")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_v2_match_detail_exposes_team_ids(client, monkeypatch):
+async def test_v2_match_detail_exposes_team_ids(async_client, monkeypatch):
     async def fake_match_detail(match_id):
         return {
             "data": {
@@ -109,7 +99,7 @@ async def test_v2_match_detail_exposes_team_ids(client, monkeypatch):
 
     monkeypatch.setattr("routers.v2_router.get_match_detail_data", fake_match_detail)
 
-    resp = await client.get("/v2/match/details?match_id=123")
+    resp = await async_client.get("/v2/match/details?match_id=123")
     assert resp.status_code == 200
     assert resp.json()["data"]["segments"][0]["teams"] == [
         {"id": "100", "name": "Team One"},
@@ -118,7 +108,7 @@ async def test_v2_match_detail_exposes_team_ids(client, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_original_match_detail_strips_team_ids(client, monkeypatch):
+async def test_original_match_detail_strips_team_ids(async_client, monkeypatch):
     async def fake_match_detail(match_id):
         return {
             "data": {
@@ -137,7 +127,7 @@ async def test_original_match_detail_strips_team_ids(client, monkeypatch):
 
     monkeypatch.setattr("routers.vlr_router.get_match_detail_data", fake_match_detail)
 
-    resp = await client.get("/match/details?match_id=123")
+    resp = await async_client.get("/match/details?match_id=123")
     assert resp.status_code == 200
     assert resp.json()["data"]["segments"][0]["teams"] == [
         {"name": "Team One"},
@@ -146,31 +136,31 @@ async def test_original_match_detail_strips_team_ids(client, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_v2_wrap_propagates_scraper_error_status(client, monkeypatch):
+async def test_v2_wrap_propagates_scraper_error_status(async_client, monkeypatch):
     async def fake_news():
         return {"data": {"status": 502, "error": "upstream failure", "segments": []}}
 
     monkeypatch.setattr("routers.v2_router.get_news_data", fake_news)
-    resp = await client.get("/v2/news")
+    resp = await async_client.get("/v2/news")
     assert resp.status_code == 502
     assert "detail" in resp.json()
 
 
 @pytest.mark.anyio
-async def test_v2_events_propagates_scraper_error_status(client, monkeypatch):
+async def test_v2_events_propagates_scraper_error_status(async_client, monkeypatch):
     async def fake_events(q, page):
         return {"data": {"status": 503, "error": "events unavailable", "segments": []}}
 
     monkeypatch.setattr("routers.v2_router.get_events_data", fake_events)
 
-    resp = await client.get("/v2/events")
+    resp = await async_client.get("/v2/events")
 
     assert resp.status_code == 503
     assert resp.json()["detail"] == "events unavailable"
 
 
 @pytest.mark.anyio
-async def test_v2_player_propagates_scraper_error_status(client, monkeypatch):
+async def test_v2_player_propagates_scraper_error_status(async_client, monkeypatch):
     async def fake_player(player_id, timespan):
         return {
             "data": {
@@ -182,25 +172,48 @@ async def test_v2_player_propagates_scraper_error_status(client, monkeypatch):
 
     monkeypatch.setattr("routers.v2_router.get_player_data", fake_player)
 
-    resp = await client.get("/v2/player?id=9")
+    resp = await async_client.get("/v2/player?id=9")
 
     assert resp.status_code == 404
     assert resp.json()["detail"] == "player 9 not found"
 
 
 @pytest.mark.anyio
-async def test_v2_match_rejects_oversized_workload(client):
-    resp = await client.get("/v2/match?q=results&num_pages=21")
+async def test_v2_match_rejects_oversized_workload(async_client):
+    resp = await async_client.get("/v2/match?q=results&num_pages=21")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_v2_match_rejects_pagination_for_upcoming_query(client):
-    resp = await client.get("/v2/match?q=upcoming&num_pages=2")
+async def test_v2_match_rejects_pagination_for_upcoming_query(async_client):
+    resp = await async_client.get("/v2/match?q=upcoming&num_pages=2")
     assert resp.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_original_match_rejects_pagination_for_live_score_query(client):
-    resp = await client.get("/match?q=live_score&from_page=2")
+async def test_original_match_rejects_pagination_for_live_score_query(async_client):
+    resp = await async_client.get("/match?q=live_score&from_page=2")
+    assert resp.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_v2_event_detail_passes_stage_through(async_client, monkeypatch):
+    seen = {}
+
+    async def fake_event_detail(event_id, stage=None):
+        seen["args"] = (event_id, stage)
+        return {"data": {"status": 200, "segments": {"stages": [], "prizes": []}}}
+
+    monkeypatch.setattr("routers.v2_router.get_event_detail_data", fake_event_detail)
+
+    resp = await async_client.get("/v2/event/2766?stage=playoffs")
+
+    assert resp.status_code == 200
+    assert seen["args"] == ("2766", "playoffs")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("stage", ["Playoffs", "group_stage", "../x", "-playoffs"])
+async def test_v2_event_detail_rejects_invalid_stage_slug(async_client, stage):
+    resp = await async_client.get("/v2/event/2766", params={"stage": stage})
     assert resp.status_code == 400

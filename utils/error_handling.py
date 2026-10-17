@@ -3,6 +3,7 @@ Error handling utilities for VLR.GG API
 """
 import asyncio
 import logging
+import re
 from functools import wraps
 
 import httpx
@@ -192,6 +193,15 @@ def validate_id_param(value: str, name: str = "id"):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid {name} '{value}'. Must be a numeric ID.",
+        )
+
+
+def validate_slug_param(value: str, name: str = "slug"):
+    """Validate that a parameter is a vlr.gg URL slug (lowercase letters, digits, hyphens). Raises 400 on invalid."""
+    if not value or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {name} '{value}'. Must be a vlr.gg slug such as 'group-stage'.",
         )
 
 

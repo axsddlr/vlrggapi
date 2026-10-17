@@ -67,7 +67,7 @@ jobs:
 
       - name: Build Docker image
         id: docker_build
-        uses: docker/build-push-action@v7.3.0
+        uses: docker/build-push-action@v7.4.0
         with:
           platforms: linux/amd64,linux/arm64
           context: ./

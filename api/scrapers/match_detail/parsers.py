@@ -715,12 +715,93 @@ def _parse_advanced_stats(html: HTMLParser) -> list[dict]:
 # Economy tab parser
 # ---------------------------------------------------------------------------
 
-def _parse_economy(html: HTMLParser) -> list[dict]:
-    """
-    Parse the economy table from the economy tab.
+def _ecm_group_title(table) -> str:
+    """Read the buy-state label of a ``table.ecm`` row group ("On Eco <10k").
 
-    Rows per team with pistol/eco/semi-buy/full-buy win rates.
+    The spend range lives in ``.ecm-gt-r`` *inside* the ``.ecm-gt-t`` label, so
+    the range text is re-joined with the label that already contains it.
     """
+    gt = table.css_first("th.ecm-gt")
+    if gt is None:
+        return ""
+    band = extract_text_content(gt.css_first(".ecm-gt-r"))
+    name = extract_text_content(gt.css_first(".ecm-gt-t") or gt)
+    return f"{name.removesuffix(band).strip()} {band}".strip()
+
+
+def _ecm_labels(table) -> list[str]:
+    """Read a ``table.ecm`` table's column labels from its first header row.
+
+    The pistol table labels its columns with ``th.ecm-step``; the buy-state
+    tables label them at the *bottom* with ``th.ecm-foot``, and may pad the row
+    with an empty ``th.ecm-xt`` spacer, so empty cells are dropped.
+    """
+    for row in table.css("tr"):
+        if row.css("td"):
+            continue
+        if row.css_first("th.ecm-gt") is not None:
+            continue
+        labels = [extract_text_content(cell) for cell in row.css("th")]
+        labels = [label for label in labels if label]
+        if labels:
+            return labels
+    return []
+
+
+def _ecm_value(cell) -> str:
+    """Read one economy data cell; ``.mod-empty`` cells mean "no data"."""
+    score = cell.css_first(".ecm-score")
+    return extract_text_content(score) if score is not None else ""
+
+
+def _parse_economy_groups(scope) -> list[dict]:
+    """Parse the economy tab's ``.ecm-groups`` markup, one row per team.
+
+    Each group holds four ``table.ecm`` blocks: the first carries the team names
+    with Pistol/Conv./Bonus, then "On Eco", "On Half buy" and "On Full buy"
+    tables whose rows either repeat the team name (``th.ecm-team-th.ecm-xt``) or
+    omit it and rely on row order to line up with the previous named table.
+
+    Values keep vlr.gg's ``wins/attempts`` form. Buy-state columns are namespaced
+    by their group title ("On Full buy 18k+: vs. Eco") because the plain column
+    labels repeat across groups.
+    """
+    economy: list[dict] = []
+    by_team: dict[str, dict] = {}
+    team_order: list[str] = []
+
+    for table in scope.css("table.ecm"):
+        title = _ecm_group_title(table)
+        names = [extract_text_content(cell) for cell in table.css("th.ecm-team-th")]
+        if names:
+            team_order = names
+            for name in names:
+                if name not in by_team:
+                    row = {"Team": name}
+                    by_team[name] = row
+                    economy.append(row)
+
+        labels = _ecm_labels(table)
+        team_index = 0
+        for row in table.css("tr"):
+            cells = row.css("td")
+            if not cells:
+                continue
+            order = names or team_order
+            name = order[team_index] if team_index < len(order) else ""
+            team_index += 1
+            team_row = by_team.get(name)
+            if team_row is None:
+                continue
+            for label, cell in zip(labels, cells):
+                key = f"{title}: {label}" if title else label
+                team_row[key] = _ecm_value(cell)
+
+    return economy
+
+
+def _parse_economy_legacy(html: HTMLParser) -> list[dict]:
+    """Parse the pre-redesign economy table (``table.wf-table-inset.mod-econ``)."""
     economy: list[dict] = []
 
     table = html.css_first("table.wf-table-inset.mod-econ")
@@ -746,3 +827,19 @@ def _parse_economy(html: HTMLParser) -> list[dict]:
         economy.append(row_dict)
 
     return economy
+
+
+def _parse_economy(html: HTMLParser) -> list[dict]:
+    """Parse the economy table from the economy tab.
+
+    vlr.gg rolled out the ``table.ecm`` economy widget in October 2026 (issue
+    #194); ``table.wf-table-inset.mod-econ`` is kept as a fallback for pages
+    still serving the old markup. Tab pages embed *every* map's block, so the
+    parse is scoped to ``.vm-stats-game.mod-active`` — the requested game — when
+    that wrapper exists.
+    """
+    scope = html.css_first(".vm-stats-game.mod-active") or html
+    economy = _parse_economy_groups(scope)
+    if economy:
+        return economy
+    return _parse_economy_legacy(scope)

@@ -1,8 +1,14 @@
 import httpx
 import pytest
 
-from api.scrapers.matches import vlr_live_score, vlr_upcoming_matches
+from api.scrapers.matches import (
+    _parse_results_page,
+    _parse_single_match,
+    vlr_live_score,
+    vlr_upcoming_matches,
+)
 from utils.cache_manager import cache_manager
+from utils.html_parsers import parse_html
 
 UPCOMING_HTML = """
 <html>
@@ -110,6 +116,7 @@ async def test_vlr_upcoming_matches_handles_missing_homepage_fields(monkeypatch)
                     "match_event": "",
                     "unix_timestamp": "",
                     "match_page": "",
+                    "match_id": "",
                 }
             ],
         }
@@ -208,3 +215,85 @@ async def test_vlr_live_score_limits_concurrent_detail_fetches_and_falls_back_on
     assert timed_out_segment["current_map"] == "Unknown"
     assert timed_out_segment["map_number"] == "Unknown"
     cache_manager.clear_all()
+
+
+UPCOMING_WITH_ID_HTML = """
+<html>
+  <div class="js-home-matches-upcoming">
+    <a class="wf-module-item" href="/430123/sentinels-vs-fnatic">
+      <div class="h-match-eta mod-upcoming">51m</div>
+      <div class="h-match-team">
+        <div class="h-match-team-name">Sentinels</div>
+      </div>
+      <div class="h-match-team">
+        <div class="h-match-team-name">Fnatic</div>
+      </div>
+    </a>
+  </div>
+</html>
+"""
+
+RESULTS_HTML = """
+<html>
+  <a class="wf-module-item match-item" href="/430123/sentinels-vs-fnatic">
+    <div class="match-item-time">2:30 PM</div>
+    <div class="match-item-vs">
+      <div class="match-item-vs-team">
+        <div class="match-item-vs-team-name">
+          <div class="text-of"><span class="flag mod-us"></span>Sentinels</div>
+        </div>
+        <div class="match-item-vs-team-score">2</div>
+      </div>
+      <div class="match-item-vs-team mod-winner">
+        <div class="match-item-vs-team-name">
+          <div class="text-of"><span class="flag mod-eu"></span>Fnatic</div>
+        </div>
+        <div class="match-item-vs-team-score">1</div>
+      </div>
+    </div>
+    <div class="ml-eta">2h</div>
+    <div class="match-item-event-series">Grand Final</div>
+    <div class="match-item-event">
+      <div class="match-item-event-series">Grand Final</div>
+      VCT Champions
+    </div>
+    <div class="match-item-icon">
+      <img src="//owcdn.net/img/icon.png">
+    </div>
+  </a>
+</html>
+"""
+
+
+@pytest.mark.anyio
+async def test_vlr_upcoming_matches_extracts_match_id(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient(
+        {
+            "https://www.vlr.gg": [FakeResponse(200, UPCOMING_WITH_ID_HTML)],
+        }
+    )
+    monkeypatch.setattr("api.scrapers.matches.get_http_client", lambda: client)
+
+    data = await vlr_upcoming_matches()
+    segments = data["data"]["segments"]
+    assert len(segments) == 1
+    assert segments[0]["match_id"] == "430123"
+    assert segments[0]["team1"] == "Sentinels"
+    assert segments[0]["team2"] == "Fnatic"
+    cache_manager.clear_all()
+
+
+def test_parse_single_match_extracts_match_id():
+    html = parse_html(RESULTS_HTML)
+    item = html.css_first("a.wf-module-item")
+    match_data = _parse_single_match(item, "2026-02-09", 1)
+    assert match_data is not None
+    assert match_data["match_id"] == "430123"
+
+
+def test_parse_results_page_extracts_match_id():
+    html = parse_html(RESULTS_HTML)
+    results = _parse_results_page(html, 1)
+    assert len(results) == 1
+    assert results[0]["match_id"] == "430123"

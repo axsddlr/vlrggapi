@@ -1,10 +1,17 @@
 """
 Scraper for individual VLR.GG event detail pages.
 
-Extracts event header info, prize pool breakdown, participating teams,
-and group/stage standings tables.
+Extracts event header info, the event's stages, prize pool breakdown,
+participating teams, and group/stage standings tables.
+
+A multi-stage event page shows ONE stage at a time (vlr.gg picks the
+current one by default): the prize rows and standings on it are that
+stage's. The `stages` list names every stage; pass a stage slug to read
+another stage's view.
 """
 import logging
+
+from fastapi import HTTPException
 
 from utils.cache_manager import cache_manager
 from utils.constants import CACHE_TTL_EVENTS, VLR_BASE_URL
@@ -112,16 +119,41 @@ def _parse_event_header(html: HTMLParser) -> dict:
     }
 
 
+def _parse_event_stages(html: HTMLParser) -> list[dict]:
+    """Parse the stage tabs (.wf-subnav) of an event page.
+
+    Each tab links to /event/{id}/{event-slug}/{stage-slug}. Single-stage
+    events have no tabs and return [].
+    """
+    stages: list[dict] = []
+    for item in html.css(".wf-subnav a.wf-subnav-item"):
+        parts = item.attributes.get("href", "").strip("/").split("/")
+        if len(parts) != 4 or parts[0] != "event":
+            continue
+        title = item.css_first(".wf-subnav-item-title")
+        dates = item.css_first(".ge-text-light")
+        stages.append({
+            "name": extract_text_content(title),
+            "slug": parts[3],
+            "dates": extract_text_content(dates),
+            "active": "mod-active" in item.attributes.get("class", ""),
+        })
+    return stages
+
+
 def _parse_prizes(html: HTMLParser) -> list[dict]:
     """Parse the prize breakdown table from the event page."""
     prizes: list[dict] = []
 
-    prize_card = html.css_first(".wf-card.mod-dark")
-    if not prize_card:
-        return prizes
-
-    # The prize table uses div.wf-ptable with div.row elements
-    ptable = prize_card.css_first(".wf-ptable")
+    # The prize table uses div.wf-ptable with div.row elements, inside a
+    # .wf-card.mod-dark. Group tables and group match cards are mod-dark
+    # cards too and come first on group-stage views, so take the first
+    # mod-dark card that actually holds a ptable.
+    ptable = None
+    for card in html.css(".wf-card.mod-dark"):
+        ptable = card.css_first(".wf-ptable")
+        if ptable:
+            break
     if not ptable:
         return prizes
 
@@ -275,24 +307,98 @@ def _parse_standings(html: HTMLParser) -> list[dict]:
 
         standings.append({"stage": stage, "columns": headers, "rows": rows})
 
+    standings.extend(_parse_group_tables(html))
+    return standings
+
+
+def _preceding_label(node, max_depth: int = 4) -> str:
+    """Text of the nearest .wf-label before ``node`` (checking up to ``max_depth`` ancestors)."""
+    current = node
+    for _ in range(max_depth):
+        sibling = current.prev
+        while sibling is not None:
+            if sibling.tag and "wf-label" in (sibling.attributes.get("class") or ""):
+                return extract_text_content(sibling)
+            sibling = sibling.prev
+        current = current.parent
+        if current is None:
+            break
+    return ""
+
+
+def _parse_group_tables(html: HTMLParser) -> list[dict]:
+    """Parse group / round-robin standings (table.wf-table.mod-group).
+
+    Each table sits under a stage label ("Round Robin", "Group Stage"); a
+    multi-group stage names the group in the table's th.mod-title.
+    """
+    standings: list[dict] = []
+
+    for table in html.css("table.wf-table.mod-group"):
+        header_cells = table.css("thead th")
+        if not header_cells:
+            continue
+        group = extract_text_content(header_cells[0])
+        # The title th spans the logo and team columns
+        columns = ["Team"] + [extract_text_content(th) for th in header_cells[1:]]
+
+        rows: list[dict[str, str]] = []
+        for tr in table.css("tbody tr"):
+            team_link = tr.css_first("a.event-group-team")
+            if not team_link:
+                continue
+            name_elem = team_link.css_first(".event-group-team-name") or team_link
+            team_name = extract_text_content(name_elem)
+            region_elem = name_elem.css_first(".event-group-team-region")
+            if region_elem:
+                team_name = team_name.replace(extract_text_content(region_elem), "").strip()
+
+            cells = tr.css("td")[2:]  # skip the logo and team cells
+            row_data = {"Team": team_name}
+            for label, cell in zip(columns[1:], cells, strict=False):
+                row_data[label] = extract_text_content(cell)
+            rows.append(row_data)
+
+        standings.append({
+            "stage": _preceding_label(table),
+            "group": group,
+            "columns": columns,
+            "rows": rows,
+        })
+
     return standings
 
 
 @handle_scraper_errors
-async def vlr_event_detail(event_id: str) -> dict:
-    """Fetch full event detail: header, prizes, teams, and standings.
+async def vlr_event_detail(event_id: str, stage: str | None = None) -> dict:
+    """Fetch full event detail: header, stages, prizes, teams, and standings.
 
     Args:
         event_id: Numeric VLR.GG event ID.
+        stage: Optional stage slug from ``stages`` (e.g. "playoffs"). Without
+            it vlr.gg serves its default (usually the current) stage.
     """
     async def build():
-        base_url = f"{VLR_BASE_URL}/event/{event_id}"
+        if stage:
+            # vlr.gg ignores the event slug segment, so a placeholder avoids a lookup
+            base_url = f"{VLR_BASE_URL}/event/{event_id}/-/{stage}"
+        else:
+            base_url = f"{VLR_BASE_URL}/event/{event_id}"
         client = get_http_client()
         resp = await fetch_with_retries(base_url, client=client)
         status = resp.status_code
         raise_for_upstream_status(status, f"event detail {event_id}")
 
         html = parse_html(resp.text)
+
+        stages = _parse_event_stages(html)
+        # An unknown stage slug silently serves the default stage
+        if stage and not any(s["slug"] == stage and s["active"] for s in stages):
+            available = ", ".join(s["slug"] for s in stages) or "none"
+            raise HTTPException(
+                status_code=404,
+                detail=f"Stage '{stage}' not found for event {event_id}. Available stages: {available}",
+            )
 
         header = _parse_event_header(html)
         prizes = _parse_prizes(html)
@@ -304,6 +410,7 @@ async def vlr_event_detail(event_id: str) -> dict:
                 "status": status,
                 "segments": {
                     "event": header,
+                    "stages": stages,
                     "prizes": prizes,
                     "teams": teams,
                     "standings": standings,
@@ -313,5 +420,5 @@ async def vlr_event_detail(event_id: str) -> dict:
         return data
 
     return await cache_manager.get_or_create_async(
-        CACHE_TTL_EVENTS, build, "event_detail", event_id
+        CACHE_TTL_EVENTS, build, "event_detail", event_id, stage or ""
     )

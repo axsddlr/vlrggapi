@@ -484,3 +484,61 @@ def test_unverifiable_page_warns_and_explains_the_skip():
     assert "player" in message
     assert "no candidate pages" in message
     assert "0 page(s)" in message
+
+
+# ---------------------------------------------------------------------------
+# Page-dependent selectors (issue #190)
+# ---------------------------------------------------------------------------
+
+
+def test_match_detail_legacy_h2h_container_is_classified_not_escalated():
+    """`.match-h2h-matches` renders on only a subset of live pages (#190).
+
+    Measured across 12 live match pages: the parser's primary path
+    ``.match-histories-item`` is present on all 12, while the legacy container
+    ``.match-h2h-matches`` is present on 5 — vlr.gg is still serving the old
+    container on some pages. With only three discovered witnesses, any window
+    where all three happen to be new-layout pages reports it as "missing from
+    every witness page", which is how #190 was filed.
+
+    It therefore has to be classified after the ``.mod-ot`` pattern: still
+    listed in ``optional`` so it shows up in reports, but in
+    ``data_conditional`` so it never fails the build.
+    """
+    pc = next(p for p in PAGE_CHECKS if p.label == "match_detail")
+
+    assert ".match-h2h-matches" in pc.optional, "must stay visible in reports"
+    assert ".match-h2h-matches" in pc.data_conditional, (
+        "page-dependent legacy markup must never be escalated"
+    )
+    # The path the parser actually reads stays asserted either way.
+    assert ".match-histories-item" in pc.optional
+    assert ".match-histories-item" not in pc.data_conditional
+
+
+def test_match_detail_legacy_h2h_absence_does_not_fail_the_build():
+    """The #190 witness window, graded against the real configuration.
+
+    Only the two head-to-head selectors are in play here so a small fixture is
+    enough; the classification under test comes straight from PAGE_CHECKS.
+    """
+    pc = next(p for p in PAGE_CHECKS if p.label == "match_detail")
+    check = replace(
+        pc,
+        anchors=[".match-header-super"],
+        required=[],
+        optional=[".match-histories-item", ".match-h2h-matches"],
+    )
+    modern_h2h_only = MATCH_WITH_WATCH.replace(
+        "</html>",
+        '<a class="match-histories-item" href="/1/team-a-vs-team-b">'
+        '<span class="match-histories-item-result mod-win">'
+        '<span class="rf">2</span><span class="ra">1</span></span></a></html>',
+    )
+
+    result = grade_page(check, [page("https://vlr.gg/a", modern_h2h_only)])
+
+    assert ".match-histories-item" not in result["broken_optional"]
+    assert result["broken_optional"] == [".match-h2h-matches"]
+    assert result["data_conditional_missing"] == [".match-h2h-matches"]
+    assert result["ci_optional_failures"] == 0

@@ -12,6 +12,6 @@ tests
 README.md
 LICENSE
 docker-compose*.yml
-CLAUDE.md
+AGENTS.md
 pytest.ini
 .python-version
