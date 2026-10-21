@@ -9,7 +9,7 @@ dependencies = [
     "httpx==0.28.1",
     "cachetools==7.2.1",
     "uvicorn==0.54.0",
-    "fastapi==0.142.2",
+    "fastapi==0.142.4",
     "selectolax==0.4.13",
     "tzdata>=2024.1; sys_platform == 'win32'",
 ]
