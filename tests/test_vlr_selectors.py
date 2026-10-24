@@ -621,11 +621,25 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
         anchors=[
             "table",
         ],
+        required=[
+            # The scraper reads cells by semantic data-col key and fails closed
+            # (HTTP 502) when a required one disappears, so the keyed header and
+            # the player cell are outages, not degraded paths. ``rating`` is
+            # pinned because the October 2026 revamp renamed it from rating2 and
+            # silently broke every non-empty /stats response (#202).
+            "thead th[data-col]",
+            'thead th[data-col="rating"]',
+            "td.mod-player",
+        ],
         optional=[
             "thead tr",
-            "td.mod-player",
             "td.mod-agents img",
-            'select[name="region"]',
+            # The same revamp replaced the region <select> with a st-filter form
+            # of region[] checkboxes; the scraper validates the applied filter
+            # from the checked box. Tracked but not required, because the legacy
+            # select is still a supported fallback.
+            "form.st-filter",
+            'input[name="region[]"]',
             "tbody tr",
         ],
     ),
