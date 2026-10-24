@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from urllib.parse import urlencode
 
 from fastapi import HTTPException
 
@@ -21,16 +22,20 @@ logger = logging.getLogger(__name__)
 # future inserted column can never shift the mapping — the positional fragility
 # fixed here has broken this scraper three times (upstream issues #4 and #14, both
 # "vlr.gg added a column", each re-hardcoded to the new numbers).
+# Keys are the CURRENT vlr.gg data-col vocabulary. The October 2026 /stats filter
+# revamp renamed two of them: the rating column went from ``rating2`` to
+# ``rating``, and first-kill rate from ``fbpr`` to ``fkpr``. It also added
+# maps/kmax/k/d/a/fk/fd, which this API does not expose yet.
 _STATS_FIELD_MAP = {
     "rnd": "rounds_played",
-    "rating2": "rating",
+    "rating": "rating",
     "acs": "average_combat_score",
     "kd": "kill_deaths",
     "kast": "kill_assists_survived_traded",
     "adr": "average_damage_per_round",
     "kpr": "kills_per_round",
     "apr": "assists_per_round",
-    "fbpr": "first_kills_per_round",
+    "fkpr": "first_kills_per_round",
     "fdpr": "first_deaths_per_round",
     "hsp": "headshot_percentage",
     "clp": "clutch_success_percentage",
@@ -40,7 +45,7 @@ _STATS_FIELD_MAP = {
 # If <thead> is keyed (>=1 data-col) but any of these is absent, the layout changed
 # in a way we cannot safely parse -> fail closed rather than emit a keyed ``None``
 # that would surface downstream as rating=0 and slip past shape guards.
-REQUIRED_STATS_KEYS = frozenset({"rnd", "rating2", "acs", "kd", "adr"})
+REQUIRED_STATS_KEYS = frozenset({"rnd", "rating", "acs", "kd", "adr"})
 
 # Legacy positional indices, used ONLY when <thead> emits no data-col attributes at
 # all (pre-revamp markup / archived pages). Player is td[0], agents td[1].
@@ -135,13 +140,23 @@ def _parse_stats_row(item, col_map: dict | None = None) -> dict:
 
 
 def _selected_region(html) -> str | None:
-    """Return the selected <option> value of ``select[name=region]``.
+    """Return the region vlr.gg actually applied to this response.
 
-    This is the ground truth of which filter vlr.gg actually applied: the page
-    always echoes the applied region as its selected option. Returns ``None`` when
-    the select is absent so callers can skip response validation on markup they do
-    not model.
+    This is the ground truth of which filter the server used. The October 2026
+    revamp replaced the ``<select name="region">`` with a ``form.st-filter``
+    whose regions are ``<input name="region[]">`` checkboxes, so the applied
+    value is now the one carrying ``checked``; a form with nothing ticked means
+    no region restriction ("all"). The legacy select is still read as a
+    fallback. Returns ``None`` when neither shape is present, so callers skip
+    response validation on markup we do not model.
     """
+    form = html.css_first("form.st-filter")
+    if form is not None:
+        checked = form.css('input[name="region[]"][checked]')
+        if checked:
+            return checked[0].attributes.get("value") or None
+        return "all"
+
     select = html.css_first('select[name="region"]')
     if select is None:
         return None
@@ -185,16 +200,24 @@ async def vlr_stats(region_key: str, timespan: str, event_id: str | None = None)
 
     async def build():
         resolved_event_id = event_id if event_id else "all"
-        base_url = (
-            f"{VLR_STATS_URL}/?event_group_id=all&event_id={resolved_event_id}"
-            f"&region={region_key}&country=all&min_rounds=200"
-            f"&min_rating=1550&agent=all&map_id=all"
+        # The revamped filter form submits the region as a checkbox array
+        # (``region[]``); the legacy singular name is still accepted server-side,
+        # but the plural is what the site itself sends, so that is the shape we
+        # track. Values stay in the /stats vocabulary (see STATS_REGIONS).
+        query = urlencode(
+            {
+                "event_group_id": "all",
+                "event_id": resolved_event_id,
+                "region[]": region_key,
+                "country": "all",
+                "min_rounds": 200,
+                "min_rating": 1550,
+                "agent": "all",
+                "map_id": "all",
+                "timespan": "all" if timespan.lower() == "all" else f"{timespan}d",
+            }
         )
-        url = (
-            f"{base_url}&timespan=all"
-            if timespan.lower() == "all"
-            else f"{base_url}&timespan={timespan}d"
-        )
+        url = f"{VLR_STATS_URL}/?{query}"
 
         client = get_http_client()
         await _prime_session(client)
@@ -202,10 +225,10 @@ async def vlr_stats(region_key: str, timespan: str, event_id: str | None = None)
         status, html = await _fetch_stats_page(client, url)
 
         # Response-level validation is the correctness signal (not cookie presence):
-        # the page echoes the applied filter as its selected region option. On a
-        # mismatch, re-prime and refetch once; a second mismatch means vlr.gg is
-        # ignoring region= -> raise rather than cache a globally-scoped list under a
-        # specific region key.
+        # the page echoes the applied filter back (today as the checked ``region[]``
+        # box). On a mismatch, re-prime and refetch once; a second mismatch means
+        # vlr.gg is ignoring the region param -> raise rather than cache a
+        # globally-scoped list under a specific region key.
         selected = _selected_region(html)
         if selected is not None and selected != region_key:
             logger.warning(

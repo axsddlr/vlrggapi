@@ -31,6 +31,17 @@ So every page type declares:
     delegated to a per-page-type ``discovery`` function, so "the page type is
     healthy" is established structurally before any selector can fail.
 
+Discovery also filters candidates by **readiness** before they are graded.
+A match results listing is newest-first, and a freshly completed match is
+precisely the page whose stats and VODs vlr.gg has not published yet: the
+performance/economy tabs render a ``.vm-stats-empty`` placeholder reading
+"Stats from this match are not available yet", and the watch module renders an
+``.sm-empty`` "Not yet available" block instead of any ``.sm-vod`` entry. All
+the markup the check asserts is then legitimately absent, which is how #200
+reported five intact selectors as broken. Readiness is deliberately tested with
+markers the checks do *not* assert, so a redesign that genuinely removes them
+is still graded and still fails loudly.
+
 **There is deliberately no static fallback fixture.** A hardcoded witness URL
 ages: ``/player/9`` still renders, but stops rendering the agent table once the
 player goes quiet, which is indistinguishable from a layout break and is exactly
@@ -71,6 +82,74 @@ async def _fetch_html(client: httpx.AsyncClient, url: str) -> SelectolaxParser:
     resp = await client.get(url, timeout=30)
     resp.raise_for_status()
     return SelectolaxParser(resp.text)
+
+
+# Parsed pages keyed by URL, so a witness probed for readiness is graded from
+# the same response instead of being fetched a second time.
+_PAGE_CACHE: dict[str, SelectolaxParser] = {}
+
+
+async def _fetch_cached(client: httpx.AsyncClient, url: str) -> SelectolaxParser:
+    tree = _PAGE_CACHE.get(url)
+    if tree is None:
+        tree = await _fetch_html(client, url)
+        _PAGE_CACHE[url] = tree
+    return tree
+
+
+# ---------------------------------------------------------------------------
+# Readiness: has vlr.gg published the data this page type asserts?
+# ---------------------------------------------------------------------------
+#
+# Neither marker below is a selector the checks assert. That separation is the
+# whole point: if these markers disappear in a redesign the page looks ready,
+# gets graded, and the missing real selector fails loudly. Testing readiness
+# with the asserted selector itself would invert that — a removed .sm-vod would
+# make every page "unready", the check would go blind, and the break would
+# never be reported.
+
+
+def _stats_are_published(tree: SelectolaxParser) -> bool:
+    """True when the stats tabs carry real numbers for this match.
+
+    An unprocessed match renders a single ``.vm-stats-empty`` placeholder
+    ("Stats from this match are not available yet") inside the *active* game
+    block. A processed match can still carry ``.vm-stats-empty`` blocks for the
+    maps that were never played, so only the active block decides — that is the
+    difference between the 4 placeholders on an unprocessed match and the 1 on a
+    processed one.
+    """
+    active = tree.css_first(".vm-stats-game.mod-active")
+    if active is None:
+        # Unexpected shape: let the grader say so rather than skip the page.
+        return True
+    return active.css_first(".vm-stats-empty") is None
+
+
+def _vods_are_published(tree: SelectolaxParser) -> bool:
+    """True when the watch module's VODs pane is populated.
+
+    A match whose VODs are not uploaded yet renders ``.sm-empty`` "Not yet
+    available" inside ``.sm-pane-vods`` and labels the tab "VODs (0)". Both are
+    checked because the label survives a redesign of the entry markup while the
+    placeholder survives a redesign of the tab.
+    """
+    pane = tree.css_first(".sm-pane-vods")
+    if pane is not None and pane.css_first(".sm-empty") is not None:
+        return False
+
+    for tab in tree.css(".sm-tab"):
+        label = " ".join(tab.text().split())
+        if label.startswith("VOD"):
+            if label.endswith("(0)"):
+                return False
+            break
+    return True
+
+
+def _readiness_for(label: str) -> Callable[[SelectolaxParser], bool]:
+    """Readiness predicate for a witness of ``label``."""
+    return _vods_are_published if label == "match_detail" else _stats_are_published
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +299,9 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             # .match-streams-btn / .match-vods markup with the sm-* module.
             # Every fetched match page must carry at least one of these
             # containers, so a witness on any single page is proof.
+            # .sm-vod / .sm-vod-name only render once VODs are published, so
+            # discovery skips matches whose VODs pane still shows the
+            # "Not yet available" placeholder (#200).
             ".sm-root",
             ".sm-pane-streams",
             ".sm-pane-vods",
@@ -284,6 +366,9 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             ".match-header-super",
         ],
         required=[
+            # The stats modules only exist once vlr.gg has processed the match;
+            # discovery skips matches still serving the "Stats from this match
+            # are not available yet" placeholder (#200).
             "table.wf-table-inset.mod-matrix.mod-normal",
             "table.wf-table-inset.mod-adv-stats",
         ],
@@ -304,8 +389,35 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             ".match-header-super",
         ],
         required=[
+            # .vm-stats-game.mod-active is required rather than optional: every
+            # map's block is on the page and the parser scopes its rows to the
+            # requested game through that wrapper. Both selectors need a match
+            # that vlr.gg has actually processed (see match_detail_perf, #200).
             ".vm-stats-game.mod-active",
             "table.ecm",
+        ],
+    ),
+    # --- Match detail logs tab (2D replay) --------------------------------
+    # The replay viewer landed in October 2026. Each round embeds its replay as
+    # JSON in div.lg-map[data-map]; the scraper also reads the score band, the
+    # per-player buy rows and the round strip, so all three are asserted.
+    PageCheck(
+        label="match_detail_logs",
+        urls=[],
+        discovery="match_detail_tabs",
+        source="api/scrapers/match_logs.py",
+        anchors=[
+            ".match-header-super",
+        ],
+        required=[
+            ".lg-round",
+            "div.lg-map[data-map]",
+            ".lg-band",
+        ],
+        optional=[
+            ".lg-strip .js-lg-round",
+            ".lg-mir-row",
+            ".lg-map-art",
         ],
     ),
     # --- Matches listing --------------------------------------------------
@@ -509,11 +621,25 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
         anchors=[
             "table",
         ],
+        required=[
+            # The scraper reads cells by semantic data-col key and fails closed
+            # (HTTP 502) when a required one disappears, so the keyed header and
+            # the player cell are outages, not degraded paths. ``rating`` is
+            # pinned because the October 2026 revamp renamed it from rating2 and
+            # silently broke every non-empty /stats response (#202).
+            "thead th[data-col]",
+            'thead th[data-col="rating"]',
+            "td.mod-player",
+        ],
         optional=[
             "thead tr",
-            "td.mod-player",
             "td.mod-agents img",
-            'select[name="region"]',
+            # The same revamp replaced the region <select> with a st-filter form
+            # of region[] checkboxes; the scraper validates the applied filter
+            # from the checked box. Tracked but not required, because the legacy
+            # select is still a supported fallback.
+            "form.st-filter",
+            'input[name="region[]"]',
             "tbody tr",
         ],
     ),
@@ -630,7 +756,22 @@ _MATCH_DETAIL_WITNESSES = 3
 _MATCH_TAB_WITNESSES = 2
 _PLAYER_WITNESSES = 2
 
+# Upper bound on candidates probed while looking for witnesses that already
+# carry the data a page type asserts. See _probe_indices for why the budget is
+# spent on a spread rather than on the newest pages.
+_MAX_WITNESS_PROBES = 8
+
+# Which stats tab a match-detail page check grades.
+_MATCH_TAB_BY_LABEL = {
+    "match_detail_perf": "performance",
+    "match_detail_econ": "economy",
+    "match_detail_logs": "logs",
+}
+
 _DISCOVERY_ERRORS: dict[str, str] = {}
+
+# Why a page type found no *ready* witness, when candidates existed.
+_READINESS_NOTES: dict[str, str] = {}
 
 
 async def _discover(client: httpx.AsyncClient, kind: str) -> list[str]:
@@ -651,22 +792,93 @@ async def _discover(client: httpx.AsyncClient, kind: str) -> list[str]:
     return ids
 
 
-def _label_witnesses(label: str, match_ids: list[str]) -> list[str]:
+def _witness_url(label: str, match_id: str) -> str:
+    """Witness URL for one match, on the surface ``label`` grades."""
+    if label == "match_detail":
+        return f"{VLR_BASE_URL}/{match_id}/"
+    if label in _MATCH_TAB_BY_LABEL:
+        tab = _MATCH_TAB_BY_LABEL[label]
+        return f"{VLR_BASE_URL}/{match_id}/?game=all&tab={tab}"
+    raise ValueError(f"no witness builder for label: {label}")
+
+
+def _witness_limit(label: str) -> int:
+    """How many witnesses this page type is graded against."""
+    return _MATCH_DETAIL_WITNESSES if label == "match_detail" else _MATCH_TAB_WITNESSES
+
+
+def _label_witnesses(label: str, match_ids: list[str], limit: int | None = None) -> list[str]:
     """Build the witness URL list for one match-backed page type.
 
     An empty ``match_ids`` yields an empty witness list on purpose — see the
     module docstring: a stand-in fixture is how #183 reported a layout change
     every day for a match that had simply gone quiet.
     """
-    if label == "match_detail":
-        return [f"{VLR_BASE_URL}/{match_id}/" for match_id in match_ids[:_MATCH_DETAIL_WITNESSES]]
-    if label in ("match_detail_perf", "match_detail_econ"):
-        tab = "performance" if label.endswith("perf") else "economy"
-        return [
-            f"{VLR_BASE_URL}/{match_id}/?game=all&tab={tab}"
-            for match_id in match_ids[:_MATCH_TAB_WITNESSES]
-        ]
-    raise ValueError(f"no witness builder for label: {label}")
+    if label not in ("match_detail", *_MATCH_TAB_BY_LABEL):
+        raise ValueError(f"no witness builder for label: {label}")
+    count = _witness_limit(label) if limit is None else limit
+    return [_witness_url(label, match_id) for match_id in match_ids[:count]]
+
+
+def _probe_indices(count: int, limit: int | None = None) -> list[int]:
+    """Candidate indices to probe: the newest page, then an even spread.
+
+    Discovery hands candidates back newest-first, and a freshly completed match
+    is exactly the page whose stats and VODs are not published yet — they
+    arrive as a consecutive run at the top of the listing. Probing in order
+    would spend the whole budget inside that run and then declare the page type
+    unverifiable, so the newest page is always probed (it proves the current
+    template is what we grade) and the rest is sampled evenly. A long
+    unprocessed run is then stepped over in a couple of requests, without
+    assuming anything about how long it is.
+    """
+    if count <= 0:
+        return []
+    cap = _MAX_WITNESS_PROBES if limit is None else max(1, limit)
+    if count <= cap:
+        return list(range(count))
+    step = (count - 1) / (cap - 1)
+    return sorted({0, *(round(i * step) for i in range(cap))})
+
+
+async def _settled_witnesses(
+    client: httpx.AsyncClient,
+    label: str,
+    match_ids: list[str],
+    limit: int | None = None,
+) -> list[str]:
+    """Witness URLs whose match has already published the data we assert.
+
+    Grading a page whose stats or VODs do not exist yet reports every selector
+    in those modules as broken, which is what made #200 file five intact
+    selectors as a layout change. Candidates that are not readable are skipped:
+    a failed probe says nothing about our selectors either way.
+    """
+    wanted = _witness_limit(label) if limit is None else limit
+    candidates = [_witness_url(label, match_id) for match_id in match_ids]
+    ready = _readiness_for(label)
+
+    # A stale explanation must never outlive the window that produced it.
+    _READINESS_NOTES.pop(label, None)
+
+    picked: list[str] = []
+    for index in _probe_indices(len(candidates)):
+        if len(picked) >= wanted:
+            break
+        try:
+            tree = await _fetch_cached(client, candidates[index])
+        except Exception:  # noqa: BLE001 - a failed probe is not evidence
+            continue
+        if ready(tree):
+            picked.append(candidates[index])
+
+    if not picked and candidates:
+        probed = min(len(candidates), _MAX_WITNESS_PROBES)
+        _READINESS_NOTES[label] = (
+            f"{probed} candidate page(s) probed for {label}, but none had "
+            f"published stats/VODs, so no selector was asserted"
+        )
+    return picked
 
 
 def _discovery_kind(discovery: str) -> str:
@@ -679,7 +891,9 @@ def _no_witness_reason(pc: PageCheck) -> str:
 
     Surfacing the discovery error matters: ``_DISCOVERY_ERRORS`` used to be
     written and never read, so a blocked or restructured listing page silently
-    turned into a stale-fixture verdict against our own selectors.
+    turned into a stale-fixture verdict against our own selectors. Readiness is
+    reported separately: candidates were found, they just had no data yet, which
+    is not evidence about our selectors either.
     """
     error = _DISCOVERY_ERRORS.get(_discovery_kind(pc.discovery))
     if error:
@@ -687,6 +901,9 @@ def _no_witness_reason(pc: PageCheck) -> str:
             f"witness discovery for {pc.label} could not read the vlr.gg listing "
             f"({error}); no selectors were asserted"
         )
+    note = _READINESS_NOTES.get(pc.label)
+    if note:
+        return note
     return (
         f"witness discovery for {pc.label} returned no candidate pages; "
         f"no selectors were asserted"
@@ -743,7 +960,7 @@ async def resolve_witnesses(client: httpx.AsyncClient) -> dict[str, list[str]]:
         if not pc.discovery:
             resolved[pc.label] = list(pc.urls)
         elif pc.discovery in ("match_detail", "match_detail_tabs"):
-            resolved[pc.label] = _label_witnesses(pc.label, match_ids)
+            resolved[pc.label] = await _settled_witnesses(client, pc.label, match_ids)
         elif pc.discovery == "player":
             resolved[pc.label] = [
                 f"{VLR_BASE_URL}/player/{pid}/" for pid in player_ids[:_PLAYER_WITNESSES]
@@ -760,7 +977,7 @@ async def fetch_pages(client: httpx.AsyncClient, urls: list[str]) -> tuple[list[
     """Fetch witness pages concurrently; return (pages, fetch_error)."""
     async def one(url: str) -> object:
         try:
-            return PageData(url=url, tree=await _fetch_html(client, url))
+            return PageData(url=url, tree=await _fetch_cached(client, url))
         except Exception as exc:  # noqa: BLE001 - reported, never fatal
             return exc
 
@@ -911,6 +1128,10 @@ async def _grade_page_check(pc: PageCheck) -> dict:
         result: dict | None = None
         last_error: str | None = None
         for attempt in range(3):
+            if attempt:
+                # A retry exists to re-read the page; replaying bytes cached by
+                # the readiness probe would defeat it.
+                _PAGE_CACHE.clear()
             pages, fetch_error = await fetch_pages(client, urls)
             if pages:
                 result = grade_page(pc, pages)

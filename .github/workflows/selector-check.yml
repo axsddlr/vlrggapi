@@ -9,9 +9,15 @@ on:
       - "tests/test_vlr_selectors.py"
       - ".github/workflows/selector-check.yml"
 
+# The repo default workflow token is read-write. This job reads code, parses
+# live vlr.gg HTML, and files an issue — nothing else.
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   check-selectors:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # UV_PYTHON wins over .python-version, which pins 3.11.
     env:
@@ -21,7 +27,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
           python-version: "3.12"
@@ -254,3 +260,10 @@ jobs:
                 body,
               });
             }
+
+      # `continue-on-error` above keeps the report/issue steps running, but the
+      # job must still go red so the scheduled failure (and its notification)
+      # is not silent.
+      - name: Fail the run when selectors broke
+        if: steps.check.outcome == 'failure'
+        run: exit 1

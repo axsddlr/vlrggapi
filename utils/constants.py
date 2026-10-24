@@ -81,7 +81,8 @@ CACHE_TTL_EVENT_MATCHES = 600
 
 # /stats region vocabulary
 # The /stats page uses a DIFFERENT region taxonomy from /rankings. vlr.gg's
-# <select name="region"> offers exactly these canonical values; any other value
-# silently falls back to "all". Kept separate from utils.utils.region (the
-# /rankings contract) so /rankings?region=americas still returns 400.
+# filter form submits exactly these canonical values (as ``region[]`` checkboxes
+# since the October 2026 revamp); any other value silently falls back to "all".
+# Kept separate from utils.utils.region (the /rankings contract) so
+# /rankings?region=americas still returns 400.
 STATS_REGIONS = frozenset({"all", "americas", "emea", "pacific", "china", "intl"})

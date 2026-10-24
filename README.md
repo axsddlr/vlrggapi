@@ -71,7 +71,7 @@ Interactive Swagger docs are available at `/`.
 
 - **Recommended base path** - use `/v2` for new integrations
 - **Current version endpoint** - `GET /version` returns the current API version and default API
-- **Rate limit** - tiered sliding-window limits, applied per client IP. `200/min` (`/health`, `/version`), `60/min` (`/news`, `/events`, `/event/{id}`, `/events/matches`, `/rankings`, `/search`, and `/match` with `q=upcoming` or `q=live_score`), `20/min` (`/match/details`, `/stats`, `/player`, `/team`, and `/match` with `q=results` or `q=upcoming_extended`). The `/v2` prefix shares each tier with its unversioned route. Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining` headers. Limits are per worker process, so a multi-worker deployment enforces them independently in each worker.
+- **Rate limit** - tiered sliding-window limits, applied per client IP. `200/min` (`/health`, `/version`), `60/min` (`/news`, `/events`, `/event/{id}`, `/events/matches`, `/rankings`, `/search`, and `/match` with `q=upcoming` or `q=live_score`), `20/min` (`/match/details`, `/match/logs`, `/stats`, `/player`, `/team`, and `/match` with `q=results` or `q=upcoming_extended`). The `/v2` prefix shares each tier with its unversioned route. Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining` headers. Limits are per worker process, so a multi-worker deployment enforces them independently in each worker.
 - **Error handling** - V2 returns HTTP 400 for invalid input and propagates upstream failures with HTTP error codes
 - **Deployment targets** - Vercel for the hosted API, Docker for containerized self-hosting
 
@@ -82,6 +82,7 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/news` | — | 10 min |
 | `GET /v2/match` | `q` (upcoming/upcoming_extended/live_score/results); pagination params `num_pages`, `from_page`, `to_page` apply to `upcoming_extended`/`results` only; also `max_retries`, `request_delay`, `timeout` | 30s–5 min |
 | `GET /v2/match/details` | `match_id` | 5 min |
+| `GET /v2/match/logs` | `match_id`, `game_id` (optional, defaults to the first played map) | 5 min |
 | `GET /v2/rankings` | `region` | 1 hr |
 | `GET /v2/stats` | `region`, `timespan`, `event_id` | 30 min |
 | `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
@@ -288,6 +289,92 @@ GET /v2/match/details?match_id=595657
 }
 ```
 </details>
+
+### `GET /v2/match/logs`
+**Params:** `match_id` (required), `game_id` (optional — defaults to the match's first played map) | **Cache:** 5 min
+
+Per-round 2D replay of one map, from the `logs` tab on vlr.gg. Each round carries its score, winner, attacking side and end reason, every player's buy, and one event per kill, spike plant and spike defuse — each with the acting player, damage source, spike site, and the positions and health of every player at that moment. Positions are per-event snapshots, not continuous frames.
+
+```
+GET /v2/match/logs?match_id=766311&game_id=285688
+```
+
+<details><summary>Response — real output for Abyss (22 rounds), trimmed to the first 2 rounds, 2 of 10 buy rows, 2 of 8 events and 3 positions per event</summary>
+
+```json
+{
+  "status": "success",
+  "data": {
+    "match_id": "766311", "game_id": "285688", "map": "abyss",
+    "teams": {
+      "team1": { "name": "Akave Esports GC", "tag": "AKV.GC" },
+      "team2": { "name": "MIBR GC", "tag": "MIBR.GC" }
+    },
+    "rounds": [
+      {
+        "round": 1, "score": { "team1": 1, "team2": 0 }, "winner": "team1",
+        "attacking_side": "team1", "end_reason": "Elimination",
+        "economy": [
+          { "player": "WIRE", "team": 1, "agent": "yoru", "credits": 50, "spent": 750, "weapon": "Ghost", "armor": "none" },
+          { "player": "Ivy", "team": 1, "agent": "sage", "credits": 100, "spent": 700, "weapon": "Classic", "armor": "none" }
+        ],
+        "events": [
+          {
+            "t": "0:07", "type": "kill", "player": "Tastyy", "team": 1, "victim": "bstrdd", "victim_team": 2,
+            "pos": { "x": 562.3, "y": 584.8 }, "from": { "x": 530.7, "y": 707.5 },
+            "positions": [
+              { "player": "conir", "team": 2, "x": 967.4, "y": 418.8, "hp": 112 },
+              { "player": "waved", "team": 2, "x": 464.8, "y": 528.5, "hp": 150 },
+              { "player": "WIRE", "team": 1, "x": 180.8, "y": 642.2, "hp": 198 }
+            ],
+            "source": "Headhunter"
+          },
+          {
+            "t": "0:17", "type": "kill", "player": "waved", "team": 2, "victim": "Tastyy", "victim_team": 1,
+            "pos": { "x": 240.7, "y": 751.8 }, "from": { "x": 337.2, "y": 608.7 },
+            "positions": [
+              { "player": "conir", "team": 2, "x": 845.4, "y": 280.8, "hp": 81 },
+              { "player": "waved", "team": 2, "x": 337.2, "y": 608.7, "hp": 124 },
+              { "player": "WIRE", "team": 1, "x": 38, "y": 361.2, "hp": 8 }
+            ],
+            "source": "Ghost"
+          }
+        ]
+      },
+      {
+        "round": 2, "score": { "team1": 2, "team2": 0 }, "winner": "team1",
+        "attacking_side": "team1", "end_reason": "Elimination",
+        "economy": [
+          { "player": "WIRE", "team": 1, "agent": "yoru", "credits": 100, "spent": 3650, "weapon": "Bulldog", "armor": "heavy" },
+          { "player": "Ivy", "team": 1, "agent": "sage", "credits": 1900, "spent": 1500, "weapon": "Sheriff", "armor": "heavy" }
+        ],
+        "events": [
+          {
+            "t": "0:19", "type": "kill", "player": "waved", "team": 2, "victim": "waved", "victim_team": 2,
+            "pos": { "x": 1149.6, "y": 749.2 },
+            "positions": [
+              { "player": "conir", "team": 2, "x": 1105.6, "y": 659.7, "hp": 4 },
+              { "player": "WIRE", "team": 1, "x": 161.7, "y": 582.9, "hp": 220 },
+              { "player": "Tura", "team": 1, "x": 712.2, "y": 846, "hp": 300 }
+            ],
+            "source": "Fall"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+</details>
+
+Reading the payload:
+
+- `armor` is one of `none`, `light`, `heavy`, `regen`. `credits` is what the player had left after the buy, `spent` a positive amount.
+- `source` is vlr.gg's own label for the damage source: usually a weapon, but ability kills appear by ability name (`Headhunter`) and environmental deaths as `Fall` or `Spike`.
+- A death to the environment is reported as a kill where `player` equals `victim` and `source` is `Fall`/`Spike` — 11 of Abyss's 140 kills here. Do not treat `player == victim` as a parsing bug.
+- `positions` holds every player still in play at that event, with their health. `pos` is where the event happened; `from` is the shooter's position (kills only).
+- Coordinates are vlr.gg's per-map replay pixels, not normalised: Abyss runs to `x = 1157.5` on a nominally 1024-unit map, so scale from the observed range per map rather than assuming 0–1024.
+- A map that was never played returns `rounds: []`. A 22-round response is roughly 128 KB, dominated by `positions`.
 
 ### `GET /v2/event/{event_id}`
 Event detail: stages, prizes, team rosters, and standings tables.
@@ -637,6 +724,7 @@ Preserved for backwards compatibility. Most return `{"data": {"status": int, "se
 | `GET /news` | — |
 | `GET /match` | `q` (upcoming/upcoming_extended/live_score/results); pagination params for `upcoming_extended`/`results` only |
 | `GET /match/details` | `match_id` |
+| `GET /match/logs` | `match_id`, `game_id` (optional) |
 | `GET /stats` | `region`, `timespan`, `event_id` |
 | `GET /rankings` | `region` |
 | `GET /events` | `q` (upcoming/completed/live), `page` |

@@ -1,5 +1,6 @@
 import logging
 import re
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi import HTTPException
@@ -56,16 +57,17 @@ STATS_HTML = """
 
 # The full ordered list of data-col attributes vlr.gg now emits (after the player
 # column, which is unlabelled). 22 keyed columns == 23 <th> including player.
+# October 2026 revamp: ``rating2`` became ``rating`` and ``fbpr`` became ``fkpr``.
 NEW_DATA_COLS = [
-    "agents", "maps", "rnd", "rating2", "acs", "kd", "kast", "adr", "kpr", "apr",
-    "fkfd", "fbpr", "fdpr", "hsp", "clp", "cl", "kmax", "k", "d", "a", "fk", "fd",
+    "agents", "maps", "rnd", "rating", "acs", "kd", "kast", "adr", "kpr", "apr",
+    "fkfd", "fkpr", "fdpr", "hsp", "clp", "cl", "kmax", "k", "d", "a", "fk", "fd",
 ]
 
 # Realistic per-column cell text for one row.
 NEW_ROW_VALUES = {
-    "maps": "11", "rnd": "228", "rating2": "1.37", "acs": "247", "kd": "1.15",
+    "maps": "11", "rnd": "228", "rating": "1.37", "acs": "247", "kd": "1.15",
     "kast": "73%", "adr": "155.0", "kpr": "0.82", "apr": "0.30", "fkfd": "+5",
-    "fbpr": "0.14", "fdpr": "0.10", "hsp": "28%", "clp": "20%", "cl": "7/35",
+    "fkpr": "14%", "fdpr": "10%", "hsp": "28%", "clp": "20%", "cl": "7/35",
     "kmax": "30", "k": "180", "d": "150", "a": "60", "fk": "25", "fd": "20",
 }
 
@@ -98,7 +100,21 @@ def _new_row(values=None, org="NRG", player="brawk", org_class="st-pl-country"):
     return "<tr>" + "".join(tds) + "</tr>"
 
 
+def _region_form(selected="americas"):
+    """Modern (October 2026) filter form: region[] checkboxes, checked = applied."""
+    boxes = []
+    for r in STATS_REGION_OPTIONS:
+        if r == "all":
+            continue  # "all" is the absence of a ticked region, not a checkbox
+        checked = " checked" if r == selected else ""
+        boxes.append(
+            f'<input type="checkbox" name="region[]" value="{r}"{checked}>'
+        )
+    return '<form class="st-filter" action="/stats" method="get">' + "".join(boxes) + "</form>"
+
+
 def _region_select(selected="americas"):
+    """Legacy filter markup: a single <select> with one <option selected>."""
     opts = []
     for r in STATS_REGION_OPTIONS:
         sel = " selected" if r == selected else ""
@@ -106,15 +122,25 @@ def _region_select(selected="americas"):
     return '<select name="region">' + "".join(opts) + "</select>"
 
 
-def make_stats_page(selected="americas", rows=None, thead=None, include_select=True):
-    """Assemble a full new-markup /stats page for the vlr_stats flow tests."""
+def make_stats_page(selected="americas", rows=None, thead=None, region_markup="modern"):
+    """Assemble a full new-markup /stats page for the vlr_stats flow tests.
+
+    ``region_markup`` selects how the applied filter is echoed: ``"modern"`` (the
+    current region[] checkbox form), ``"legacy"`` (the retired <select>), or
+    ``"none"`` (markup we do not model, so response validation is skipped).
+    """
     if thead is None:
         thead = _thead()
     if rows is None:
         rows = _new_row()
-    select_html = _region_select(selected) if include_select else ""
+    if region_markup == "modern":
+        region_html = _region_form(selected)
+    elif region_markup == "legacy":
+        region_html = _region_select(selected)
+    else:
+        region_html = ""
     return (
-        f"<html><body>{select_html}"
+        f"<html><body>{region_html}"
         f"<table>{thead}<tbody>{rows}</tbody></table></body></html>"
     )
 
@@ -128,9 +154,16 @@ class FakeResponse:
 
 
 def _region_of(url: str) -> str | None:
-    """Extract the region= query value from a /stats URL. None => a prime GET."""
-    match = re.search(r"[?&]region=([^&]+)", url)
-    return match.group(1) if match else None
+    """Extract the region query value from a /stats URL. None => a prime GET.
+
+    Accepts both the current ``region[]`` checkbox form and the legacy
+    singular ``region`` name.
+    """
+    query = parse_qs(urlparse(url).query)
+    for key in ("region[]", "region"):
+        if key in query:
+            return query[key][0]
+    return None
 
 
 class FakeFetch:
@@ -205,7 +238,7 @@ def test_parse_stats_row_legacy_positional_fallback():
 
 def test_parse_stats_row_new_markup_header_keyed():
     """23-column markup: cells read by data-col key, immune to inserted columns."""
-    tree = HTMLParser(make_stats_page(include_select=False))
+    tree = HTMLParser(make_stats_page(region_markup="none"))
     col_map = _build_column_map(tree)
     row = tree.css_first("tbody tr")
 
@@ -222,14 +255,14 @@ def test_parse_stats_row_new_markup_header_keyed():
 
 
 def test_build_column_map_keys_align_with_td_positions():
-    tree = HTMLParser(make_stats_page(include_select=False))
+    tree = HTMLParser(make_stats_page(region_markup="none"))
     col_map = _build_column_map(tree)
 
     # player is td[0] (unkeyed), agents td[1], maps td[2], rnd td[3] ...
     assert col_map["agents"] == 1
     assert col_map["maps"] == 2
     assert col_map["rnd"] == 3
-    assert col_map["rating2"] == 4
+    assert col_map["rating"] == 4
     assert col_map["acs"] == 5
     assert col_map["cl"] == 16
 
@@ -302,7 +335,7 @@ async def test_vlr_stats_new_markup_end_to_end(monkeypatch):
     }
     # prime fired first, exactly once, before the data fetch
     assert _region_of(fetch.calls[0]) is None
-    assert "region=americas" in fetch.calls[1]
+    assert _region_of(fetch.calls[1]) == "americas"
 
 
 @pytest.mark.anyio
@@ -327,8 +360,8 @@ async def test_vlr_stats_legacy_markup_logs_warning(monkeypatch, caplog):
 @pytest.mark.anyio
 async def test_vlr_stats_missing_required_key_raises(monkeypatch):
     fetch = _install_fake_fetch(monkeypatch)
-    # data-col present on most columns, but rating2 is unkeyed -> must fail closed
-    page = make_stats_page(thead=_thead(drop=("rating2",)))
+    # data-col present on most columns, but rating is unkeyed -> must fail closed
+    page = make_stats_page(thead=_thead(drop=("rating",)))
     fetch.page_for_region = lambda region: page
 
     with pytest.raises(HTTPException) as exc:
@@ -349,8 +382,8 @@ async def test_priming_fires_once_across_two_region_calls(monkeypatch):
     assert len(prime_calls) == 1
     # order: prime, then the two data fetches
     assert _region_of(fetch.calls[0]) is None
-    assert "region=americas" in fetch.calls[1]
-    assert "region=emea" in fetch.calls[2]
+    assert _region_of(fetch.calls[1]) == "americas"
+    assert _region_of(fetch.calls[2]) == "emea"
 
 
 @pytest.mark.anyio
@@ -414,7 +447,7 @@ async def test_alias_normalizes_before_cache_key(monkeypatch):
     assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "na", "60", "all") is None
     # the fetched URL carries the canonical region
     data_calls = [c for c in fetch.calls if _region_of(c) is not None]
-    assert "region=americas" in data_calls[0]
+    assert _region_of(data_calls[0]) == "americas"
 
     # a follow-up canonical request is served from the same cache entry (no refetch)
     before = len(fetch.calls)
@@ -442,7 +475,7 @@ async def test_tableless_empty_page_returns_empty_without_fallback_warning(monke
     windows). That is an empty result set, not legacy markup — no fallback warning."""
     fetch = _install_fake_fetch(monkeypatch)
     fetch.page_for_region = lambda region: (
-        f"<html><body>{_region_select(selected=region)}</body></html>"
+        f"<html><body>{_region_form(selected=region)}</body></html>"
     )
 
     with caplog.at_level(logging.WARNING, logger="api.scrapers.stats"):
@@ -456,14 +489,49 @@ async def test_tableless_empty_page_returns_empty_without_fallback_warning(monke
 # Region vocabulary
 # ---------------------------------------------------------------------------
 
-def test_selected_region_reads_selected_option():
+def test_selected_region_reads_checked_region_checkbox():
+    """Current markup: the applied region is the checked region[] box."""
     tree = HTMLParser(make_stats_page(selected="emea"))
     assert _selected_region(tree) == "emea"
+
+
+def test_selected_region_is_all_when_form_ticks_nothing():
+    """A st-filter form with no region ticked means no region restriction."""
+    tree = HTMLParser(make_stats_page(selected="all"))
+    assert _selected_region(tree) == "all"
+
+
+def test_selected_region_falls_back_to_legacy_select():
+    """The retired <select> is still read, so an older page keeps validating."""
+    tree = HTMLParser(make_stats_page(selected="emea", region_markup="legacy"))
+    assert _selected_region(tree) == "emea"
+
+
+def test_selected_region_prefers_the_modern_form():
+    """Both shapes on one page: the live form wins over the legacy select."""
+    html = (
+        f"{_region_form(selected='emea')}{_region_select(selected='china')}"
+        "<table></table>"
+    )
+    assert _selected_region(HTMLParser(html)) == "emea"
 
 
 def test_selected_region_none_when_absent():
     tree = HTMLParser("<html><body><table></table></body></html>")
     assert _selected_region(tree) is None
+
+
+@pytest.mark.anyio
+async def test_request_uses_the_region_array_param(monkeypatch):
+    """The revamped form submits region[]; that is the shape we send."""
+    fetch = _install_fake_fetch(monkeypatch)
+
+    await vlr_stats("pacific", "60")
+
+    data_calls = [c for c in fetch.calls if _region_of(c) is not None]
+    assert data_calls
+    assert "region%5B%5D=pacific" in data_calls[0]
+    assert re.search(r"[?&]region=pacific", data_calls[0]) is None
 
 
 @pytest.mark.parametrize("value", ["americas", "all", "intl"])

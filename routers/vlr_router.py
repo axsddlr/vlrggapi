@@ -9,6 +9,7 @@ from routers.shared_handlers import (
     get_health_data,
     get_match_data,
     get_match_detail_data,
+    get_match_logs_data,
     get_news_data,
     get_player_data,
     get_player_matches_data,
@@ -167,6 +168,18 @@ async def VLR_match_detail(
     """Get detailed match data including per-map stats, rounds, and head-to-head."""
     validate_id_param(match_id, "match_id")
     return _strip_match_team_ids(await get_match_detail_data(match_id))
+
+
+@router.get("/match/logs")
+async def VLR_match_logs(
+    match_id: str = Query(..., description="VLR.GG match ID"),
+    game_id: str = Query(None, description="Optional game (map) ID; defaults to the first played map"),
+):
+    """Get the per-round 2D replay of one map — results, buys, kills and positions."""
+    validate_id_param(match_id, "match_id")
+    if game_id is not None:
+        validate_id_param(game_id, "game_id")
+    return await get_match_logs_data(match_id, game_id)
 
 
 @router.get("/player")

@@ -11,7 +11,8 @@ permissions:
 jobs:
   upstream:
     name: Check upstream vlr.gg
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Check vlr.gg homepage
         run: |
@@ -33,7 +34,8 @@ jobs:
 
   api-smoke:
     name: API smoke test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     # UV_PYTHON wins over .python-version, which pins 3.11.
     env:
       UV_PYTHON: "3.13"
@@ -42,7 +44,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
           python-version: "3.13"
@@ -52,9 +54,25 @@ jobs:
 
       - name: Start API server
         run: |
-          uv run python main.py &
-          sleep 3
+          uv run python main.py > server.log 2>&1 &
           echo "Server PID: $!"
+          # Poll for readiness instead of sleeping a fixed 3s: a cold runner can
+          # take longer, and a fixed sleep either flakes or wastes time. The
+          # probe hits the local Swagger page, so it does not depend on vlr.gg.
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 2 "http://127.0.0.1:3001/" > /dev/null 2>&1; then
+              echo "API ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API did not become ready within 60s"
+          cat server.log
+          exit 1
+
+      - name: Show server log
+        if: failure()
+        run: cat server.log || true
 
       - name: Smoke test endpoints
         run: |
