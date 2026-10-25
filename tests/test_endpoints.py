@@ -3,6 +3,14 @@ import pytest
 
 
 @pytest.mark.anyio
+async def test_v2_stats_rejects_an_unknown_map(async_client):
+    resp = await async_client.get("/v2/stats?region=all&timespan=all&map=summit2")
+
+    assert resp.status_code == 400
+    assert "Invalid map" in resp.json()["detail"]
+
+
+@pytest.mark.anyio
 async def test_version_endpoint(async_client):
     resp = await async_client.get("/version")
     assert resp.status_code == 200

@@ -9,6 +9,7 @@ from utils.constants import CACHE_TTL_STATS, VLR_STATS_URL
 from utils.error_handling import (
     handle_scraper_errors,
     raise_for_upstream_status,
+    validate_stats_map,
     validate_stats_region,
     validate_timespan,
 )
@@ -193,11 +194,21 @@ async def _prime_session(client, *, force: bool = False) -> None:
 
 
 @handle_scraper_errors
-async def vlr_stats(region_key: str, timespan: str, event_id: str | None = None):
+async def vlr_stats(
+    region_key: str,
+    timespan: str,
+    event_id: str | None = None,
+    map_name: str = "all",
+    min_rounds: int = 200,
+    min_rating: float = 1.55,
+):
     # Normalize alias -> canonical BEFORE the cache key is formed so na and americas
     # resolve to one entry, and validate up front so bad input fails without a fetch.
     region_key = validate_stats_region(region_key)
     validate_timespan(timespan)
+    map_id = validate_stats_map(map_name)
+    min_rounds = max(0, int(min_rounds))
+    min_rating = max(0.0, float(min_rating))
 
     async def build():
         resolved_event_id = event_id if event_id else "all"
@@ -211,10 +222,11 @@ async def vlr_stats(region_key: str, timespan: str, event_id: str | None = None)
                 "event_id": resolved_event_id,
                 "region[]": region_key,
                 "country": "all",
-                "min_rounds": 200,
-                "min_rating": 1550,
+                "min_rounds": min_rounds,
+                # vlr.gg expresses the rating floor on a x1000 integer scale.
+                "min_rating": int(round(min_rating * 1000)),
                 "agent": "all",
-                "map_id": "all",
+                "map_id": map_id,
                 "timespan": "all" if timespan.lower() == "all" else f"{timespan}d",
             }
         )
@@ -277,5 +289,13 @@ async def vlr_stats(region_key: str, timespan: str, event_id: str | None = None)
         return {"data": {"status": status, "segments": result}}
 
     return await cache_manager.get_or_create_async(
-        CACHE_TTL_STATS, build, "stats", region_key, timespan, event_id or "all"
+        CACHE_TTL_STATS,
+        build,
+        "stats",
+        region_key,
+        timespan,
+        event_id or "all",
+        map_id,
+        min_rounds,
+        min_rating,
     )
