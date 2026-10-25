@@ -1,5 +1,22 @@
 """Endpoint smoke tests for original and v2 routers."""
 import pytest
+from starlette.middleware.cors import CORSMiddleware
+
+from main import app
+
+
+@pytest.mark.anyio
+async def test_browser_clients_get_cors_headers(async_client):
+    resp = await async_client.get("/version", headers={"Origin": "https://example.test"})
+
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "Retry-After" in resp.headers["access-control-expose-headers"]
+
+
+def test_cors_wraps_the_rate_limiter():
+    """A rate-limited 429 must still carry CORS headers, so CORS is outermost."""
+    assert app.user_middleware[0].cls is CORSMiddleware
 
 
 @pytest.mark.anyio

@@ -1,8 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.utils.rate_limiter import RateLimitMiddleware
 from routers.v2_router import router as v2_router
@@ -30,7 +32,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Starlette applies middleware in reverse registration order: the last one added
+# is the outermost. The rate limiter is registered first so CORS ends up around
+# it — otherwise a 429 short-circuits before the CORS layer and browsers report
+# an opaque network error instead of a readable 429 + Retry-After.
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
+)
 
 app.include_router(vlr_router)
 app.include_router(v2_router)
@@ -42,4 +55,7 @@ def version():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=API_PORT)
+    # Most PaaS hosts (Render, Railway, Heroku) inject the listen port at runtime;
+    # fall back to the packaged default for local and Docker Compose use.
+    port = int(os.environ.get("PORT", API_PORT))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
