@@ -9,6 +9,8 @@ current one by default): the prize rows and standings on it are that
 stage's. The `stages` list names every stage; pass a stage slug to read
 another stage's view.
 """
+from urllib.parse import urlparse
+
 from fastapi import HTTPException
 
 from utils.cache_manager import cache_manager
@@ -201,6 +203,32 @@ def _parse_prizes(html: HTMLParser) -> list[dict]:
     return prizes
 
 
+def _qualifier_event_id(href: str) -> str:
+    """Event id from a qualification note's link, or "" when it is not usable.
+
+    Notes point at a relative ``/event/<id>/<slug>`` path or an absolute vlr.gg
+    URL. Another host, a non-event route or an unparseable href yields "" so a
+    malformed note can never fail the surrounding event parse.
+    """
+    if not href:
+        return ""
+    if "://" in href:
+        try:
+            parts = urlparse(href)
+        except ValueError:
+            return ""
+        host = (parts.hostname or "").lower()
+        if host and host != "vlr.gg" and not host.endswith(".vlr.gg"):
+            return ""
+        path = parts.path
+    else:
+        path = href
+    if not path.strip("/").startswith("event/"):
+        return ""
+    event_id, _ = parse_href_id_slug(path)
+    return event_id if event_id.isdigit() else ""
+
+
 def _parse_event_teams(html: HTMLParser) -> list[dict]:
     """Parse participating teams from event-team cards."""
     teams: list[dict] = []
@@ -229,19 +257,23 @@ def _parse_event_teams(html: HTMLParser) -> list[dict]:
                 flag = flag_class.replace("flag ", "").replace(" mod-", "_")
             players.append({"id": p_id, "name": p_name, "flag": flag})
 
-        # Qualification note
+        # Qualification note; its link also names the qualifier event the team
+        # came through, which is useful for walking backwards through a circuit.
         note = ""
+        note_event_id = ""
         note_elem = card.css_first(".event-team-note")
         if note_elem:
             note_link = note_elem.css_first("a")
             if note_link:
                 note = extract_text_content(note_link)
+                note_event_id = _qualifier_event_id(note_link.attributes.get("href", "") or "")
 
         teams.append({
             "id": team_id,
             "name": team_name,
             "players": players,
             "qualification": note,
+            "qualification_event_id": note_event_id,
         })
         id_mapper.register_team(team_name, team_id)
 
