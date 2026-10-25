@@ -74,8 +74,8 @@ async def vlr_match_detail(match_id: str) -> dict:
     Scrape a single VLR.GG match page and return structured match data.
 
     Fetches the base page, then concurrently fetches the performance and
-    economy tabs for the first game. Cache TTL is 30 s for live matches
-    and 300 s for completed matches.
+    economy tabs for every game. Cache TTL is 30 s for live matches and
+    300 s for completed matches.
     """
     base_url = f"{VLR_BASE_URL}/{match_id}"
 

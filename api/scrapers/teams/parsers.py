@@ -5,7 +5,6 @@ Covers team header, rating, roster, event placements,
 match history items, transaction log items, grouped roster,
 and upcoming fixture cards.
 """
-import logging
 import re
 
 from utils.html_parsers import (
@@ -17,8 +16,6 @@ from utils.html_parsers import (
     pad_to_length,
     parse_href_id_slug,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _text(element, strip: bool = True) -> str:
@@ -293,18 +290,6 @@ def _extract_prize_from_text(text: str) -> str:
     return match.group(0)
 
 
-def _extract_date_from_text(text: str) -> str:
-    if not text:
-        return ""
-    match = re.search(
-        r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*"
-        r"\.?\s+\d{4}\b|\b\d{4}\b",
-        text,
-        re.IGNORECASE,
-    )
-    return match.group(0) if match else ""
-
-
 # ---------------------------------------------------------------------------
 # Match history item parser
 # ---------------------------------------------------------------------------
@@ -491,7 +476,7 @@ def _parse_grouped_roster(html: HTMLParser) -> dict:
                 current_group = "active"
             continue
 
-        # Roster items — add to the active group
+        # Roster items belong to the bucket selected by the last .wf-label
         if "team-roster-item" in css_class and "team-roster-item-" not in css_class:
             is_staff = current_group == "staff"
             player = _parse_single_roster_item(node, is_staff)
