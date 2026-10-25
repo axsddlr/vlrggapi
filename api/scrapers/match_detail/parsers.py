@@ -397,9 +397,6 @@ def _parse_player_row_table(cells: list) -> dict:
 def _parse_map_scores(game_elem) -> dict:
     """
     Extract team scores and CT/T/OT splits from a single game header.
-
-    Updated for new VLR layout where the first team has the score on the
-    left (before the map column) and the second team on the right.
     """
     result = {
         "score": {"team1": "", "team2": ""},

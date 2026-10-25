@@ -845,7 +845,6 @@ async def _settled_witnesses(
     client: httpx.AsyncClient,
     label: str,
     match_ids: list[str],
-    limit: int | None = None,
 ) -> list[str]:
     """Witness URLs whose match has already published the data we assert.
 
@@ -854,7 +853,7 @@ async def _settled_witnesses(
     selectors as a layout change. Candidates that are not readable are skipped:
     a failed probe says nothing about our selectors either way.
     """
-    wanted = _witness_limit(label) if limit is None else limit
+    wanted = _witness_limit(label)
     candidates = [_witness_url(label, match_id) for match_id in match_ids]
     ready = _readiness_for(label)
 

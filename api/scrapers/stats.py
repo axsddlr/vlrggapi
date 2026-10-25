@@ -18,10 +18,11 @@ from utils.http_client import fetch_with_retries, get_http_client
 logger = logging.getLogger(__name__)
 
 # vlr.gg emits stable, semantic ``data-col`` attributes on every stats <th> except
-# the unlabelled player column. Read cells BY KEY (never by literal index) so a
-# future inserted column can never shift the mapping — the positional fragility
-# fixed here has broken this scraper three times (upstream issues #4 and #14, both
-# "vlr.gg added a column", each re-hardcoded to the new numbers).
+# the unlabelled player column. Read cells BY KEY so a future inserted column can
+# never shift the mapping — the positional fragility fixed here has broken this
+# scraper three times (upstream issues #4 and #14, both "vlr.gg added a column",
+# each re-hardcoded to the new numbers). Pages without ``data-col`` fall back to
+# ``_LEGACY_STATS_INDICES`` below, which does read fixed positions.
 # Keys are the CURRENT vlr.gg data-col vocabulary. The October 2026 /stats filter
 # revamp renamed two of them: the rating column went from ``rating2`` to
 # ``rating``, and first-kill rate from ``fbpr`` to ``fkpr``. It also added
