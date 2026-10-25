@@ -1012,7 +1012,7 @@ Original endpoints share the same in-memory TTL cache as their V2 counterparts, 
 
 ### Requirements
 
-- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.13`, and the Docker image runs Python `3.14`
+- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.14`, and the Docker image runs Python `3.14`
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```bash

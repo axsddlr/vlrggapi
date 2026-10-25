@@ -7,7 +7,5 @@ ignore = ["E501"]
 
 [lint.per-file-ignores]
 "api/scrapers/__init__.py" = ["F401"]
-"routers/vlr_router.py" = ["N802"]
 "tests/*" = ["F401"]
-"benchmarks/*" = ["ALL"]
 "__init__.py" = ["F401"]
