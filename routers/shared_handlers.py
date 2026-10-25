@@ -142,8 +142,8 @@ async def get_team_transactions_data(team_id: str) -> dict:
     return await vlr_team_transactions(team_id)
 
 
-async def get_team_stats_data(team_id: str) -> dict:
-    return await vlr_team_stats(team_id)
+async def get_team_stats_data(team_id: str, date_start: str = "") -> dict:
+    return await vlr_team_stats(team_id, date_start)
 
 
 async def get_team_roster_data(team_id: str) -> dict:

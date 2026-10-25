@@ -4,6 +4,7 @@ Error handling utilities for VLR.GG API
 import asyncio
 import logging
 import re
+from datetime import datetime
 from functools import wraps
 
 import httpx
@@ -161,6 +162,20 @@ def validate_timespan(ts: str):
             status_code=400,
             detail=f"Invalid timespan '{ts}'. Valid values: {', '.join(sorted(VALID_TIMESPANS))}",
         )
+
+
+def validate_date_param(value: str) -> None:
+    """Validate a YYYY-MM-DD date parameter. Raises 400 on invalid."""
+    invalid = HTTPException(
+        status_code=400,
+        detail=f"Invalid date '{value}'. Must be YYYY-MM-DD.",
+    )
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise invalid
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise invalid from None
 
 
 def validate_match_query(q: str):

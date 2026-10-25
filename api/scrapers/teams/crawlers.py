@@ -45,12 +45,19 @@ logger = logging.getLogger(__name__)
 
 
 @handle_scraper_errors
-async def vlr_team_stats(team_id: str) -> dict:
-    """Scrape per-map statistics from the team stats page."""
-    cache_key = ("team_stats", team_id)
+async def vlr_team_stats(team_id: str, date_start: str = "") -> dict:
+    """Scrape per-map statistics from the team stats page.
+
+    ``date_start`` (YYYY-MM-DD) restricts the window to matches played on or
+    after that day; vlr.gg only honours it as a query parameter, not via a
+    timespan. Empty means the full career record.
+    """
+    cache_key = ("team_stats", team_id, date_start)
 
     async def build():
         url = f"{VLR_TEAM_URL}/stats/{team_id}/"
+        if date_start:
+            url = f"{url}?date_start={date_start}"
         client = get_http_client()
         resp = await fetch_with_retries(url, client=client)
         status = resp.status_code

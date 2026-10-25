@@ -28,6 +28,30 @@ async def test_v2_stats_rejects_an_unknown_map(async_client):
 
 
 @pytest.mark.anyio
+async def test_v2_team_rejects_an_invalid_date_start(async_client):
+    resp = await async_client.get("/v2/team?id=1&q=stats&date_start=2026-13-45")
+
+    assert resp.status_code == 400
+    assert "Invalid date" in resp.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_v2_team_passes_date_start_to_the_stats_scraper(async_client, monkeypatch):
+    seen: dict = {}
+
+    async def fake_team_stats(team_id, date_start=""):
+        seen["args"] = (team_id, date_start)
+        return {"data": {"status": 200, "segments": []}}
+
+    monkeypatch.setattr("routers.v2_router.get_team_stats_data", fake_team_stats)
+
+    resp = await async_client.get("/v2/team?id=77&q=stats&date_start=2026-01-01")
+
+    assert resp.status_code == 200
+    assert seen["args"] == ("77", "2026-01-01")
+
+
+@pytest.mark.anyio
 async def test_version_endpoint(async_client):
     resp = await async_client.get("/version")
     assert resp.status_code == 200
