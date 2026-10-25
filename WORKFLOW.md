@@ -237,7 +237,7 @@ there is no "merge it back to dev too" step to forget.
 | `codeql.yml` | push / PR to `master`, weekly | static analysis |
 | `dependency-review.yml` | PR to `master` | blocks PRs that add vulnerable deps |
 | `selector-check.yml` | daily + manual | vlr.gg markup still matches our selectors |
-| `smoke.yml` | weekly + manual | the deployed API answers correctly |
+| `smoke.yml` | weekly + manual | vlr.gg is reachable and the API boots and answers locally |
 | dependabot | weekly | opens PRs against `master` |
 
 All of them point at the same branch, which is the deployed branch. That is the
