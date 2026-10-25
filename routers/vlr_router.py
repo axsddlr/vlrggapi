@@ -97,7 +97,7 @@ async def VLR_ranks(
         "oce": "oceania",\n
         "kr": "korea",\n
         "mn": "mena",\n
-        "gc": "game-changers",\n
+        "gc": "gc",\n
         "br": "Brazil",\n
         "cn": "china",\n
         "jp": "japan",\n

@@ -28,10 +28,6 @@ API_PORT = 3001
 # tests/test_version_consistency.py fails if the two ever drift apart.
 API_VERSION = "2.0.0"
 
-# Pagination limits
-MAX_PAGE_LIMIT = 100
-MIN_PAGE_LIMIT = 1
-
 # Request settings
 DEFAULT_TIMEOUT = 30
 DEFAULT_RETRIES = 3

@@ -36,7 +36,7 @@ TIERS: dict[str, tuple[int, int]] = {
     "expensive": (20, 60),
 }
 
-# URL-pattern → tier mapping. Order matters: more specific paths first.
+# `/match` sub-queries that need a stricter tier than the path alone implies.
 _MODERATE_MATCH_Q = frozenset({"upcoming", "live_score"})
 
 

@@ -112,15 +112,6 @@ def build_full_url(href: str, base_url: str = "https://www.vlr.gg") -> str:
     return base_url + href if href.startswith("/") else href
 
 
-def extract_tournament_icon(item) -> str:
-    """Normalize icon URL extraction from a match/event item."""
-    icon_elem = item.css_first(".match-item-icon img") or item.css_first("img")
-    if not icon_elem:
-        return ""
-    src = icon_elem.attributes.get("src", "")
-    return normalize_image_url(src)
-
-
 def extract_match_teams(item, selector: str = ".h-match-team") -> tuple[dict, dict]:
     """
     Extract team info from a match item.
@@ -156,7 +147,7 @@ def extract_match_teams(item, selector: str = ".h-match-team") -> tuple[dict, di
     return teams[0], teams[1]
 
 
-# --- Timestamp parsing helpers (moved from matches.py) ---
+# --- Timestamp parsing helpers ---
 
 def parse_eta_to_timedelta(eta_text: str) -> timedelta | None:
     """Parse '4h 1m' / '1d 2h' / '30m' into timedelta. Returns None for LIVE/ago/unparseable."""
@@ -361,55 +352,3 @@ def pad_to_length(items: list, length: int, factory) -> list:
     while len(items) < length:
         items.append(factory())
     return items
-
-
-def parse_match_items(html, container_selector: str = "a.wf-module-item.match-item") -> list[dict]:
-    """Parse match list items shared by player/team match history pages.
-
-    Returns list of dicts with: url, teams, scores, event, date, status.
-    """
-    items = html.css(container_selector)
-    results = []
-    for item in items:
-        href = item.attributes.get("href", "")
-        match_id, _ = parse_href_id_slug(href)
-        url = build_full_url(href)
-
-        # Teams
-        team_elems = item.css(".match-item-vs-team")
-        teams = []
-        for te in team_elems:
-            name_el = te.css_first(".match-item-vs-team-name")
-            score_el = te.css_first(".match-item-vs-team-score")
-            name = name_el.text(strip=True) if name_el else "TBD"
-            score = score_el.text(strip=True) if score_el else ""
-            teams.append({"name": name, "score": score})
-        pad_to_length(teams, 2, lambda: {"name": "TBD", "score": ""})
-
-        # Event
-        event_el = item.css_first(".match-item-event")
-        event_text = ""
-        if event_el:
-            lines = [line.strip() for line in event_el.text().split("\n") if line.strip()]
-            event_text = lines[-1] if lines else ""
-        series_el = item.css_first(".match-item-event-series")
-        event_series = " ".join(series_el.text().split()) if series_el else ""
-
-        # ETA / status
-        eta_el = item.css_first(".ml-status") or item.css_first(".ml-eta")
-        status = eta_el.text(strip=True) if eta_el else ""
-
-        timestamp = parse_match_timestamp(item, "")
-
-        results.append({
-            "match_id": match_id,
-            "url": url,
-            "team1": teams[0],
-            "team2": teams[1],
-            "event": event_text,
-            "event_series": event_series,
-            "status": status,
-            "timestamp": timestamp,
-        })
-
-    return results
