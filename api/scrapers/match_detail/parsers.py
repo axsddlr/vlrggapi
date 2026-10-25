@@ -52,7 +52,7 @@ def _parse_event_info(html: HTMLParser) -> dict:
 
 
 def _parse_match_header(html: HTMLParser) -> dict:
-    """Extract date, patch, and status from the match header."""
+    """Extract date, map vetoes, and status from the match header."""
     date = ""
     patch = ""
     status = ""
@@ -523,7 +523,7 @@ def _parse_maps(html: HTMLParser) -> list[dict]:
             spans = map_container.css("span")
             for span in spans:
                 txt = span.text(strip=True)
-                if txt and txt.lower() not in ("",) and not txt.lower().startswith("pick"):
+                if txt and not txt.lower().startswith("pick"):
                     map_name = txt
                     break
             if not map_name:

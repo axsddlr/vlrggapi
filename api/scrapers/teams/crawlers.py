@@ -254,11 +254,11 @@ async def vlr_team_transactions(team_id: str) -> dict:
 async def vlr_team_roster(team_id: str) -> dict:
     """Scrape the team profile roster categorized by status group.
 
-    Fetches ``/team/{team_id}`` and ``/team/transactions/{team_id}/``
-    concurrently. The roster is grouped into ``active``, ``staff``,
-    ``former``, and ``benched``. Former and benched players are enriched
-    with ``date_joined`` / ``date_left`` from the transaction log when
-    a matching entry is found.
+    Fetches ``/team/{team_id}``, then ``/team/transactions/{team_id}/``.
+    The roster is grouped into ``active``, ``staff``, ``former``, and
+    ``benched``. Former and benched players are enriched with
+    ``date_joined`` / ``date_left`` from the transaction log when a
+    matching entry is found.
 
     Args:
         team_id: Numeric VLR.GG team identifier.
@@ -286,7 +286,7 @@ async def vlr_team_roster(team_id: str) -> dict:
         html = parse_html(resp.text)
         grouped = _parse_grouped_roster(html)
 
-        # Fetch transactions concurrently so we can enrich former/benched players
+        # Fetch transactions to enrich former/benched players
         transactions_result = None
         transactions: list[dict] = []
         try:
