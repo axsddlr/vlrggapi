@@ -17,12 +17,20 @@ from utils.constants import (
     DEFAULT_RETRIES,
     DEFAULT_TIMEOUT,
     MIN_RESPONSE_SIZE,
+    VLR_BASE_URL,
 )
 from utils.utils import headers
 
 logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+# Log lines must never interpolate the request URL: its path and query carry
+# caller-supplied ids and search terms, so a crafted value could forge a log
+# entry. Every request goes to the same configured origin, so the constant host
+# (taken from the config, not from the URL being fetched) identifies the
+# upstream on its own.
+_UPSTREAM_HOST = urlparse(VLR_BASE_URL).netloc or "upstream"
 
 
 class CircuitOpenError(Exception):
@@ -75,7 +83,7 @@ class CircuitBreaker:
         if count >= self.fail_max:
             self._state[host] = self._OPEN
             self._opened_at[host] = time.monotonic()
-            logger.warning("Circuit opened for %s after %d consecutive failures", host, count)
+            logger.warning("Circuit opened after %d consecutive failures", count)
 
     def reset(self) -> None:
         """Clear all state. Intended for use in tests."""
@@ -158,7 +166,7 @@ async def fetch_with_retries(
                 raise
             logger.warning(
                 "Retrying %s after request error on attempt %d/%d: %s",
-                url, attempt, retries, exc,
+                _UPSTREAM_HOST, attempt, retries, type(exc).__name__,
             )
             await asyncio.sleep(request_delay * (2 ** (attempt - 1)))
             continue
@@ -177,7 +185,7 @@ async def fetch_with_retries(
         if empty_body:
             logger.warning(
                 "Retrying %s after empty response body (%d bytes) on attempt %d/%d",
-                url, len(response.content), attempt, retries,
+                _UPSTREAM_HOST, len(response.content), attempt, retries,
             )
             if attempt >= retries:
                 return response
@@ -190,7 +198,7 @@ async def fetch_with_retries(
 
         logger.warning(
             "Retrying %s after upstream status %d on attempt %d/%d (backoff %.1fs)",
-            url, response.status_code, attempt, retries, backoff,
+            _UPSTREAM_HOST, response.status_code, attempt, retries, backoff,
         )
         await asyncio.sleep(backoff)
 

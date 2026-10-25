@@ -22,6 +22,28 @@ from utils.html_parsers import (
 from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 
+
+@pytest.mark.anyio
+async def test_retry_logs_identify_the_upstream_without_echoing_the_url(monkeypatch, caplog):
+    """The URL carries caller-supplied ids, so it must never reach a log line."""
+    marker = "forged-entry"
+    url = f"https://www.vlr.gg/match/123/{marker}"
+    client = FakeAsyncClient({url: [FakeResponse(503), FakeResponse(503)]})
+
+    async def fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
+    circuit_breaker.reset()
+
+    with caplog.at_level("WARNING", logger="utils.http_client"):
+        await fetch_with_retries(url, client=client, max_retries=2)
+
+    assert marker not in caplog.text
+    assert "https://www.vlr.gg" not in caplog.text
+    assert "www.vlr.gg" in caplog.text
+
+
 # --- PaginationConfig.get_page_range ---
 
 class TestPaginationConfig:
