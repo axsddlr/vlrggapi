@@ -281,15 +281,15 @@ def _parse_event_placements(html: HTMLParser) -> list[dict]:
         remaining = re.sub(r"[—\u2014\u2013$,\(\)]", " ", remaining)
         remaining = re.sub(r"\s+", " ", remaining).strip()
 
-        # Year is typically the last 4-digit number
-        year_match = re.search(r"(20\d{2})", remaining)
-        date = year_match.group(1) if year_match else ""
+        # The date column follows the team name, so the last 20xx is the year.
+        year_matches = list(re.finditer(r"20\d{2}", remaining))
+        date = year_matches[-1].group(0) if year_matches else ""
 
-        # Team name: what's left after removing the year
+        # Team name: what's left after removing that year (keep years inside the name).
         team = remaining
-        if date:
-            # Split on the year boundary to separate team from year
-            team = re.sub(r"20\d{2}", "", team).strip()
+        if year_matches:
+            last_year = year_matches[-1]
+            team = (remaining[: last_year.start()] + remaining[last_year.end():]).strip()
 
         href = item.attributes.get("href", "")
         url = build_full_url(href)

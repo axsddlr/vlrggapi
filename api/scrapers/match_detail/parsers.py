@@ -504,6 +504,30 @@ def _parse_rounds(game_elem) -> list[dict]:
     return rounds
 
 
+def _picked_team_name(picked_elem, game_elem, html: HTMLParser) -> str:
+    """Resolve the picked-map badge to the team that picked it.
+
+    Current markup marks the picking side with ``span.picked.mod-1|mod-2`` next
+    to the map name; older markup put the team name directly in the badge.
+    """
+    label = picked_elem.text(strip=True)
+    if label and label.lower() not in ("pick", "ban", "decider"):
+        return label
+
+    classes = picked_elem.attributes.get("class") or ""
+    if "mod-1" in classes:
+        index = 0
+    elif "mod-2" in classes:
+        index = 1
+    else:
+        return ""
+
+    names = [el.text(strip=True) for el in game_elem.css(".vm-stats-game-header .team .team-name")]
+    if not names:
+        names = [el.text(strip=True) for el in html.css(".match-header-link-name .wf-title-med")]
+    return names[index] if index < len(names) else ""
+
+
 def _parse_maps(html: HTMLParser) -> list[dict]:
     """Parse all per-map game blocks from the base match page."""
     maps: list[dict] = []
@@ -514,7 +538,10 @@ def _parse_maps(html: HTMLParser) -> list[dict]:
             continue
 
         map_name = ""
-        picked_by = ""
+        picked_elem = game_elem.css_first(".picked")
+        picked_by = (
+            _picked_team_name(picked_elem, game_elem, html) if picked_elem is not None else ""
+        )
         map_container = game_elem.css_first(".vm-stats-game-header .map")
         if map_container:
             spans = map_container.css("span")
@@ -524,7 +551,10 @@ def _parse_maps(html: HTMLParser) -> list[dict]:
                     map_name = txt
                     break
             if not map_name:
-                map_name = map_container.text(strip=True).split("\n")[0].strip()
+                container_text = map_container.text(strip=True)
+                if picked_by:
+                    container_text = container_text.replace(picked_by, "", 1)
+                map_name = container_text.split("\n")[0].strip()
                 map_name = re.sub(r"\s*\d{1,2}:\d{2}(?::\d{2})?\s*$", "", map_name).strip()
             map_name = re.sub(r"\s*(PICK|BAN|DECIDER)\s*$", "", map_name, flags=re.IGNORECASE).strip()
 

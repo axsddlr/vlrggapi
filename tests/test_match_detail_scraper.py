@@ -3,7 +3,11 @@ import asyncio
 import pytest
 
 from api.scrapers.match_detail import vlr_match_detail
-from api.scrapers.match_detail.parsers import _parse_economy, _parse_streams_vods
+from api.scrapers.match_detail.parsers import (
+    _parse_economy,
+    _parse_maps,
+    _parse_streams_vods,
+)
 from utils.cache_manager import cache_manager
 from utils.html_parsers import parse_html
 
@@ -159,6 +163,44 @@ BASE_MATCH_HTML = f"""
   </div>
 </html>
 """
+
+
+LIVE_PICKED_HTML = """
+<html>
+  <div class="vm-stats-game" data-game-id="g1">
+    <div class="vm-stats-game-header">
+      <div class="team"><div class="team-name">Alpha</div></div>
+      <div class="team"><div class="team-name">Bravo</div></div>
+      <div class="map">
+        <div class="map-name">
+          <span>Haven<span class="picked mod-2 ge-text-light">PICK</span></span>
+        </div>
+        <div class="map-duration">44:30</div>
+      </div>
+    </div>
+  </div>
+</html>
+"""
+
+
+def test_parse_maps_resolves_live_picked_badge_to_the_picking_team():
+    maps = _parse_maps(parse_html(LIVE_PICKED_HTML))
+
+    assert maps[0]["picked_by"] == "Bravo"
+    assert maps[0]["map_name"] == "Haven"
+
+
+def test_parse_maps_reads_legacy_picked_badge_team_name():
+    maps = _parse_maps(parse_html(BASE_MATCH_HTML))
+
+    assert [entry["picked_by"] for entry in maps] == ["Team One", "Team Two"]
+    assert [entry["map_name"] for entry in maps] == ["Ascent", "Bind"]
+
+
+def test_parse_maps_leaves_picked_by_empty_without_a_badge():
+    maps = _parse_maps(parse_html('<div class="vm-stats-game" data-game-id="g1"></div>'))
+
+    assert maps[0]["picked_by"] == ""
 
 
 def performance_html(opponent_name: str) -> str:

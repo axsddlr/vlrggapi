@@ -3,8 +3,9 @@ import json
 
 import pytest
 
-from api.scrapers.match_logs import vlr_match_logs
+from api.scrapers.match_logs import parse_logs, vlr_match_logs
 from utils.cache_manager import cache_manager
+from utils.html_parsers import parse_html
 
 # Trimmed from https://www.vlr.gg/766311/?game=285688&tab=logs (2026-10).
 # Each round embeds its replay as JSON in div.lg-map[data-map]; the DOM adds the
@@ -190,6 +191,40 @@ def _patch_fetch(monkeypatch, responses: dict[str, FakeResponse]):
 
     monkeypatch.setattr("api.scrapers.match_logs.fetch_with_retries", fake_fetch)
     return calls
+
+
+MALFORMED_REPLAY_HTML = """
+<html>
+<div class="vm-stats-game mod-active">
+  <div class="lg-round" data-round="1">
+    <div class="lg-band">
+      <div class="lg-band-team mod-t1">
+        <div class="lg-band-name">Alpha</div>
+        <div class="lg-band-score">TBD</div>
+      </div>
+      <div class="lg-band-team mod-t2">
+        <div class="lg-band-name">Bravo</div>
+        <div class="lg-band-score">5</div>
+      </div>
+    </div>
+    <div class="lg-map" data-map='{"players": {"1": [1, "jett", "TenZ"], "x": [1, "sova", "bad"]}, "events": [{"type": "kill", "by": "abc"}, {"type": "kill", "by": "1"}]}'></div>
+  </div>
+</div>
+</html>
+"""
+
+
+def test_parse_logs_degrades_instead_of_raising_on_malformed_values():
+    """The module docstring promises a tolerant parse, not an exception/HTTP 500."""
+    logs = parse_logs(parse_html(MALFORMED_REPLAY_HTML))
+
+    round_one = logs["rounds"][0]
+    assert round_one["score"] == {"team1": 0, "team2": 5}
+
+    events = round_one["events"]
+    assert len(events) == 2
+    assert "player" not in events[0]  # non-numeric actor is skipped, not fatal
+    assert events[1]["player"] == "TenZ"
 
 
 @pytest.mark.anyio

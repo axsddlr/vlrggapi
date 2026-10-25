@@ -299,7 +299,7 @@ def _parse_standings(html: HTMLParser) -> list[dict]:
                     row_data[label] = extract_text_content(cell)
             rows.append(row_data)
 
-        standings.append({"stage": stage, "columns": headers, "rows": rows})
+        standings.append({"stage": stage, "group": "", "columns": headers, "rows": rows})
 
     standings.extend(_parse_group_tables(html))
     return standings
