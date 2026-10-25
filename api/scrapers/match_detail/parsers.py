@@ -464,6 +464,14 @@ def _parse_map_scores(game_elem) -> dict:
 def _parse_rounds(game_elem) -> list[dict]:
     """
     Parse round-by-round outcomes from a .vlr-rounds container.
+
+    vlr.gg renders every potential round slot, so a map that ended 13-9 still
+    shows 24 columns: the unplayed ones carry two class-less squares and no
+    round icon. Those are skipped, and the remaining rounds renumbered, rather
+    than reported as played rounds with an empty winner.
+
+    A round icon names how the round was won (``elim``, ``boom``, ``defuse``,
+    ``time``); it sits on the winning square, so it is read there.
     """
     rounds: list[dict] = []
     rounds_container = game_elem.css_first(".vlr-rounds")
@@ -481,24 +489,33 @@ def _parse_rounds(game_elem) -> list[dict]:
             if not sqs:
                 continue
 
-            round_num += 1
-
             winner = ""
             winning_side = ""
+            win_type = ""
             for idx, sq in enumerate(sqs):
                 sq_cls = sq.attributes.get("class", "")
-                if "mod-win" in sq_cls:
-                    winner = "team1" if idx == 0 else "team2"
-                    if "mod-ct" in sq_cls:
-                        winning_side = "ct"
-                    elif "mod-t" in sq_cls:
-                        winning_side = "t"
-                    break
+                if "mod-win" not in sq_cls:
+                    continue
+                winner = "team1" if idx == 0 else "team2"
+                if "mod-ct" in sq_cls:
+                    winning_side = "ct"
+                elif "mod-t" in sq_cls:
+                    winning_side = "t"
+                icon = sq.css_first("img")
+                if icon:
+                    src = icon.attributes.get("src", "") or ""
+                    win_type = src.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                break
 
+            if not winner and not any(sq.css_first("img") for sq in sqs):
+                continue
+
+            round_num += 1
             rounds.append({
                 "round_num": round_num,
                 "winner": winner,
                 "side": winning_side,
+                "win_type": win_type,
             })
 
     return rounds
