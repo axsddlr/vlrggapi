@@ -20,15 +20,14 @@ from tests.test_vlr_selectors import (
     PageData,
     _extract_match_ids,
     _extract_player_ids,
-    _label_witnesses,
     _no_witness_reason,
     _no_witness_result,
     _probe_indices,
-    _readiness_for,
     _settled_witnesses,
     _stats_are_published,
     _unverifiable_skip_message,
     _vods_are_published,
+    _witness_url,
     grade_page,
     resolve_witnesses,
 )
@@ -312,43 +311,23 @@ def test_extract_player_ids_reads_player_links():
     assert _extract_player_ids(tree) == ["36245", "4774"]
 
 
-def test_label_witnesses_uses_discovered_ids():
-    ids = ["753450", "753449", "753459", "753460"]
+def test_witness_urls_derive_tab_from_label():
+    """Each match-backed label maps to the tab its page type grades."""
+    match_id = "753450"
 
-    detail = _label_witnesses("match_detail", ids)
-    assert detail == [
-        "https://www.vlr.gg/753450/",
-        "https://www.vlr.gg/753449/",
-        "https://www.vlr.gg/753459/",
-    ]
-
-    perf = _label_witnesses("match_detail_perf", ids)
-    assert perf == [
-        "https://www.vlr.gg/753450/?game=all&tab=performance",
-        "https://www.vlr.gg/753449/?game=all&tab=performance",
-    ]
-
-    econ = _label_witnesses("match_detail_econ", ids)
-    assert econ[0] == "https://www.vlr.gg/753450/?game=all&tab=economy"
-
-    logs = _label_witnesses("match_detail_logs", ids)
-    assert logs == [
-        "https://www.vlr.gg/753450/?game=all&tab=logs",
-        "https://www.vlr.gg/753449/?game=all&tab=logs",
-    ]
-
-
-def test_label_witnesses_has_no_static_fallback_when_discovery_is_empty():
-    """A hardcoded stand-in is what produced #183's false alarm every day.
-
-    ``/player/9`` still renders, but no longer renders the agent table (the data
-    window is empty for an inactive player), so grading a required selector
-    against it manufactures a "layout change" out of a quiet fixture. With no
-    discovered candidates the honest answer is "no witnesses", not a stale URL.
-    """
-    assert _label_witnesses("match_detail", []) == []
-    assert _label_witnesses("match_detail_perf", []) == []
-    assert _label_witnesses("match_detail_econ", []) == []
+    assert _witness_url("match_detail", match_id) == "https://www.vlr.gg/753450/"
+    assert (
+        _witness_url("match_detail_perf", match_id)
+        == "https://www.vlr.gg/753450/?game=all&tab=performance"
+    )
+    assert (
+        _witness_url("match_detail_econ", match_id)
+        == "https://www.vlr.gg/753450/?game=all&tab=economy"
+    )
+    assert (
+        _witness_url("match_detail_logs", match_id)
+        == "https://www.vlr.gg/753450/?game=all&tab=logs"
+    )
 
 
 def test_discovery_backed_page_types_declare_no_static_witness():

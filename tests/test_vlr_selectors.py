@@ -2,8 +2,9 @@
 Validate that CSS selectors used by vlrggapi scrapers still resolve
 against live vlr.gg HTML.
 
-Run this standalone or via pytest. Fails fast when vlr.gg changes break
-our parsing pipeline *before* the API starts returning errors.
+Run via pytest, or ``python -m tests.test_vlr_selectors``. Fails fast when
+vlr.gg changes break our parsing pipeline *before* the API starts returning
+errors.
 
 How it works
 ------------
@@ -16,9 +17,10 @@ went quiet, which is how issues like #183 produced false alarms.
 So every page type declares:
 
 ``anchors``
-    Selectors that must be present on **every** fetched page. These prove the
-    page really is what we think it is (not a rate-limit wall, a redirect, or
-    an empty shell). A missing anchor is a real failure.
+    Selectors that identify the page type. Matching any one accepts a fetched
+    page; a page carrying none is discarded as a partial render (a rate-limit
+    wall, a redirect, or an empty shell). An anchor absent from every usable
+    page still fails, because anchors are witnessed like ``required``.
 
 ``required``
     Selectors that must be **witnessed on at least one** fetched page for that
@@ -168,7 +170,7 @@ class PageCheck:
     label: str  # human-readable test name
     urls: list[str]  # witness pages for this page type
     source: str = ""  # scraper file(s) that use these selectors
-    anchors: list[str] = field(default_factory=list)  # must hold on every URL
+    anchors: list[str] = field(default_factory=list)  # any one identifies the page type
     required: list[str] = field(default_factory=list)  # must hold on >= 1 URL
     optional: list[str] = field(default_factory=list)  # reported if on no URL
     # Optional selectors whose absence from the witness set is *explained*, so
@@ -181,7 +183,7 @@ class PageCheck:
     #     of pages while vlr.gg finishes rolling out its replacement.
     # Anything else belongs in ``optional``, where CI does escalate absence.
     data_conditional: list[str] = field(default_factory=list)
-    discovery: str = ""  # witness-discovery key, resolved in default_witnesses()
+    discovery: str = ""  # witness-discovery key, resolved in resolve_witnesses()
 
 
 @dataclass
@@ -751,7 +753,6 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
 # ---------------------------------------------------------------------------
 
 # How many pages a discovery-backed check will actually fetch and grade.
-_MAX_WITNESSES = 3
 _MATCH_DETAIL_WITNESSES = 3
 _MATCH_TAB_WITNESSES = 2
 _PLAYER_WITNESSES = 2
@@ -805,19 +806,6 @@ def _witness_url(label: str, match_id: str) -> str:
 def _witness_limit(label: str) -> int:
     """How many witnesses this page type is graded against."""
     return _MATCH_DETAIL_WITNESSES if label == "match_detail" else _MATCH_TAB_WITNESSES
-
-
-def _label_witnesses(label: str, match_ids: list[str], limit: int | None = None) -> list[str]:
-    """Build the witness URL list for one match-backed page type.
-
-    An empty ``match_ids`` yields an empty witness list on purpose — see the
-    module docstring: a stand-in fixture is how #183 reported a layout change
-    every day for a match that had simply gone quiet.
-    """
-    if label not in ("match_detail", *_MATCH_TAB_BY_LABEL):
-        raise ValueError(f"no witness builder for label: {label}")
-    count = _witness_limit(label) if limit is None else limit
-    return [_witness_url(label, match_id) for match_id in match_ids[:count]]
 
 
 def _probe_indices(count: int, limit: int | None = None) -> list[int]:
@@ -1088,8 +1076,6 @@ def grade_page(pc: PageCheck, pages: list[PageData]) -> dict:
 
 _REPORT_PATH = os.environ.get("SELECTOR_REPORT_PATH", "")
 
-_FULL_REPORT: list[dict] = []
-
 # Graded results keyed by page label, fetched once per pytest session.
 _RESULTS: dict[str, dict] = {}
 _RESULTS_LOCK = asyncio.Lock()
@@ -1240,7 +1226,7 @@ async def test_vlr_selectors(pc: PageCheck):
 
 
 # ---------------------------------------------------------------------------
-# Standalone runner (python -m pytest tests/test_vlr_selectors.py)
+# Standalone runner (python -m tests.test_vlr_selectors)
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
