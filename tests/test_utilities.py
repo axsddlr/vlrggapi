@@ -533,36 +533,6 @@ async def test_fetch_with_retries_retries_request_errors(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_fetch_with_retries_retries_on_429(monkeypatch):
-    client = FakeAsyncClient(
-        {
-            "https://example.test/resource": [FakeResponse(429), FakeResponse(200)],
-        }
-    )
-
-    sleep_calls: list[float] = []
-
-    async def fake_sleep(delay):
-        sleep_calls.append(delay)
-
-    monkeypatch.setattr("utils.http_client.asyncio.sleep", fake_sleep)
-
-    response = await fetch_with_retries(
-        "https://example.test/resource",
-        client=client,
-        max_retries=2,
-        request_delay=1.0,
-    )
-
-    assert response.status_code == 200
-    assert len(sleep_calls) == 1
-    assert client.calls == [
-        ("https://example.test/resource", None),
-        ("https://example.test/resource", None),
-    ]
-
-
-@pytest.mark.anyio
 async def test_fetch_with_retries_uses_retry_after_header_on_429(monkeypatch):
     client = FakeAsyncClient(
         {
@@ -665,7 +635,7 @@ class TestCircuitBreaker:
 
 
 @pytest.mark.anyio
-async def test_fetch_with_retries_raises_circuit_open_error_when_circuit_is_open(monkeypatch):
+async def test_fetch_with_retries_raises_circuit_open_error_when_circuit_is_open():
     circuit_breaker.reset()
     circuit_breaker.fail_max = 1
     circuit_breaker.record_failure("https://example.test/resource")
