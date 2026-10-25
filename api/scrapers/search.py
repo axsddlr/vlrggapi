@@ -4,7 +4,6 @@ Scraper for VLR.GG search results.
 Uses vlr.gg's built-in search endpoint to find teams, players, events,
 and series by name. Results are categorized by entity type.
 """
-import logging
 from urllib.parse import quote_plus
 
 from utils.cache_manager import cache_manager
@@ -13,8 +12,6 @@ from utils.error_handling import handle_scraper_errors, raise_for_upstream_statu
 from utils.html_parsers import extract_text_content, normalize_image_url, parse_html
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.id_mapper import id_mapper
-
-logger = logging.getLogger(__name__)
 
 
 def _extract_id_from_search_href(href: str) -> str:

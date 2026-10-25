@@ -1,4 +1,3 @@
-import logging
 import re
 
 from utils.cache_manager import cache_manager
@@ -6,8 +5,6 @@ from utils.constants import CACHE_TTL_RANKINGS, VLR_RANKINGS_URL
 from utils.error_handling import handle_scraper_errors, raise_for_upstream_status, validate_region
 from utils.html_parsers import parse_html
 from utils.http_client import fetch_with_retries, get_http_client
-
-logger = logging.getLogger(__name__)
 
 
 def _normalize_text(value: str) -> str:
