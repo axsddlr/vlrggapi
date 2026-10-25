@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -181,6 +183,7 @@ async def test_vlr_live_score_limits_concurrent_detail_fetches_and_falls_back_on
 
     active_fetches = 0
     max_active_fetches = 0
+    detail_timeouts: list[float | None] = []
 
     async def fake_fetch_with_retries(url, *, client=None, timeout=None, max_retries=3, request_delay=1.0):
         nonlocal active_fetches, max_active_fetches
@@ -189,7 +192,11 @@ async def test_vlr_live_score_limits_concurrent_detail_fetches_and_falls_back_on
 
         active_fetches += 1
         max_active_fetches = max(max_active_fetches, active_fetches)
+        detail_timeouts.append(timeout)
         try:
+            # Yield so concurrent detail fetches have a chance to overlap;
+            # without this the counter never leaves 1 and the bound is vacuous.
+            await asyncio.sleep(0)
             if url.endswith("/102"):
                 raise httpx.ReadTimeout("timed out")
             return FakeResponse(200, MATCH_DETAIL_HTML)
@@ -203,7 +210,8 @@ async def test_vlr_live_score_limits_concurrent_detail_fetches_and_falls_back_on
 
     data = await vlr_live_score()
 
-    assert max_active_fetches <= 2
+    assert max_active_fetches == 2
+    assert detail_timeouts == [7, 7, 7]
     assert [segment["match_page"] for segment in data["data"]["segments"]] == [
         "https://www.vlr.gg/101",
         "https://www.vlr.gg/102",
