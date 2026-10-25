@@ -53,8 +53,15 @@ async def get_news_data() -> dict:
     return await vlr_news()
 
 
-async def get_stats_data(region: str, timespan: str, event_id: str | None = None) -> dict:
-    return await vlr_stats(region, timespan, event_id)
+async def get_stats_data(
+    region: str,
+    timespan: str,
+    event_id: str | None = None,
+    map_name: str = "all",
+    min_rounds: int = 200,
+    min_rating: float = 1.55,
+) -> dict:
+    return await vlr_stats(region, timespan, event_id, map_name, min_rounds, min_rating)
 
 
 async def get_rankings_data(region: str) -> dict:

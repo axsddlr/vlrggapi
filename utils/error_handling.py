@@ -13,6 +13,7 @@ from utils.constants import (
     MAX_MATCH_PAGE_WINDOW,
     MAX_MATCH_RETRIES,
     MAX_MATCH_TIMEOUT,
+    STATS_MAP_IDS,
     STATS_REGIONS,
 )
 from utils.http_client import CircuitOpenError
@@ -131,6 +132,26 @@ def validate_stats_region(key: str) -> str:
             ),
         )
     return normalized
+
+
+def validate_stats_map(key: str) -> str:
+    """Resolve a /stats map name to vlr.gg's numeric map_id ("all" passes through).
+
+    Raises 400 for anything unknown rather than silently widening the query to
+    all maps, which is what vlr.gg itself does with an unrecognized map_id.
+    """
+    normalized = (key or "all").strip().lower()
+    if normalized == "all":
+        return "all"
+    if normalized not in STATS_MAP_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid map '{key}'. Valid values: all, "
+                f"{', '.join(sorted(STATS_MAP_IDS))}"
+            ),
+        )
+    return STATS_MAP_IDS[normalized]
 
 
 def validate_timespan(ts: str):

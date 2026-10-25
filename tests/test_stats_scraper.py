@@ -313,6 +313,30 @@ def test_org_selector_missing_defaults_na():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.anyio
+async def test_vlr_stats_custom_map_and_floors_reach_the_request(monkeypatch):
+    fetch = _install_fake_fetch(monkeypatch)
+
+    await vlr_stats("americas", "all", None, "ascent", 0, 1.0)
+
+    query = parse_qs(urlparse(fetch.calls[-1]).query)
+    assert query["map_id"] == ["5"]
+    assert query["min_rounds"] == ["0"]
+    assert query["min_rating"] == ["1000"]
+
+
+@pytest.mark.anyio
+async def test_vlr_stats_defaults_keep_the_previous_contract(monkeypatch):
+    fetch = _install_fake_fetch(monkeypatch)
+
+    await vlr_stats("americas", "60")
+
+    query = parse_qs(urlparse(fetch.calls[-1]).query)
+    assert query["map_id"] == ["all"]
+    assert query["min_rounds"] == ["200"]
+    assert query["min_rating"] == ["1550"]
+
+
+@pytest.mark.anyio
 async def test_vlr_stats_new_markup_end_to_end(monkeypatch):
     fetch = _install_fake_fetch(monkeypatch)
 
@@ -443,8 +467,12 @@ async def test_alias_normalizes_before_cache_key(monkeypatch):
     await vlr_stats("na", "60")
 
     # cache entry is keyed on the canonical region, not the alias
-    assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "americas", "60", "all") is not None
-    assert cache_manager.get(stats_mod.CACHE_TTL_STATS, "stats", "na", "60", "all") is None
+    assert cache_manager.get(
+        stats_mod.CACHE_TTL_STATS, "stats", "americas", "60", "all", "all", 200, 1.55
+    ) is not None
+    assert cache_manager.get(
+        stats_mod.CACHE_TTL_STATS, "stats", "na", "60", "all", "all", 200, 1.55
+    ) is None
     # the fetched URL carries the canonical region
     data_calls = [c for c in fetch.calls if _region_of(c) is not None]
     assert _region_of(data_calls[0]) == "americas"

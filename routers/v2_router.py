@@ -66,10 +66,20 @@ async def v2_stats(
     region: str = Query(..., description="Region: all, americas, emea, pacific, china, intl (deprecated aliases: na/br -> americas, eu -> emea, ap/kr/jp/oce -> pacific, cn -> china)"),
     timespan: str = Query(..., description="Timespan: 30, 60, 90, or all"),
     event_id: str = Query(None, description="Optional numeric event ID to filter stats by event"),
+    map_name: str = Query(
+        "all",
+        alias="map",
+        description="Map filter: all, or a map name (ascent, bind, breeze, corrode, fracture, haven, "
+        "icebox, lotus, pearl, split, summit, sunset, abyss)",
+    ),
+    min_rounds: int = Query(
+        200, ge=0, description="Minimum rounds played; lower it for event-scoped views"
+    ),
+    min_rating: float = Query(1.55, ge=0.0, description="Minimum rating on vlr.gg's 0-2 scale"),
 ):
     if event_id is not None and not event_id.isdigit():
         raise HTTPException(status_code=400, detail="event_id must be a numeric ID")
-    result = await get_stats_data(region, timespan, event_id)
+    result = await get_stats_data(region, timespan, event_id, map_name, min_rounds, min_rating)
     return _wrap_v2(result)
 
 

@@ -82,3 +82,22 @@ CACHE_TTL_EVENT_MATCHES = 600
 # Kept separate from utils.utils.region (the /rankings contract) so
 # /rankings?region=americas still returns 400.
 STATS_REGIONS = frozenset({"all", "americas", "emea", "pacific", "china", "intl"})
+
+# /stats filters by vlr.gg's internal numeric map_id, not by map name. These ids
+# come from the <select name="map_id"> on the stats page itself; callers pass a
+# map name (or "all") and the scraper translates it.
+STATS_MAP_IDS = {
+    "ascent": "5",
+    "bind": "1",
+    "breeze": "8",
+    "corrode": "14",
+    "fracture": "9",
+    "haven": "2",
+    "icebox": "6",
+    "lotus": "11",
+    "pearl": "10",
+    "split": "3",
+    "summit": "16",
+    "sunset": "12",
+    "abyss": "13",
+}
