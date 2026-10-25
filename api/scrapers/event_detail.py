@@ -9,8 +9,6 @@ current one by default): the prize rows and standings on it are that
 stage's. The `stages` list names every stage; pass a stage slug to read
 another stage's view.
 """
-import logging
-
 from fastapi import HTTPException
 
 from utils.cache_manager import cache_manager
@@ -19,8 +17,6 @@ from utils.error_handling import handle_scraper_errors, raise_for_upstream_statu
 from utils.html_parsers import HTMLParser, extract_text_content, normalize_image_url, parse_href_id_slug, parse_html
 from utils.http_client import fetch_with_retries, get_http_client
 from utils.id_mapper import id_mapper
-
-logger = logging.getLogger(__name__)
 
 
 def _parse_event_header(html: HTMLParser) -> dict:
@@ -248,8 +244,6 @@ def _parse_event_teams(html: HTMLParser) -> list[dict]:
             "qualification": note,
         })
         id_mapper.register_team(team_name, team_id)
-        for p in players:
-            id_mapper.register_team(p["name"], "")
 
     return teams
 

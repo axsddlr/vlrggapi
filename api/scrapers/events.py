@@ -1,4 +1,3 @@
-import logging
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -19,8 +18,6 @@ from utils.html_parsers import (
     parse_local_datetime,
 )
 from utils.http_client import fetch_with_retries, get_http_client
-
-logger = logging.getLogger(__name__)
 
 
 def _parse_event_cards(container) -> list:
@@ -105,11 +102,7 @@ async def vlr_events(upcoming=True, completed=True, page=1, live=False):
     cache_key = ("events", upcoming, completed, page, live)
 
     async def build():
-        if not upcoming and not completed and not live:
-            show_upcoming = show_completed = True
-            show_live = False
-        else:
-            show_upcoming, show_completed, show_live = upcoming, completed, live
+        show_upcoming, show_completed, show_live = upcoming, completed, live
 
         events = []
         status = 200
