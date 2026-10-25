@@ -10,11 +10,19 @@ Replaces slowapi with a leaner, more precise implementation:
 Not safe across multiple workers — each worker process has its own counter.
 For multi-worker deployments, pair with a Redis-backed store or use
 a reverse-proxy layer (e.g. Nginx, Vercel Edge middleware).
+
+Clients are keyed by the peer address the server actually accepted, unless that
+peer is listed in ``TRUSTED_PROXIES`` (comma-separated IPs/CIDRs, default
+``127.0.0.1,::1``). Only then is ``X-Forwarded-For`` consulted, and the
+rightmost hop that is not itself a trusted proxy is used.
 """
 
+import ipaddress
 import logging
+import os
 import time
 from collections import defaultdict, deque
+from functools import lru_cache
 from urllib.parse import parse_qs
 
 from fastapi import Request
@@ -92,8 +100,53 @@ def _match_tier(path: str, query: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Client identity
+# ---------------------------------------------------------------------------
+# X-Forwarded-For is client-supplied unless the immediate peer is a proxy we
+# trust, so it is only consulted to extend a chain that starts at a trusted
+# peer. uvicorn already rewrites request.client for peers listed in
+# --forwarded-allow-ips, which makes request.client the primary source.
+TRUSTED_PROXIES_ENV = "TRUSTED_PROXIES"
+_DEFAULT_TRUSTED_PROXIES = "127.0.0.1,::1"
+
+
+@lru_cache(maxsize=8)
+def _parse_trusted_networks(raw: str) -> tuple:
+    """Parse a comma-separated IP/CIDR list, skipping unusable entries."""
+    networks = []
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            # Deliberately a constant message: the raw entry (and the env-var name
+            # itself) is environment-derived data and must not be logged in clear.
+            logger.warning("Ignoring an invalid entry in TRUSTED_PROXIES")
+    return tuple(networks)
+
+
+def _trusted_networks() -> tuple:
+    return _parse_trusted_networks(
+        os.environ.get(TRUSTED_PROXIES_ENV, _DEFAULT_TRUSTED_PROXIES)
+    )
+
+
+def _is_trusted_proxy(value: str) -> bool:
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return any(address in network for network in _trusted_networks())
+
+
+# ---------------------------------------------------------------------------
 # Core limiter
 # ---------------------------------------------------------------------------
+
+
+_MAX_TRACKED_CLIENTS = 5000
 
 
 class SlidingWindowRateLimiter:
@@ -109,10 +162,46 @@ class SlidingWindowRateLimiter:
 
     @staticmethod
     def _client_ip(request: Request) -> str:
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        return request.client.host if request.client else "unknown"
+        """Resolve the client address without trusting an unvalidated header.
+
+        A forwarded hop is honoured only when the peer we actually accepted the
+        connection from is a trusted proxy; the walk then takes the rightmost
+        hop that is not itself a trusted proxy, so a spoofed leftmost entry can
+        never select a bucket.
+        """
+        peer = request.client.host if request.client else ""
+        if not peer:
+            return "unknown"
+        if not _is_trusted_proxy(peer):
+            return peer
+
+        forwarded = request.headers.get("x-forwarded-for", "")
+        hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+        for hop in reversed(hops):
+            if _is_trusted_proxy(hop):
+                continue
+            try:
+                ipaddress.ip_address(hop)
+            except ValueError:
+                # Malformed hop: fall back to the proxy rather than invent one.
+                return peer
+            return hop
+        return peer
+
+    @staticmethod
+    def _evict_cold_buckets(tier_store: dict[str, deque[float]], cutoff: float) -> None:
+        """Keep bucket tracking bounded when keys are attacker-chosen.
+
+        Expired buckets are dropped first, then the oldest-inserted ones until
+        the cap is met, so a stream of unique spoofed keys cannot grow memory
+        without bound.
+        """
+        if len(tier_store) <= _MAX_TRACKED_CLIENTS:
+            return
+        for key in [k for k, v in tier_store.items() if not v or v[-1] < cutoff]:
+            del tier_store[key]
+        while len(tier_store) > _MAX_TRACKED_CLIENTS:
+            tier_store.pop(next(iter(tier_store)), None)
 
     def check(self, tier: str, key: str) -> tuple[bool, int, int]:
         """Check and record a request against a (tier, key).
@@ -127,7 +216,8 @@ class SlidingWindowRateLimiter:
         limit, window = cfg
         now = time.time()
         cutoff = now - window
-        store = self._stores[tier][key]
+        tier_store = self._stores[tier]
+        store = tier_store[key]
 
         while store and store[0] < cutoff:
             store.popleft()
@@ -137,6 +227,7 @@ class SlidingWindowRateLimiter:
             return False, 0, retry_after
 
         store.append(now)
+        self._evict_cold_buckets(tier_store, cutoff)
         remaining = limit - len(store)
         return True, remaining, 0
 
