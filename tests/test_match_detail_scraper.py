@@ -6,6 +6,7 @@ from api.scrapers.match_detail import vlr_match_detail
 from api.scrapers.match_detail.parsers import (
     _parse_economy,
     _parse_maps,
+    _parse_rounds,
     _parse_streams_vods,
 )
 from utils.cache_manager import cache_manager
@@ -514,3 +515,38 @@ def test_parse_economy_keeps_legacy_table_fallback():
     rows = _parse_economy(parse_html(economy_legacy_html("Team One")))
 
     assert rows == [{"Team": "Team One", "Pistol": "50%"}]
+
+
+ROUNDS_HTML = """
+<div class="vm-stats-game">
+  <div class="vlr-rounds">
+    <div class="vlr-rounds-row">
+      <div class="vlr-rounds-row-col mod-teams"></div>
+      <div class="vlr-rounds-row-col">
+        <div class="rnd-sq mod-win mod-t"><img src="/img/vlr/game/round/elim.webp" alt=""></div>
+        <div class="rnd-sq"></div>
+      </div>
+      <div class="vlr-rounds-row-col">
+        <div class="rnd-sq"></div>
+        <div class="rnd-sq mod-win mod-ct"><img src="/img/vlr/game/round/defuse.webp" alt=""></div>
+      </div>
+      <div class="vlr-rounds-row-col">
+        <div class="rnd-sq"></div>
+        <div class="rnd-sq"></div>
+      </div>
+    </div>
+  </div>
+</div>
+"""
+
+
+def test_parse_rounds_skips_unplayed_slots_and_names_the_win_type():
+    game = parse_html(ROUNDS_HTML).css_first(".vm-stats-game")
+
+    rounds = _parse_rounds(game)
+
+    # the third column is an unplayed slot: no winner marker, no round icon
+    assert rounds == [
+        {"round_num": 1, "winner": "team1", "side": "t", "win_type": "elim"},
+        {"round_num": 2, "winner": "team2", "side": "ct", "win_type": "defuse"},
+    ]
