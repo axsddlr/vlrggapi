@@ -86,20 +86,6 @@ class CircuitBreaker:
 
 circuit_breaker = CircuitBreaker()
 
-_etags: dict[str, str] = {}
-
-
-def get_stored_etag(url: str) -> str | None:
-    return _etags.get(url)
-
-
-def store_etag(url: str, etag: str) -> None:
-    _etags[url] = etag
-
-
-def clear_etags() -> None:
-    _etags.clear()
-
 
 def _parse_retry_after(response: httpx.Response) -> float | None:
     """Parse the Retry-After header into seconds. Returns None if absent or unparseable."""
@@ -141,7 +127,6 @@ async def fetch_with_retries(
     timeout: int | float | httpx.Timeout | None = None,
     max_retries: int = DEFAULT_RETRIES,
     request_delay: float = DEFAULT_REQUEST_DELAY,
-    use_etag: bool = False,
     extra_headers: dict[str, str] | None = None,
 ) -> httpx.Response:
     """Fetch a URL with bounded retries for transient upstream failures.
@@ -150,10 +135,6 @@ async def fetch_with_retries(
     Records a failure against the circuit only after all retries are exhausted.
     429 responses use the Retry-After header for backoff but do not count as
     circuit failures (they indicate rate-limiting, not a service outage).
-
-    When use_etag is True, automatically sends If-None-Match and stores ETag
-    from 200 responses. 304 responses are returned as-is (caller should check
-    response.status_code and serve cached content).
     """
     if not circuit_breaker.allow_request(url):
         raise CircuitOpenError(
@@ -165,11 +146,6 @@ async def fetch_with_retries(
     last_response: httpx.Response | None = None
 
     request_headers: dict[str, str] = {}
-    if use_etag:
-        stored = _etags.get(url)
-        if stored is not None:
-            request_headers["If-None-Match"] = stored
-            logger.info("Using stored ETag for %s", url)
     if extra_headers:
         request_headers.update(extra_headers)
 
@@ -188,15 +164,6 @@ async def fetch_with_retries(
             continue
 
         last_response = response
-
-        if use_etag:
-            if response.status_code == 200:
-                etag = response.headers.get("ETag")
-                if etag is not None:
-                    _etags[url] = etag
-            elif response.status_code == 304:
-                circuit_breaker.record_success(url)
-                return response
 
         empty_body = response.status_code == 200 and len(response.content) < MIN_RESPONSE_SIZE
 

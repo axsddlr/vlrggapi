@@ -209,7 +209,7 @@ async def v2_search(
     return _wrap_v2(result)
 
 
-@router.get("/health", response_model=V2Response, summary="Health check", description="Check API health and upstream VLR.GG reachability.")
+@router.get("/health", response_model=V2Response, summary="Health check", description="Report local service readiness (in-process checks only; no upstream call).")
 async def v2_health():
     result = await get_health_data()
     return {"status": "success", "data": result}
