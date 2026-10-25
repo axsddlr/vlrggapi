@@ -6,7 +6,32 @@ from api.scrapers.teams import (
     vlr_team_matches,
     vlr_team_transactions,
 )
-from api.scrapers.teams.parsers import _extract_prize_from_text
+from api.scrapers.teams.parsers import _extract_prize_from_text, _parse_single_roster_item
+from utils.html_parsers import parse_html
+
+ROSTER_ITEM_HTML = """
+<div class="team-roster-item">
+  <a href="/player/1234/thuy">
+    <div class="team-roster-item-img"><img src="/img/player.png"></div>
+    <div class="team-roster-item-name">
+      <div class="team-roster-item-name-alias">Thuy</div>
+      <div class="team-roster-item-name-real">Ngoc-Thuy Duong</div>
+      Coach
+    </div>
+  </a>
+</div>
+"""
+
+
+def test_roster_role_survives_an_alias_embedded_in_the_real_name():
+    """Stripping every occurrence of the alias leaves fragments that look like a role."""
+    item = parse_html(ROSTER_ITEM_HTML).css_first(".team-roster-item")
+
+    player = _parse_single_roster_item(item, is_staff=True)
+
+    assert player["alias"] == "Thuy"
+    assert player["real_name"] == "Ngoc-Thuy Duong"
+    assert player["role"] == "Coach"
 
 
 class FakeResponse:

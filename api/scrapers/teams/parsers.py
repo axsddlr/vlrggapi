@@ -192,7 +192,11 @@ def _parse_single_roster_item(item, is_staff: bool) -> dict:
     name_block = item.css_first(".team-roster-item-name")
     if name_block:
         full_name_text = _text(name_block)
-        stripped = full_name_text.replace(alias, "").replace(real_name, "").strip()
+        # Strip the longer real name first, and only once each: a plain
+        # .replace(alias, "") removes every occurrence, including one embedded in
+        # the real name (alias "Thuy" inside "Ngoc-Thuy Duong"), which corrupts
+        # the leftover role text into fragments like "Ngoc- Duong".
+        stripped = full_name_text.replace(real_name, "", 1).replace(alias, "", 1).strip()
         role = re.sub(r"\s+", " ", stripped).strip(" -/|")
 
     return {
