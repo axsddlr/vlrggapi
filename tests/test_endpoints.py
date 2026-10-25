@@ -86,7 +86,7 @@ async def test_original_match_detail_rejects_invalid_id(async_client):
 
 @pytest.mark.anyio
 async def test_v2_match_detail_exposes_team_ids(async_client, monkeypatch):
-    async def fake_match_detail(match_id):
+    async def fake_match_detail(match_id, light=False):
         return {
             "data": {
                 "status": 200,
@@ -114,7 +114,7 @@ async def test_v2_match_detail_exposes_team_ids(async_client, monkeypatch):
 
 @pytest.mark.anyio
 async def test_original_match_detail_strips_team_ids(async_client, monkeypatch):
-    async def fake_match_detail(match_id):
+    async def fake_match_detail(match_id, light=False):
         return {
             "data": {
                 "status": 200,

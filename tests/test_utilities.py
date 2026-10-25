@@ -498,7 +498,7 @@ async def test_vlr_match_detail_does_not_cache_non_200_responses(monkeypatch):
         ("https://www.vlr.gg/123", None),
         ("https://www.vlr.gg/123", None),
     ]
-    assert cache_manager.get(CACHE_TTL_MATCH_DETAIL, "match_detail", "123") == second
+    assert cache_manager.get(CACHE_TTL_MATCH_DETAIL, "match_detail", "123", False) == second
     cache_manager.clear_all()
 
 

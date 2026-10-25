@@ -324,6 +324,25 @@ class FakeAsyncClient:
 
 
 @pytest.mark.anyio
+async def test_vlr_match_detail_light_skips_the_per_game_tabs(monkeypatch):
+    cache_manager.clear_all()
+    client = FakeAsyncClient({"https://www.vlr.gg/556": [FakeResponse(200, BASE_MATCH_HTML)]})
+
+    monkeypatch.setattr("api.scrapers.match_detail.crawler.get_http_client", lambda: client)
+
+    data = await vlr_match_detail("556", light=True)
+    segment = data["data"]["segments"][0]
+
+    assert [url for url, _timeout in client.calls] == ["https://www.vlr.gg/556"]
+    assert segment["economy"] == []
+    assert all(entry["rows"] == [] for entry in segment["economy_by_map"])
+    assert all(
+        entry["kill_matrix"] == [] and entry["advanced_stats"] == []
+        for entry in segment["performance"]["by_map"]
+    )
+
+
+@pytest.mark.anyio
 async def test_vlr_match_detail_fetches_performance_and_economy_for_all_games(monkeypatch):
     cache_manager.clear_all()
     client = FakeAsyncClient(
