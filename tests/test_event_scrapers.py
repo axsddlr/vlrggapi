@@ -261,6 +261,37 @@ def test_parse_standings_names_each_group_of_a_multi_group_stage():
     ]
 
 
+STANDINGS_PTABLE_HTML = """
+<div class="wf-card">
+    <div class="wf-label mod-large">Swiss Stage</div>
+    <div class="wf-ptable" role="table">
+        <div class="row" role="row">
+            <div class="cell" role="cell">Team</div>
+            <div class="cell" role="cell">W</div>
+            <div class="cell" role="cell">L</div>
+        </div>
+        <div class="row" role="row">
+            <div class="cell" role="cell"><a href="/team/1/alpha">Alpha</a></div>
+            <div class="cell" role="cell">2</div>
+            <div class="cell" role="cell">0</div>
+        </div>
+    </div>
+</div>
+"""
+
+
+def test_parse_standings_ptable_entries_carry_an_empty_group():
+    """Both standings shapes expose `group` so consumers can index it safely."""
+    standings = _parse_standings(parse_html(STANDINGS_PTABLE_HTML))
+
+    assert standings == [{
+        "stage": "Swiss Stage",
+        "group": "",
+        "columns": ["Team", "W", "L"],
+        "rows": [{"Team": "Alpha", "W": "2", "L": "0"}],
+    }]
+
+
 # --- /event/{id}: prizes ---
 
 PRIZE_TABLE_HTML = """

@@ -8,11 +8,17 @@ from fastapi import HTTPException
 
 from api.scrapers.events import vlr_event_matches, vlr_events
 from api.scrapers.match_detail import vlr_match_detail
-from api.scrapers.players import vlr_player, vlr_player_matches
+from api.scrapers.players import _parse_event_placements, vlr_player, vlr_player_matches
 from utils.cache_manager import CacheManager, cache_manager
 from utils.constants import CACHE_TTL_EVENTS, CACHE_TTL_MATCH_DETAIL
 from utils.error_handling import validate_event_query, validate_match_query, validate_region, validate_timespan
-from utils.html_parsers import HTMLParser, combine_date_and_time, parse_eta_to_timedelta, parse_match_timestamp
+from utils.html_parsers import (
+    HTMLParser,
+    combine_date_and_time,
+    parse_eta_to_timedelta,
+    parse_html,
+    parse_match_timestamp,
+)
 from utils.http_client import CircuitOpenError, circuit_breaker, fetch_with_retries
 from utils.pagination import PaginationConfig, scrape_multiple_pages
 
@@ -393,6 +399,27 @@ async def test_vlr_event_matches_returns_error_payload_for_non_200(monkeypatch):
     }
     assert second["data"]["status"] == 200
     cache_manager.clear_all()
+
+
+PLAYER_EVENTS_HTML = """
+<html>
+  <a class="wf-module-item player-event-item" href="/event/3123/champions">
+    <div class="text-of">Champions Tour</div>
+    <div class="ge-text-light">Playoffs — 4th</div>
+    <div class="ge-text-light">$10,000</div>
+    <div>Team 2024 2025</div>
+  </a>
+</html>
+"""
+
+
+def test_parse_event_placements_uses_the_trailing_year_as_the_date():
+    """The date column follows the team name, so a year inside the name is kept."""
+    placements = _parse_event_placements(parse_html(PLAYER_EVENTS_HTML))
+
+    assert len(placements) == 1
+    assert placements[0]["date"] == "2025"
+    assert placements[0]["team"] == "Team 2024"
 
 
 @pytest.mark.anyio

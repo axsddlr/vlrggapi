@@ -74,7 +74,7 @@ def _parse_band(html: HTMLParser) -> dict:
             "name": (name.attributes.get("title") or extract_text_content(name)) if name else "",
             "tag": extract_text_content(tag) if tag else "",
         }
-        score[key] = int(extract_text_content(score_el) or 0) if score_el else 0
+        score[key] = _to_int(extract_text_content(score_el) or 0, 0) if score_el else 0
         if "mod-atk" in (team.attributes.get("class") or ""):
             attacking_side = key
 
@@ -133,6 +133,14 @@ def _as_int(element) -> int:
     return int(digits) if digits else 0
 
 
+def _to_int(value, default: int | None = None) -> int | None:
+    """Parse an int from a replay/JSON value, or return *default* when it is not one."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_feed(round_el) -> dict[int, dict]:
     """Map event index -> data the replay JSON lacks (damage source, spike site)."""
     feed: dict[int, dict] = {}
@@ -163,8 +171,12 @@ def _parse_replay(round_el) -> tuple[dict, dict]:
         return {}, {}
     roster: dict[int, dict] = {}
     for player_id, info in (payload.get("players") or {}).items():
-        if isinstance(info, list) and len(info) >= 3:
-            roster[int(player_id)] = {"team": info[0], "agent": info[1], "name": info[2]}
+        if not isinstance(info, list) or len(info) < 3:
+            continue
+        key = _to_int(player_id)
+        if key is None:
+            continue
+        roster[key] = {"team": info[0], "agent": info[1], "name": info[2]}
     return payload, roster
 
 
@@ -181,13 +193,13 @@ def _parse_events(payload: dict, roster: dict[int, dict], feed: dict[int, dict])
         kind = raw.get("type") or ""
         event: dict = {"t": raw.get("t", ""), "type": kind}
 
-        actor = roster.get(int(raw["by"])) if raw.get("by") else None
+        actor = roster.get(_to_int(raw["by"])) if raw.get("by") else None
         if actor:
             event["player"] = actor["name"]
             event["team"] = actor["team"]
 
         if kind == "kill":
-            victim = roster.get(int(raw["vid"])) if raw.get("vid") else None
+            victim = roster.get(_to_int(raw["vid"])) if raw.get("vid") else None
             event["victim"] = victim["name"] if victim else raw.get("victim", "")
             event["victim_team"] = victim["team"] if victim else None
 
@@ -200,7 +212,7 @@ def _parse_events(payload: dict, roster: dict[int, dict], feed: dict[int, dict])
         for entry in raw.get("locs") or []:
             if not isinstance(entry, list) or len(entry) < 4:
                 continue
-            player = roster.get(int(entry[0]))
+            player = roster.get(_to_int(entry[0]))
             positions.append(
                 {
                     "player": player["name"] if player else str(entry[0]),
