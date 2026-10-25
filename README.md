@@ -1066,14 +1066,21 @@ Rate limiting is implemented in-house (`api/utils/rate_limiter.py`) with no addi
 
 Issues and pull requests are welcome.
 
-Recommended workflow:
+`master` is the only long-lived branch, and it is always deployed. Work on a
+short-lived branch and open a pull request against `master`:
 
-1. Branch from `dev`, the active integration branch (`master` is the default branch).
-2. Run `uv sync` and verify the app starts locally.
-3. Run `uv run pytest tests/ -v`.
-4. Open a pull request against `dev`.
+1. `git switch master && git pull --ff-only`
+2. `git switch -c fix/your-slug`
+3. Run `uv sync` and verify the app starts locally.
+4. Run `uv run pytest -q` and `uv run ruff check .`.
+5. Rebase onto `origin/master`, push, and open a pull request against `master`.
 
-Open a [pull request](https://github.com/axsddlr/vlrggapi/pull/new/dev) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).
+Pull requests are squash-merged, so `master` gets one readable commit per change.
+Do not push work in progress to `master` — use a draft PR if you want CI feedback
+early. Branch protection, commit hygiene, and how to revert a bad change are
+documented in [WORKFLOW.md](WORKFLOW.md).
+
+Open a [pull request](https://github.com/axsddlr/vlrggapi/compare) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).
 
 ## License
 
