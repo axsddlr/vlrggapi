@@ -118,9 +118,13 @@ async def v2_events(
 @router.get("/match/details", response_model=V2Response, summary="Match detail", description="Get full match detail including per-map stats, round data, head-to-head history, performance tab, and economy data.")
 async def v2_match_detail(
     match_id: str = Query(..., description="VLR.GG match ID"),
+    light: bool = Query(
+        False,
+        description="Skip the per-game performance/economy tab fetches (upcoming matches have none)",
+    ),
 ):
     validate_id_param(match_id, "match_id")
-    result = await get_match_detail_data(match_id)
+    result = await get_match_detail_data(match_id, light=light)
     return _wrap_v2(result)
 
 
