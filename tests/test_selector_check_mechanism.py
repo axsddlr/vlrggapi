@@ -23,6 +23,8 @@ from tests.test_vlr_selectors import (
     _no_witness_reason,
     _no_witness_result,
     _probe_indices,
+    _readiness_for,
+    _replay_is_published,
     _settled_witnesses,
     _stats_are_published,
     _unverifiable_skip_message,
@@ -587,6 +589,32 @@ VODS_PUBLISHED = """
 </html>
 """
 
+# Logs tab shapes from live pages (2026-10-27). The leading "all maps" block
+# and the lazily loaded map blocks carry .lg-empty on every page; only the
+# active game block decides.
+REPLAY_NOT_PUBLISHED = """
+<html>
+  <div class="vm-stats-container">
+    <div class="vm-stats-game"><div class="lg-empty">No 2D replay available</div></div>
+    <div class="vm-stats-game mod-active"><div class="lg-empty">No 2D replay for this map</div></div>
+    <div class="vm-stats-game js-lg-lazy"><div class="lg-empty">Loading…</div></div>
+  </div>
+</html>
+"""
+
+REPLAY_PUBLISHED = """
+<html>
+  <div class="vm-stats-container">
+    <div class="vm-stats-game"><div class="lg-empty">No 2D replay available</div></div>
+    <div class="vm-stats-game mod-active">
+      <div class="lg-band"></div>
+      <div class="lg-round"><div class="lg-map" data-map="{}"></div></div>
+    </div>
+    <div class="vm-stats-game js-lg-lazy"><div class="lg-empty">Loading…</div></div>
+  </div>
+</html>
+"""
+
 
 class _FakeClient:
     """Serves canned HTML per URL and records the requests it served."""
@@ -649,7 +677,28 @@ def test_readiness_markers_are_not_the_selectors_under_test():
     check would skip instead of reporting that the VOD markup disappeared.
     """
     asserted = {sel for pc in PAGE_CHECKS for sel in (*pc.anchors, *pc.required)}
-    assert {".vm-stats-empty", ".sm-empty"}.isdisjoint(asserted)
+    assert {".vm-stats-empty", ".sm-empty", ".lg-empty"}.isdisjoint(asserted)
+
+
+def test_replay_readiness_reads_only_the_active_game_block():
+    assert _replay_is_published(SelectolaxParser(REPLAY_NOT_PUBLISHED)) is False
+    assert _replay_is_published(SelectolaxParser(REPLAY_PUBLISHED)) is True
+    # The stats predicate passes an unprocessed replay; that was the false break.
+    assert _stats_are_published(SelectolaxParser(REPLAY_NOT_PUBLISHED)) is True
+
+
+def test_replay_readiness_grades_a_lazy_active_block_rather_than_skipping_it():
+    """A lazy-loaded active map must fail loudly, not blind the check."""
+    lazy_active = REPLAY_NOT_PUBLISHED.replace(
+        'class="vm-stats-game mod-active"', 'class="vm-stats-game mod-active js-lg-lazy"'
+    )
+    assert _replay_is_published(SelectolaxParser(lazy_active)) is True
+    assert _replay_is_published(SelectolaxParser("<html><div>?</div></html>")) is True
+
+
+def test_logs_witnesses_use_the_replay_predicate():
+    assert _readiness_for("match_detail_logs") is _replay_is_published
+    assert _readiness_for("match_detail_perf") is _stats_are_published
 
 
 def test_probe_indices_always_starts_at_the_newest_page():
@@ -676,6 +725,27 @@ def test_probe_indices_covers_everything_when_candidates_are_few():
     assert _probe_indices(8) == list(range(8))
     assert _probe_indices(0) == []
     assert _probe_indices(1) == [0]
+
+
+@pytest.mark.anyio
+async def test_settled_witnesses_skips_logs_tabs_without_a_replay():
+    """An unprocessed replay is not a witness, though its stats look ready."""
+    ids = ["4000", "4001", "4002"]
+    pages = {
+        f"{VLR_BASE_URL}/{match_id}/?game=all&tab=logs": (
+            REPLAY_PUBLISHED if index >= 1 else REPLAY_NOT_PUBLISHED
+        )
+        for index, match_id in enumerate(ids)
+    }
+    client = _FakeClient(pages)
+
+    picked = await _settled_witnesses(client, "match_detail_logs", ids)
+
+    assert f"{VLR_BASE_URL}/4000/?game=all&tab=logs" not in picked
+    assert picked == [
+        f"{VLR_BASE_URL}/4001/?game=all&tab=logs",
+        f"{VLR_BASE_URL}/4002/?game=all&tab=logs",
+    ]
 
 
 @pytest.mark.anyio

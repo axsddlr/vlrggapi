@@ -149,9 +149,31 @@ def _vods_are_published(tree: SelectolaxParser) -> bool:
     return True
 
 
+def _replay_is_published(tree: SelectolaxParser) -> bool:
+    """True unless the logs tab says the active game has no 2D replay yet.
+
+    A match whose replay vlr.gg has not processed (seen on VCT China matches
+    hours to days after they ended) renders ``.lg-empty`` "No 2D replay for this
+    map" as the active game block's only content, and no stats placeholder, so
+    the stats predicate passes it. ``.lg-empty`` is also the "Loading…"
+    placeholder of a lazily loaded (``js-lg-lazy``) block; a lazy *active* block
+    is graded, so a move to lazy-loading every map fails loudly instead of
+    making every witness look unready.
+    """
+    active = tree.css_first(".vm-stats-game.mod-active")
+    if active is None or "js-lg-lazy" in active.attributes.get("class", ""):
+        # Unexpected shape: let the grader say so rather than skip the page.
+        return True
+    return active.css_first(".lg-empty") is None
+
+
 def _readiness_for(label: str) -> Callable[[SelectolaxParser], bool]:
     """Readiness predicate for a witness of ``label``."""
-    return _vods_are_published if label == "match_detail" else _stats_are_published
+    if label == "match_detail":
+        return _vods_are_published
+    if label == "match_detail_logs":
+        return _replay_is_published
+    return _stats_are_published
 
 
 # ---------------------------------------------------------------------------
@@ -863,7 +885,7 @@ async def _settled_witnesses(
         probed = min(len(candidates), _MAX_WITNESS_PROBES)
         _READINESS_NOTES[label] = (
             f"{probed} candidate page(s) probed for {label}, but none had "
-            f"published stats/VODs, so no selector was asserted"
+            f"published stats/VODs/replay, so no selector was asserted"
         )
     return picked
 
