@@ -83,6 +83,11 @@ CACHE_TTL_EVENT_MATCHES = 600
 # /rankings?region=americas still returns 400.
 STATS_REGIONS = frozenset({"all", "americas", "emea", "pacific", "china", "intl"})
 
+# Every value of the /stats ``tier[]`` filter (VCT, VCL, tier 3, Game Changers,
+# collegiate, offseason). The October 2026 revamp falls back to VCT only when no
+# tier is submitted, so all of them are sent to keep the pre-revamp scope.
+STATS_TIERS = ("vct", "vcl", "t3", "gc", "cg", "off")
+
 # /stats filters by vlr.gg's internal numeric map_id, not by map name. These ids
 # come from the <select name="map_id"> on the stats page itself; callers pass a
 # map name (or "all") and the scraper translates it.

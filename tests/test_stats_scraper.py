@@ -337,6 +337,19 @@ async def test_vlr_stats_defaults_keep_the_previous_contract(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_vlr_stats_sends_every_tier(monkeypatch):
+    """The revamped filter defaults to VCT only when no tier is sent."""
+    fetch = _install_fake_fetch(monkeypatch)
+
+    await vlr_stats("emea", "60")
+
+    query = parse_qs(urlparse(fetch.calls[-1]).query)
+    assert query["tier[]"] == ["vct", "vcl", "t3", "gc", "cg", "off"]
+    assert query["region[]"] == ["emea"]
+    assert query["timespan"] == ["60d"]
+
+
+@pytest.mark.anyio
 async def test_vlr_stats_new_markup_end_to_end(monkeypatch):
     fetch = _install_fake_fetch(monkeypatch)
 

@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from fastapi import HTTPException
 
 from utils.cache_manager import cache_manager
-from utils.constants import CACHE_TTL_STATS, VLR_STATS_URL
+from utils.constants import CACHE_TTL_STATS, STATS_TIERS, VLR_STATS_URL
 from utils.error_handling import (
     handle_scraper_errors,
     raise_for_upstream_status,
@@ -221,6 +221,8 @@ async def vlr_stats(
                 "event_group_id": "all",
                 "event_id": resolved_event_id,
                 "region[]": region_key,
+                # Every tier, or the page falls back to VCT only (see STATS_TIERS).
+                "tier[]": STATS_TIERS,
                 "country": "all",
                 "min_rounds": min_rounds,
                 # vlr.gg expresses the rating floor on a x1000 integer scale.
@@ -228,7 +230,8 @@ async def vlr_stats(
                 "agent": "all",
                 "map_id": map_id,
                 "timespan": "all" if timespan.lower() == "all" else f"{timespan}d",
-            }
+            },
+            doseq=True,
         )
         url = f"{VLR_STATS_URL}/?{query}"
 
