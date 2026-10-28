@@ -82,16 +82,30 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/news` | — | 10 min |
 | `GET /v2/match` | `q` (upcoming/upcoming_extended/live_score/results); pagination params `num_pages`, `from_page`, `to_page` apply to `upcoming_extended`/`results` only; also `max_retries`, `request_delay`, `timeout` | 30s–5 min |
 | `GET /v2/match/details` | `match_id` | 5 min |
+| `GET /v2/match/{match_id}/details` | `light` | 5 min |
 | `GET /v2/match/logs` | `match_id`, `game_id` (optional, defaults to the first played map) | 5 min |
+| `GET /v2/match/{match_id}/logs` | `game_id` (optional, defaults to the first played map) | 5 min |
 | `GET /v2/rankings` | `region` | 1 hr |
 | `GET /v2/stats` | `region`, `timespan`, `event_id` | 30 min |
 | `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
 | `GET /v2/event/{id}` | `event_id` (path), `stage` | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
-| `GET /v2/player` | `id`, `q` (profile/matches), `timespan`, `page` | 30 min / 10 min |
-| `GET /v2/team` | `id`, `q` (profile/matches/transactions/stats/roster/schedule), `page` | 30 min / 10 min / 1 hr / 10 min / 30 min / 5 min |
+| `GET /v2/player` | `id`, `q` (profile/matches, deprecated), `timespan`, `page` | 30 min / 10 min |
+| `GET /v2/player/{player_id}` | `timespan` | 30 min |
+| `GET /v2/player/{player_id}/matches` | `page` | 10 min |
+| `GET /v2/team` | `id`, `q` (profile/matches/transactions/stats/roster/schedule, deprecated), `page`, `date_start` | 30 min / 10 min / 1 hr / 10 min / 30 min / 5 min |
+| `GET /v2/team/{team_id}` | — | 30 min |
+| `GET /v2/team/{team_id}/matches` | `page` | 10 min |
+| `GET /v2/team/{team_id}/transactions` | — | 1 hr |
+| `GET /v2/team/{team_id}/stats` | `date_start` | 10 min |
+| `GET /v2/team/{team_id}/roster` | — | 30 min |
+| `GET /v2/team/{team_id}/schedule` | — | 5 min |
 | `GET /v2/health` | — | none |
+
+Every entity — a player, a team, a match's detail or replay — is addressable as its own path as well as through the older `q` parameter. Prefer the path forms: an unknown sub-resource is a `404` on a real route instead of a `400` from a query-string enum, and each one appears in the generated OpenAPI docs. `q` stays supported on `/v2/player` and `/v2/team` for existing clients and is marked deprecated; `/match`'s `q` is a collection filter (upcoming/live/results), not an entity selector, and is not deprecated.
+
+Rate-limit tiers are assigned by path, so a sub-resource inherits its parent's tier — `/v2/team/{team_id}/roster` counts as expensive, exactly like `/v2/team`. The same rule is why there is no plural `/v2/matches` collection route: match lists stay on `/v2/match?q=...`, where the tier depends on the query.
 
 See section below for full descriptions and response examples.
 

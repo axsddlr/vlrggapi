@@ -56,6 +56,15 @@ def _wrap_v2(scraper_result: dict) -> dict:
     return {"status": "success", "data": scraper_result}
 
 
+def _validate_page(page: int) -> None:
+    """Bound a page number at 1-100, raising 400 like the other V2 validators."""
+    if page < 1 or page > 100:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid page '{page}'. Must be between 1 and 100.",
+        )
+
+
 @router.get("/news", response_model=V2Response, summary="Latest news", description="Get the latest Valorant esports news headlines from VLR.GG.")
 async def v2_news():
     result = await get_news_data()
@@ -151,10 +160,35 @@ async def v2_match_logs(
     return _wrap_v2(result)
 
 
+@router.get("/match/{match_id}/details", response_model=V2Response, summary="Match detail by ID", description="Get full match detail including per-map stats, round data, head-to-head history, performance tab, and economy data. Same data as GET /v2/match/details?match_id=..., which loads vlr.gg's /match/<id> page.")
+async def v2_match_detail_path(
+    match_id: str,
+    light: bool = Query(
+        False,
+        description="Skip the per-game performance/economy tab fetches (upcoming matches have none)",
+    ),
+):
+    validate_id_param(match_id, "match_id")
+    result = await get_match_detail_data(match_id, light=light)
+    return _wrap_v2(result)
+
+
+@router.get("/match/{match_id}/logs", response_model=V2Response, summary="Match 2D replay by ID", description="Per-round replay of one map: round result, each player's buy, and every kill, spike plant and defuse with player positions and health. Same data as GET /v2/match/logs?match_id=...; takes the `tab=logs` page on vlr.gg. Omit game_id to use the match's first played map.")
+async def v2_match_logs_path(
+    match_id: str,
+    game_id: str | None = Query(None, description="Optional game (map) ID; defaults to the first played map"),
+):
+    validate_id_param(match_id, "match_id")
+    if game_id is not None:
+        validate_id_param(game_id, "game_id")
+    result = await get_match_logs_data(match_id, game_id)
+    return _wrap_v2(result)
+
+
 @router.get("/player", response_model=V2Response, summary="Player data", description="Get player profile or match history via q parameter.")
 async def v2_player(
     id: str = Query(..., description="VLR.GG player ID"),
-    q: str = Query("profile", description="Data type: profile, matches"),
+    q: str = Query("profile", description="Data type: profile, matches (deprecated: use the path-based routes below)", deprecated=True),
     timespan: str = Query("90d", description="Stats timespan for profile (30d, 60d, 90d, all)"),
     page: int = Query(1, description="Page number for matches (1-based)", ge=1, le=100),
 ):
@@ -170,10 +204,32 @@ async def v2_player(
     return _wrap_v2(result)
 
 
+@router.get("/player/{player_id}", response_model=V2Response, summary="Player profile by ID", description="Get a player's profile and stats. Same data as GET /v2/player?id=...&q=profile, which loads vlr.gg's /player/<id> page.")
+async def v2_player_profile(
+    player_id: str,
+    timespan: str = Query("90d", description="Stats timespan (30d, 60d, 90d, all)"),
+):
+    validate_id_param(player_id, "player_id")
+    validate_player_timespan(timespan)
+    result = await get_player_data(player_id, timespan)
+    return _wrap_v2(result)
+
+
+@router.get("/player/{player_id}/matches", response_model=V2Response, summary="Player match history by ID", description="Get a player's completed matches, newest first. Same data as GET /v2/player?id=...&q=matches, which loads the match-history tab on vlr.gg's /player/<id> page.")
+async def v2_player_matches(
+    player_id: str,
+    page: int = Query(1, description="Page number (1-based), 1-100"),
+):
+    validate_id_param(player_id, "player_id")
+    _validate_page(page)
+    result = await get_player_matches_data(player_id, page)
+    return _wrap_v2(result)
+
+
 @router.get("/team", response_model=V2Response, summary="Team data", description="Get team profile, match history, roster transactions, map stats, grouped roster, or upcoming schedule via q parameter.")
 async def v2_team(
     id: str = Query(..., description="VLR.GG team ID"),
-    q: str = Query("profile", description="Data type: profile, matches, transactions, stats, roster, schedule"),
+    q: str = Query("profile", description="Data type: profile, matches, transactions, stats, roster, schedule (deprecated: use the path-based routes below)", deprecated=True),
     page: int = Query(1, description="Page number for matches (1-based)", ge=1, le=100),
     date_start: str = Query(
         "",
@@ -198,6 +254,60 @@ async def v2_team(
     else:
         result = await get_team_data(id)
 
+    return _wrap_v2(result)
+
+
+@router.get("/team/{team_id}", response_model=V2Response, summary="Team profile by ID", description="Get a team's profile: name, logo, country, socials, and current roster. Same data as GET /v2/team?id=...&q=profile, which loads vlr.gg's /team/<id> page.")
+async def v2_team_profile(team_id: str):
+    validate_id_param(team_id, "team_id")
+    result = await get_team_data(team_id)
+    return _wrap_v2(result)
+
+
+@router.get("/team/{team_id}/matches", response_model=V2Response, summary="Team match history by ID", description="Get a team's completed matches, newest first. Same data as GET /v2/team?id=...&q=matches, which loads vlr.gg's /team/matches/<id> page.")
+async def v2_team_matches(
+    team_id: str,
+    page: int = Query(1, description="Page number (1-based), 1-100"),
+):
+    validate_id_param(team_id, "team_id")
+    _validate_page(page)
+    result = await get_team_matches_data(team_id, page)
+    return _wrap_v2(result)
+
+
+@router.get("/team/{team_id}/transactions", response_model=V2Response, summary="Team transactions by ID", description="Get a team's roster transaction history — joins, leaves, and bench moves. Same data as GET /v2/team?id=...&q=transactions, which loads vlr.gg's /team/transactions/<id> page.")
+async def v2_team_transactions(team_id: str):
+    validate_id_param(team_id, "team_id")
+    result = await get_team_transactions_data(team_id)
+    return _wrap_v2(result)
+
+
+@router.get("/team/{team_id}/stats", response_model=V2Response, summary="Team map stats by ID", description="Get a team's per-map win/loss and round stats, optionally from a start date on. Same data as GET /v2/team?id=...&q=stats, which loads vlr.gg's /team/stats/<id> page.")
+async def v2_team_stats(
+    team_id: str,
+    date_start: str = Query(
+        "",
+        description="Start date (YYYY-MM-DD): only matches from that day on",
+    ),
+):
+    validate_id_param(team_id, "team_id")
+    if date_start:
+        validate_date_param(date_start)
+    result = await get_team_stats_data(team_id, date_start)
+    return _wrap_v2(result)
+
+
+@router.get("/team/{team_id}/roster", response_model=V2Response, summary="Team roster by ID", description="Get a team's roster grouped by period, including stand-ins and coaches. Same data as GET /v2/team?id=...&q=roster, which loads vlr.gg's /team/roster/<id> page.")
+async def v2_team_roster(team_id: str):
+    validate_id_param(team_id, "team_id")
+    result = await get_team_roster_data(team_id)
+    return _wrap_v2(result)
+
+
+@router.get("/team/{team_id}/schedule", response_model=V2Response, summary="Team schedule by ID", description="Get a team's upcoming matches. Same data as GET /v2/team?id=...&q=schedule, which loads the upcoming section of vlr.gg's /team/matches/<id> page.")
+async def v2_team_schedule(team_id: str):
+    validate_id_param(team_id, "team_id")
+    result = await get_team_schedule_data(team_id)
     return _wrap_v2(result)
 
 
