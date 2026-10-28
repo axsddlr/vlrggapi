@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.utils.rate_limiter import RateLimitMiddleware
 from routers.v2_router import router as v2_router
 from routers.vlr_router import router as vlr_router
+from utils.conditional import ConditionalGetMiddleware
 from utils.constants import API_DESCRIPTION, API_PORT, API_TITLE, API_VERSION
 from utils.http_client import close_http_client
 
@@ -32,10 +33,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Starlette applies middleware in reverse registration order: the last one added
-# is the outermost. The rate limiter is registered first so CORS ends up around
-# it — otherwise a 429 short-circuits before the CORS layer and browsers report
-# an opaque network error instead of a readable 429 + Retry-After.
+# Starlette inserts each add_middleware() call at index 0 and builds the stack
+# by wrapping in reverse, so the last one added is the outermost. Registration
+# below is therefore innermost-first, giving (outermost -> innermost):
+#   CORSMiddleware -> RateLimitMiddleware -> ConditionalGetMiddleware
+# CORS must stay outermost so even a 429 is readable by browsers instead of
+# surfacing as an opaque network error. ConditionalGet sits inside the rate
+# limiter on purpose: a 304 still consumes rate-limit budget and still carries
+# the X-RateLimit-* headers.
+app.add_middleware(ConditionalGetMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,

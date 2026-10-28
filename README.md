@@ -1008,6 +1008,25 @@ V2 endpoints use an in-memory TTL cache to reduce load on vlr.gg. Cache duration
 
 Original endpoints share the same in-memory TTL cache as their V2 counterparts, so the same scrape is never repeated across the two versions. `/health` is the exception: it is never cached, since it only reports in-process state.
 
+### Conditional requests
+
+`/rankings`, `/stats` and the `/team` endpoints sit behind long TTLs and change slowly, so their successful JSON responses carry a strong `ETag` — the SHA-256 of the exact response body. Send that tag back in `If-None-Match` to skip the body:
+
+```
+GET /v2/rankings?region=na
+ETag: "9d0e4704…"
+```
+
+```
+GET /v2/rankings?region=na
+If-None-Match: "9d0e4704…"
+
+HTTP/1.1 304 Not Modified
+ETag: "9d0e4704…"
+```
+
+Weak (`W/"…"`) client tags, comma-separated lists and `*` are all accepted; a malformed tag is ignored rather than rejected. The check runs inside the rate limiter, so a `304` still consumes rate-limit budget and still carries `X-RateLimit-*` — revalidation is cheaper on the wire, not free. No `Cache-Control` header is added, so storing and revalidating is opt-in per client. Only these three endpoints participate; `/news`, `/events` and the rest are unaffected.
+
 ## Installation
 
 ### Requirements
