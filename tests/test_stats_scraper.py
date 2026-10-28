@@ -14,6 +14,7 @@ from api.scrapers.stats import (
     vlr_stats,
 )
 from utils.cache_manager import cache_manager
+from utils.constants import STATS_TIERS
 from utils.error_handling import validate_region
 
 # ---------------------------------------------------------------------------
@@ -334,6 +335,31 @@ async def test_vlr_stats_defaults_keep_the_previous_contract(monkeypatch):
     assert query["map_id"] == ["all"]
     assert query["min_rounds"] == ["200"]
     assert query["min_rating"] == ["1550"]
+
+
+@pytest.mark.anyio
+async def test_vlr_stats_requests_every_tier_so_the_ladder_is_not_vct_only(monkeypatch):
+    """Omitting tier[] lets vlr.gg fall back to its data-defaults value of vct."""
+    fetch = _install_fake_fetch(monkeypatch)
+
+    await vlr_stats("emea", "60")
+
+    query = parse_qs(urlparse(fetch.calls[-1]).query)
+    assert query["tier[]"] == list(STATS_TIERS)
+
+
+@pytest.mark.anyio
+async def test_vlr_stats_repeats_only_the_array_valued_filters(monkeypatch):
+    """The pair-list encoding must not expand a single-valued filter."""
+    fetch = _install_fake_fetch(monkeypatch)
+
+    await vlr_stats("americas", "all", None, "ascent", 0, 1.0)
+
+    query = parse_qs(urlparse(fetch.calls[-1]).query)
+    assert query["region[]"] == ["americas"]
+    assert query["map_id"] == ["5"]
+    assert query["min_rating"] == ["1000"]
+    assert len(query["tier[]"]) == len(STATS_TIERS)
 
 
 @pytest.mark.anyio

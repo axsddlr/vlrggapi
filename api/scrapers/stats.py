@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from fastapi import HTTPException
 
 from utils.cache_manager import cache_manager
-from utils.constants import CACHE_TTL_STATS, VLR_STATS_URL
+from utils.constants import CACHE_TTL_STATS, STATS_TIERS, VLR_STATS_URL
 from utils.error_handling import (
     handle_scraper_errors,
     raise_for_upstream_status,
@@ -212,24 +212,31 @@ async def vlr_stats(
 
     async def build():
         resolved_event_id = event_id if event_id else "all"
-        # The revamped filter form submits the region as a checkbox array
-        # (``region[]``); the legacy singular name is still accepted server-side,
-        # but the plural is what the site itself sends, so that is the shape we
-        # track. Values stay in the /stats vocabulary (see STATS_REGIONS).
-        query = urlencode(
-            {
-                "event_group_id": "all",
-                "event_id": resolved_event_id,
-                "region[]": region_key,
-                "country": "all",
-                "min_rounds": min_rounds,
-                # vlr.gg expresses the rating floor on a x1000 integer scale.
-                "min_rating": int(round(min_rating * 1000)),
-                "agent": "all",
-                "map_id": map_id,
-                "timespan": "all" if timespan.lower() == "all" else f"{timespan}d",
-            }
-        )
+        # The revamped filter form submits the region and tier groups as checkbox
+        # arrays (``region[]`` / ``tier[]``). The legacy singular names are still
+        # accepted server-side, but the plural is what the site itself sends.
+        #
+        # The tier group is not optional: omit it and vlr.gg applies its own
+        # default of VCT alone (the form's ``data-defaults`` say tier=vct and only
+        # the vct box comes back checked), narrowing the ladder to VCT events.
+        #
+        # Built as an explicit pair list rather than ``urlencode(..., doseq=True)``
+        # so that only the two array-valued filters can repeat: doseq would also
+        # expand any single-valued filter that happened to hold a sequence.
+        filters = [
+            ("event_group_id", "all"),
+            ("event_id", resolved_event_id),
+            ("region[]", region_key),
+            *(("tier[]", tier) for tier in STATS_TIERS),
+            ("country", "all"),
+            ("min_rounds", min_rounds),
+            # vlr.gg expresses the rating floor on a x1000 integer scale.
+            ("min_rating", int(round(min_rating * 1000))),
+            ("agent", "all"),
+            ("map_id", map_id),
+            ("timespan", "all" if timespan.lower() == "all" else f"{timespan}d"),
+        ]
+        query = urlencode(filters)
         url = f"{VLR_STATS_URL}/?{query}"
 
         client = get_http_client()
