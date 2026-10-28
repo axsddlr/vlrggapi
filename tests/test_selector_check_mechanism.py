@@ -23,6 +23,8 @@ from tests.test_vlr_selectors import (
     _no_witness_reason,
     _no_witness_result,
     _probe_indices,
+    _readiness_for,
+    _replay_is_published,
     _settled_witnesses,
     _stats_are_published,
     _unverifiable_skip_message,
@@ -617,6 +619,79 @@ def _clear_page_cache():
     selector_module._PAGE_CACHE.clear()
 
 
+REPLAY_UNAVAILABLE = """
+<html>
+  <div class="vm-stats-container">
+    <div class="vm-stats-game"><div class="lg-empty">No 2D replay available</div></div>
+    <div class="vm-stats-game mod-active"><div class="lg-empty">No 2D replay for this map</div></div>
+    <div class="vm-stats-game js-lg-lazy"><div class="lg-empty">Loading...</div></div>
+  </div>
+</html>
+"""
+
+REPLAY_AVAILABLE = """
+<html>
+  <div class="vm-stats-container">
+    <div class="vm-stats-game"><div class="lg-empty">No 2D replay available</div></div>
+    <div class="vm-stats-game mod-active">
+      <div class="lg-band"></div>
+      <div class="lg-round"><div class="lg-map" data-map="ascent"></div></div>
+    </div>
+    <div class="vm-stats-game js-lg-lazy"><div class="lg-empty">Loading...</div></div>
+  </div>
+</html>
+"""
+
+
+@pytest.mark.parametrize(
+    ("markup", "published"),
+    [
+        (REPLAY_UNAVAILABLE, False),
+        (REPLAY_AVAILABLE, True),
+        # replay markup next to a leftover placeholder: something to grade
+        (
+            REPLAY_AVAILABLE.replace(
+                '<div class="lg-band"></div>',
+                '<div class="lg-band"></div><div class="lg-empty">stale</div>',
+            ),
+            True,
+        ),
+        # a lazily loaded active block is graded, not skipped
+        (REPLAY_UNAVAILABLE.replace("mod-active", "mod-active js-lg-lazy"), True),
+        # no active block at all: unexpected shape, let the grader speak
+        ("<html><body><div>?</div></body></html>", True),
+    ],
+)
+def test_replay_readiness_skips_only_an_unavailable_active_block(markup, published):
+    assert _replay_is_published(SelectolaxParser(markup)) is published
+
+
+def test_logs_witnesses_are_readied_by_replay_not_by_stats():
+    """An unprocessed replay has published stats, so the stats predicate lies."""
+    assert _readiness_for("match_detail_logs") is _replay_is_published
+    assert _readiness_for("match_detail") is _vods_are_published
+    assert _readiness_for("match_detail_econ") is _stats_are_published
+    assert _stats_are_published(SelectolaxParser(REPLAY_UNAVAILABLE)) is True
+
+
+@pytest.mark.anyio
+async def test_settled_witnesses_skip_logs_tabs_without_a_replay():
+    ids = ["5000", "5001", "5002"]
+    pages = {}
+    for index, match_id in enumerate(ids):
+        body = REPLAY_UNAVAILABLE if index == 0 else REPLAY_AVAILABLE
+        pages[f"{VLR_BASE_URL}/{match_id}/?game=all&tab=logs"] = body
+    client = _FakeClient(pages)
+
+    picked = await _settled_witnesses(client, "match_detail_logs", ids)
+
+    assert picked == [
+        f"{VLR_BASE_URL}/5001/?game=all&tab=logs",
+        f"{VLR_BASE_URL}/5002/?game=all&tab=logs",
+    ]
+    assert f"{VLR_BASE_URL}/5000/?game=all&tab=logs" not in picked
+
+
 def test_stats_readiness_reads_only_the_active_game_block():
     assert _stats_are_published(SelectolaxParser(STATS_NOT_PUBLISHED)) is False
     assert _stats_are_published(SelectolaxParser(STATS_PUBLISHED)) is True
@@ -649,7 +724,7 @@ def test_readiness_markers_are_not_the_selectors_under_test():
     check would skip instead of reporting that the VOD markup disappeared.
     """
     asserted = {sel for pc in PAGE_CHECKS for sel in (*pc.anchors, *pc.required)}
-    assert {".vm-stats-empty", ".sm-empty"}.isdisjoint(asserted)
+    assert {".vm-stats-empty", ".sm-empty", ".lg-empty"}.isdisjoint(asserted)
 
 
 def test_probe_indices_always_starts_at_the_newest_page():

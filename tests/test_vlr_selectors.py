@@ -149,9 +149,45 @@ def _vods_are_published(tree: SelectolaxParser) -> bool:
     return True
 
 
+# Markup that only a published 2D replay carries, inside the active game block.
+_REPLAY_MARKERS = (".lg-band", ".lg-round", ".lg-map")
+
+
+def _replay_is_published(tree: SelectolaxParser) -> bool:
+    """True unless the active game block says its 2D replay is unavailable.
+
+    The logs tab renders one ``.vm-stats-game`` per map plus an "all maps" block,
+    and every one of them starts with ``.lg-empty``; only the ``mod-active``
+    block reflects what the URL is showing. A match whose replay vlr.gg has not
+    processed yet (seen on VCT China results for hours after they ended) renders
+    ``.lg-empty`` there and no replay markup, while its stats are already
+    published - which is why the stats predicate called it a witness and the
+    check then reported three intact selectors as broken.
+
+    Replay markup wins over a leftover placeholder, and anything unrecognised (no
+    active block, a lazily loaded active block, or an active block with neither)
+    is graded rather than skipped, so a markup move fails loudly instead of
+    making every witness look unready.
+    """
+    active = tree.css_first(".vm-stats-game.mod-active")
+    if active is None:
+        return True
+    if any(active.css_first(selector) is not None for selector in _REPLAY_MARKERS):
+        return True
+    if "js-lg-lazy" in (active.attributes.get("class") or ""):
+        return True
+    return active.css_first(".lg-empty") is None
+
+
+_READINESS_PREDICATES: dict[str, Callable[[SelectolaxParser], bool]] = {
+    "match_detail": _vods_are_published,
+    "match_detail_logs": _replay_is_published,
+}
+
+
 def _readiness_for(label: str) -> Callable[[SelectolaxParser], bool]:
-    """Readiness predicate for a witness of ``label``."""
-    return _vods_are_published if label == "match_detail" else _stats_are_published
+    """Readiness predicate for a witness of ``label`` (stats unless mapped)."""
+    return _READINESS_PREDICATES.get(label, _stats_are_published)
 
 
 # ---------------------------------------------------------------------------
@@ -863,7 +899,7 @@ async def _settled_witnesses(
         probed = min(len(candidates), _MAX_WITNESS_PROBES)
         _READINESS_NOTES[label] = (
             f"{probed} candidate page(s) probed for {label}, but none had "
-            f"published stats/VODs, so no selector was asserted"
+            f"published stats/VODs/2D replay, so no selector was asserted"
         )
     return picked
 
