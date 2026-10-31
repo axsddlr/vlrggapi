@@ -1,100 +1,79 @@
 # vlrggapi
 
-## Important Notice
+An unofficial REST API for [vlr.gg](https://www.vlr.gg/) — Valorant esports match results, live scores, stats, events and news, served as clean JSON.
 
-> **`https://vlrggapi.vercel.app/` is currently down because it exceeded free-tier limits.**
-> Please self-host the API for now, or wait while I look into another solution.
+Built by [Andre Saddler](https://github.com/axsddlr/).
 
-An Unofficial REST API for [vlr.gg](https://www.vlr.gg/), a site for Valorant Esports match and news coverage.
-
-Built by [Andre Saddler](https://github.com/axsddlr/)
-
-## Support
-
-If this API helps your projects, you can support ongoing maintenance and development on Ko-fi.
-
-<a href='https://ko-fi.com/J3J1IR40C' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+> **Heads-up:** the hosted instance at `https://vlrggapi.vercel.app` is **currently down** — it exceeded its free-tier limits. Self-host for now (see [Installation](#installation)); a replacement is in progress.
 
 ## Quick Start
 
-- **Public base URL:** `https://vlrggapi.vercel.app` — currently down, see the notice above
-- **Local base URL:** `http://127.0.0.1:3001` (see [Installation](#installation))
-- **Interactive docs:** `/`
-- **Version info:** `/version`
+| | |
+|---|---|
+| Local base URL | `http://127.0.0.1:3001` — see [Installation](#installation) |
+| Interactive docs | `http://127.0.0.1:3001/` |
+| API version | `GET /version` |
+| Full reference | [API.md](API.md) |
 
 ```bash
 curl "http://127.0.0.1:3001/v2/news"
 curl "http://127.0.0.1:3001/v2/match?q=live_score"
-curl "http://127.0.0.1:3001/v2/player?id=9&timespan=all"
+curl "http://127.0.0.1:3001/v2/player/30186?timespan=all"
 ```
 
-## Highlights
+Use `/v2` for new integrations.
 
-- **V2-first API** - consistent response envelopes, validation, and per-endpoint caching
-- **Backwards compatibility** - original unversioned endpoints are still available
-- **Deep match coverage** - detailed match, player, team, and event match endpoints
-- **Operational guardrails** - async HTTP, rate limiting, and bounded expensive scrapes
+## Features
 
-## What's New
+**Data**
 
-### Match Details, Player Profiles & Team Profiles
+- **Match detail** — per-map player stats (K/D/A, ACS, rating), round-by-round data, kill matrix, economy breakdown, head-to-head history, map vetoes
+- **Match replay** — per-round 2D view: every kill, spike plant and defuse with player positions, health and loadout
+- **Player profiles** — 17 agent metrics, current and past teams, event placements, total winnings, match history
+- **Team profiles** — roster with roles and captaincy, VLR rating and rank, placements, winnings, roster transactions, match history, upcoming schedule
+- **Events** — event list, every match in an event, prize breakdown, participating rosters, group and stage standings
+- **Search** — teams, players and events by name or keyword
 
-New endpoints provide deep coverage of individual matches, players, and teams:
+**API**
 
-- **Match details** — per-map player stats (K/D/A, ACS, rating), round-by-round data, kill matrix, economy breakdown, head-to-head history, map veto data
-- **Player profiles** — agent stats (17 metrics), current/past teams, event placements, total winnings, match history
-- **Team profiles** — roster with roles/captain status, VLR rating/rank, event placements, total winnings, match history, roster transactions
-- **Event matches** — full match list for any event with scores and VOD links
-- **Event detail** — event info with prize pool breakdown, participating team rosters, and group/stage standings tables
-- **Search** — cross-entity search for teams, players, and events by name or keyword
-
-### V2 API
-
-- **Standardized responses** — all V2 endpoints return `{"status": "success", "data": {...}}`
-- **Input validation** — invalid parameters return HTTP 400 with clear error messages
-- **Per-endpoint caching** — in-memory TTL cache reduces load on vlr.gg
-- **Async HTTP** — scrapers use `httpx` for non-blocking I/O
+- **V2-first** — consistent `{"status": "success", "data": {...}}` envelope, input validation, per-endpoint caching
+- **Backwards compatible** — the original unversioned routes are unchanged
+- **Operational guardrails** — async `httpx`, per-IP tiered rate limiting, bounded expensive scrapes, `ETag`/`304` on slow-moving payloads
 
 ## API Versions
 
-Both the original and V2 endpoints coexist. The original endpoints (`/news`, `/match`, etc.) are preserved unchanged for backwards compatibility. V2 endpoints (`/v2/news`, `/v2/match`, etc.) are the recommended API going forward.
+Both surfaces coexist. The original routes (`/news`, `/match`, …) are preserved unchanged for backwards compatibility; `/v2` is recommended for new integrations.
 
 | Feature | Original | V2 |
 |---|---|---|
 | Response shape | Varies per endpoint | Consistent `{"status": "success", "data": {...}}` |
-| Input validation | HTTP 400 on most routes (`/match` and `/events` are looser) | HTTP 400 on invalid params |
+| Input validation | HTTP 400 on most routes (`/match` and `/events` are looser) | HTTP 400 on invalid parameters |
 | Caching | Shared in-memory TTL cache | Per-endpoint TTL cache |
 
-Interactive Swagger docs are available at `/`.
+Interactive Swagger docs are served at `/`.
 
-## Operational Notes
+## Endpoints
 
-- **Recommended base path** - use `/v2` for new integrations
-- **Current version endpoint** - `GET /version` returns the current API version and default API
-- **Rate limit** - tiered sliding-window limits, applied per client IP. `200/min` (`/health`, `/version`), `60/min` (`/news`, `/events`, `/event/{id}`, `/events/matches`, `/rankings`, `/search`, and `/match` with `q=upcoming` or `q=live_score`), `20/min` (`/match/details`, `/match/logs`, `/stats`, `/player`, `/team`, and `/match` with `q=results` or `q=upcoming_extended`). The `/v2` prefix shares each tier with its unversioned route. Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit`, and `X-RateLimit-Remaining` headers. Limits are per worker process, so a multi-worker deployment enforces them independently in each worker.
-- **Error handling** - V2 returns HTTP 400 for invalid input and propagates upstream failures with HTTP error codes
-- **Deployment targets** - Vercel for the hosted API, Docker for containerized self-hosting
+`/v2` routes at a glance. Parameters and response examples for each live in [API.md](API.md#v2-endpoints).
 
-## V2 Endpoint Overview
-
-| Route | Query Params | Cache |
+| Route | Key parameters | Cache |
 |---|---|---|
 | `GET /v2/news` | — | 10 min |
-| `GET /v2/match` | `q` (upcoming/upcoming_extended/live_score/results); pagination params `num_pages`, `from_page`, `to_page` apply to `upcoming_extended`/`results` only; also `max_retries`, `request_delay`, `timeout` | 30s–5 min |
+| `GET /v2/match` | `q`: upcoming · upcoming_extended · live_score · results; `num_pages`, `from_page`, `to_page` apply to the two paginated queries | 30 s – 5 min |
 | `GET /v2/match/details` | `match_id` | 5 min |
-| `GET /v2/match/{match_id}/details` | `light` | 5 min |
-| `GET /v2/match/logs` | `match_id`, `game_id` (optional, defaults to the first played map) | 5 min |
-| `GET /v2/match/{match_id}/logs` | `game_id` (optional, defaults to the first played map) | 5 min |
+| `GET /v2/match/{match_id}/details` | `light`, `include` | 5 min |
+| `GET /v2/match/logs` | `match_id`, `game_id` | 5 min |
+| `GET /v2/match/{match_id}/logs` | `game_id`, `include` | 5 min |
 | `GET /v2/rankings` | `region` | 1 hr |
-| `GET /v2/stats` | `region`, `timespan`, `event_id` | 30 min |
-| `GET /v2/events` | `q` (upcoming/completed/live), `page` | 30 min |
-| `GET /v2/event/{id}` | `event_id` (path), `stage` | 30 min |
+| `GET /v2/stats` | `region`, `timespan`, `event_id`, `map`, `min_rounds`, `min_rating` | 30 min |
+| `GET /v2/events` | `q`, `page` | 30 min |
+| `GET /v2/event/{event_id}` | `stage`, `include` | 30 min |
 | `GET /v2/events/matches` | `event_id` | 10 min |
 | `GET /v2/search` | `q` | 5 min |
-| `GET /v2/player` | `id`, `q` (profile/matches, deprecated), `timespan`, `page` | 30 min / 10 min |
+| `GET /v2/player` | `id`, `q` (deprecated), `timespan`, `page` | 30 min / 10 min |
 | `GET /v2/player/{player_id}` | `timespan` | 30 min |
 | `GET /v2/player/{player_id}/matches` | `page` | 10 min |
-| `GET /v2/team` | `id`, `q` (profile/matches/transactions/stats/roster/schedule, deprecated), `page`, `date_start` | 30 min / 10 min / 1 hr / 10 min / 30 min / 5 min |
+| `GET /v2/team` | `id`, `q` (deprecated), `page`, `date_start` | 30 min / 10 min / 1 hr / 10 min / 30 min / 5 min |
 | `GET /v2/team/{team_id}` | — | 30 min |
 | `GET /v2/team/{team_id}/matches` | `page` | 10 min |
 | `GET /v2/team/{team_id}/transactions` | — | 1 hr |
@@ -103,15 +82,13 @@ Interactive Swagger docs are available at `/`.
 | `GET /v2/team/{team_id}/schedule` | — | 5 min |
 | `GET /v2/health` | — | none |
 
-Every entity — a player, a team, a match's detail or replay — is addressable as its own path as well as through the older `q` parameter. Prefer the path forms: an unknown sub-resource is a `404` on a real route instead of a `400` from a query-string enum, and each one appears in the generated OpenAPI docs. `q` stays supported on `/v2/player` and `/v2/team` for existing clients and is marked deprecated; `/match`'s `q` is a collection filter (upcoming/live/results), not an entity selector, and is not deprecated.
+Every entity is addressable as its own path as well as through the older `q` parameter. Prefer the path forms — an unknown sub-resource is a `404` on a real route instead of a `400` from a query-string enum, and each appears in the generated OpenAPI docs. `q` stays supported on `/v2/player` and `/v2/team` and is marked deprecated; `/match`'s `q` is a collection filter, not an entity selector, and is not deprecated.
 
-Rate-limit tiers are assigned by path, so a sub-resource inherits its parent's tier — `/v2/team/{team_id}/roster` counts as expensive, exactly like `/v2/team`. The same rule is why there is no plural `/v2/matches` collection route: match lists stay on `/v2/match?q=...`, where the tier depends on the query.
-
-See [API.md](API.md) for full descriptions and response examples.
+Rate-limit tiers follow the path, so a sub-resource inherits its parent's tier — `/v2/team/{team_id}/roster` is expensive, exactly like `/v2/team`. That is also why there is no plural `/v2/matches` route: match lists stay on `/v2/match?q=…`, where the tier depends on the query.
 
 ### Narrowing large payloads
 
-Three endpoints mirror a whole scraped page and return far more than most callers need — a match's per-map performance matrices and economy tables, the full round-by-round replay, or an event's standings. Each accepts `include`, a comma-separated allowlist of top-level fields:
+Three endpoints mirror a whole scraped page and return far more than most callers need — a match's per-map performance and economy tables, the full round-by-round replay, or an event's standings. Each accepts `include`, a comma-separated allowlist of top-level fields:
 
 ```
 GET /v2/match/{match_id}/details?include=maps,teams
@@ -123,7 +100,7 @@ GET /v2/match/{match_id}/details?include=maps,teams
 | `/v2/match/logs`, `/v2/match/{match_id}/logs` | `map`, `teams`, `rounds` |
 | `/v2/event/{event_id}` | `event`, `stages`, `prizes`, `teams`, `standings` |
 
-Omit `include` and the full payload comes back, exactly as before — the parameter is opt-in. `match_id` — and `game_id` on the logs endpoints — are always kept, and an unknown name returns HTTP 400 listing the valid ones. On match detail, a fieldset naming none of `performance`, `economy` or `economy_by_map` also skips those per-game tab fetches upstream, so narrowing costs vlr.gg less work as well as less bandwidth. Trimming happens after the cache, so a narrow request never shrinks what a later full request receives.
+Omit it and the full payload comes back, exactly as before. `match_id` — and `game_id` on the logs endpoints — are always kept, and an unknown name returns HTTP 400 listing the valid ones. On match detail, a fieldset naming none of `performance`, `economy` or `economy_by_map` also skips those per-game tab fetches upstream. Trimming happens after the cache, so a narrow request never shrinks what a later full request receives.
 
 ## Worked Examples
 
@@ -159,24 +136,27 @@ X-RateLimit-Limit: 60
 X-RateLimit-Remaining: 58
 ```
 
-## Endpoint Reference
+## Operational Notes
 
-Every route — request parameters, response shapes and worked examples — is documented in **[API.md](API.md)**.
+**Rate limits** are tiered sliding windows applied per client IP. `/v2` shares its tier with the equivalent unversioned route, and a sub-resource inherits its parent's.
 
-| Section | Covers |
-|---|---|
-| [V2 endpoints](API.md#v2-endpoints) | all `/v2` routes with example calls and responses |
-| [Original endpoints](API.md#original-endpoints) | unversioned routes kept for backwards compatibility |
-| [Region codes](API.md#region-codes) | the region taxonomy |
-| [Validation & error handling](API.md#validation--error-handling) | validation rules and HTTP 400 shapes |
-| [Caching](API.md#caching) | per-endpoint TTLs, `ETag` and `304 Not Modified` |
-| [Meta](API.md#meta) | version metadata |
+| Tier | Limit | Routes |
+|---|---|---|
+| cheap | 200/min | `/health`, `/version` |
+| moderate | 60/min | `/news`, `/events`, `/event/{id}`, `/events/matches`, `/rankings`, `/search`, `/match` with `q=upcoming` or `q=live_score` |
+| expensive | 20/min | `/match/details`, `/match/logs`, `/stats`, `/player`, `/team`, `/match` with `q=results` or `q=upcoming_extended` |
+
+Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit` and `X-RateLimit-Remaining`. Counters are per worker process, so a multi-worker deployment enforces them independently in each worker.
+
+**Errors** — V2 returns HTTP 400 for invalid input and propagates upstream failures with HTTP error codes.
+
+**Deployment** — Vercel for the hosted API, Docker for containerised self-hosting.
 
 ## Installation
 
 ### Requirements
 
-- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.14`, and the Docker image runs Python `3.14`
+- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.14`; the Docker image runs Python `3.14`
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```bash
@@ -185,9 +165,7 @@ cd vlrggapi
 uv sync
 ```
 
-`uv sync` creates `.venv` and installs the exact versions pinned in `uv.lock`,
-including the `dev` dependency group. Prefix commands with `uv run` to run them
-inside that environment — there is nothing to activate by hand.
+`uv sync` creates `.venv` and installs the exact versions pinned in `uv.lock`, including the `dev` dependency group. Prefix commands with `uv run` to run them inside that environment — there is nothing to activate by hand.
 
 ### Run locally
 
@@ -195,7 +173,7 @@ inside that environment — there is nothing to activate by hand.
 uv run python main.py
 ```
 
-The API will be available at `http://127.0.0.1:3001` and the interactive docs will be at `http://127.0.0.1:3001/`.
+The API is then at `http://127.0.0.1:3001`, with interactive docs at `http://127.0.0.1:3001/`.
 
 ### Smoke check
 
@@ -230,8 +208,7 @@ Rate limiting is implemented in-house (`api/utils/rate_limiter.py`) with no addi
 
 Issues and pull requests are welcome.
 
-`master` is the only long-lived branch, and it is always deployed. Work on a
-short-lived branch and open a pull request against `master`:
+`master` is the only long-lived branch, and it is always deployed. Work on a short-lived branch and open a pull request against `master`:
 
 1. `git switch master && git pull --ff-only`
 2. `git switch -c fix/your-slug`
@@ -239,12 +216,15 @@ short-lived branch and open a pull request against `master`:
 4. Run `uv run pytest -q` and `uv run ruff check .`.
 5. Rebase onto `origin/master`, push, and open a pull request against `master`.
 
-Pull requests are squash-merged, so `master` gets one readable commit per change.
-Do not push work in progress to `master` — use a draft PR if you want CI feedback
-early. Branch protection, commit hygiene, and how to revert a bad change are
-documented in [WORKFLOW.md](WORKFLOW.md).
+Pull requests are squash-merged, so `master` gets one readable commit per change. Do not push work in progress to `master` — use a draft PR if you want CI feedback early. Branch protection, commit hygiene, and how to revert a bad change are documented in [WORKFLOW.md](WORKFLOW.md).
 
 Open a [pull request](https://github.com/axsddlr/vlrggapi/compare) or file an [issue](https://github.com/axsddlr/vlrggapi/issues/new).
+
+## Support
+
+If this API helps your projects, you can support ongoing maintenance and development on Ko-fi.
+
+<a href='https://ko-fi.com/J3J1IR40C' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 
 ## License
 
