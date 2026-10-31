@@ -4,6 +4,7 @@ V2 API router — standardized responses, validation, Pydantic models.
 from fastapi import APIRouter, HTTPException, Query
 
 from models import V2Response
+from routers.fieldsets import apply_include, parse_include
 from routers.shared_handlers import (
     get_event_detail_data,
     get_event_matches_data,
@@ -39,6 +40,73 @@ from utils.error_handling import (
 )
 
 router = APIRouter(prefix="/v2", tags=["v2"])
+
+# ---------------------------------------------------------------------------
+# include= fieldsets for the routes whose payload mirrors a whole scraped page
+# ---------------------------------------------------------------------------
+
+# Match detail: every top-level segment key except the match ID, which links the
+# segment back to the requested match and is therefore always kept.
+MATCH_DETAIL_INCLUDE_FIELDS = frozenset({
+    "event",
+    "date",
+    "map_vetos",
+    "status",
+    "teams",
+    "streams",
+    "vods",
+    "maps",
+    "head_to_head",
+    "performance",
+    "economy",
+    "economy_by_map",
+})
+MATCH_DETAIL_ALWAYS_KEEP = ("match_id",)
+# Fetching these costs one upstream tab request per map, so a fieldset without
+# any of them runs the handler in light mode.
+MATCH_DETAIL_TAB_FIELDS = frozenset({"performance", "economy", "economy_by_map"})
+_MATCH_DETAIL_INCLUDE_VALID = MATCH_DETAIL_INCLUDE_FIELDS | set(
+    MATCH_DETAIL_ALWAYS_KEEP
+)
+
+MATCH_LOGS_INCLUDE_FIELDS = frozenset({"map", "teams", "rounds"})
+MATCH_LOGS_ALWAYS_KEEP = ("match_id", "game_id")
+_MATCH_LOGS_INCLUDE_VALID = MATCH_LOGS_INCLUDE_FIELDS | set(MATCH_LOGS_ALWAYS_KEEP)
+
+EVENT_DETAIL_INCLUDE_FIELDS = frozenset(
+    {"event", "stages", "prizes", "teams", "standings"}
+)
+
+_MATCH_DETAIL_INCLUDE_DESC = (
+    "Comma-separated list of top-level fields to keep in each segment: event, "
+    "date, map_vetos, status, teams, streams, vods, maps, head_to_head, "
+    "performance, economy, economy_by_map (match_id is always kept); omitting "
+    "it returns everything. A fieldset without any performance/economy field "
+    "skips those upstream tab fetches entirely."
+)
+_MATCH_LOGS_INCLUDE_DESC = (
+    "Comma-separated list of top-level fields to keep in each segment: map, "
+    "teams, rounds (match_id and game_id are always kept); omitting it returns "
+    "everything."
+)
+_EVENT_DETAIL_INCLUDE_DESC = (
+    "Comma-separated list of top-level fields to keep in the segments object: "
+    "event, stages, prizes, teams, standings; omitting it returns everything."
+)
+
+
+def _effective_light(light: bool, keep: frozenset[str] | None) -> bool:
+    """Skip the per-game tab fetches unless a requested field needs them.
+
+    ``keep is None`` means no narrowing was asked for, so the caller's ``light``
+    passes through untouched. With a fieldset, ``light`` is only ever raised to
+    ``True`` when the fieldset names no tab-backed field; an explicit
+    ``light=true`` is preserved and an explicit ``light=false`` is preserved as
+    soon as a tab field is requested.
+    """
+    if keep is None:
+        return light
+    return light or not (keep & MATCH_DETAIL_TAB_FIELDS)
 
 
 def _wrap_v2(scraper_result: dict) -> dict:
@@ -142,22 +210,30 @@ async def v2_match_detail(
         False,
         description="Skip the per-game performance/economy tab fetches (upcoming matches have none)",
     ),
+    include: str | None = Query(None, description=_MATCH_DETAIL_INCLUDE_DESC),
 ):
     validate_id_param(match_id, "match_id")
-    result = await get_match_detail_data(match_id, light=light)
-    return _wrap_v2(result)
+    keep = parse_include(include, _MATCH_DETAIL_INCLUDE_VALID)
+    result = await get_match_detail_data(
+        match_id, light=_effective_light(light, keep)
+    )
+    return apply_include(
+        _wrap_v2(result), keep, always_keep=MATCH_DETAIL_ALWAYS_KEEP
+    )
 
 
 @router.get("/match/logs", response_model=V2Response, summary="Match 2D replay", description="Per-round replay of one map: round result, each player's buy, and every kill, spike plant and defuse with player positions and health. Omit game_id to use the match's first played map. Takes the `tab=logs` page on vlr.gg.")
 async def v2_match_logs(
     match_id: str = Query(..., description="VLR.GG match ID"),
     game_id: str = Query(None, description="Optional game (map) ID; defaults to the first played map"),
+    include: str | None = Query(None, description=_MATCH_LOGS_INCLUDE_DESC),
 ):
     validate_id_param(match_id, "match_id")
     if game_id is not None:
         validate_id_param(game_id, "game_id")
+    keep = parse_include(include, _MATCH_LOGS_INCLUDE_VALID)
     result = await get_match_logs_data(match_id, game_id)
-    return _wrap_v2(result)
+    return apply_include(_wrap_v2(result), keep, always_keep=MATCH_LOGS_ALWAYS_KEEP)
 
 
 @router.get("/match/{match_id}/details", response_model=V2Response, summary="Match detail by ID", description="Get full match detail including per-map stats, round data, head-to-head history, performance tab, and economy data. Same data as GET /v2/match/details?match_id=..., which loads vlr.gg's /match/<id> page.")
@@ -167,22 +243,30 @@ async def v2_match_detail_path(
         False,
         description="Skip the per-game performance/economy tab fetches (upcoming matches have none)",
     ),
+    include: str | None = Query(None, description=_MATCH_DETAIL_INCLUDE_DESC),
 ):
     validate_id_param(match_id, "match_id")
-    result = await get_match_detail_data(match_id, light=light)
-    return _wrap_v2(result)
+    keep = parse_include(include, _MATCH_DETAIL_INCLUDE_VALID)
+    result = await get_match_detail_data(
+        match_id, light=_effective_light(light, keep)
+    )
+    return apply_include(
+        _wrap_v2(result), keep, always_keep=MATCH_DETAIL_ALWAYS_KEEP
+    )
 
 
 @router.get("/match/{match_id}/logs", response_model=V2Response, summary="Match 2D replay by ID", description="Per-round replay of one map: round result, each player's buy, and every kill, spike plant and defuse with player positions and health. Same data as GET /v2/match/logs?match_id=...; takes the `tab=logs` page on vlr.gg. Omit game_id to use the match's first played map.")
 async def v2_match_logs_path(
     match_id: str,
     game_id: str | None = Query(None, description="Optional game (map) ID; defaults to the first played map"),
+    include: str | None = Query(None, description=_MATCH_LOGS_INCLUDE_DESC),
 ):
     validate_id_param(match_id, "match_id")
     if game_id is not None:
         validate_id_param(game_id, "game_id")
+    keep = parse_include(include, _MATCH_LOGS_INCLUDE_VALID)
     result = await get_match_logs_data(match_id, game_id)
-    return _wrap_v2(result)
+    return apply_include(_wrap_v2(result), keep, always_keep=MATCH_LOGS_ALWAYS_KEEP)
 
 
 @router.get("/player", response_model=V2Response, summary="Player data", description="Get player profile or match history via q parameter.")
@@ -324,12 +408,14 @@ async def v2_event_matches(
 async def v2_event_detail(
     event_id: str,
     stage: str = Query(None, description="Optional stage slug from the response's stages list (e.g. playoffs)"),
+    include: str | None = Query(None, description=_EVENT_DETAIL_INCLUDE_DESC),
 ):
     validate_id_param(event_id, "event_id")
     if stage is not None:
         validate_slug_param(stage, "stage")
+    keep = parse_include(include, EVENT_DETAIL_INCLUDE_FIELDS)
     result = await get_event_detail_data(event_id, stage)
-    return _wrap_v2(result)
+    return apply_include(_wrap_v2(result), keep)
 
 
 @router.get("/search", response_model=V2Response, summary="Search", description="Search VLR.GG for teams, players, events, and series. Returns categorized results.")

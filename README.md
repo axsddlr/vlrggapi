@@ -109,6 +109,22 @@ Rate-limit tiers are assigned by path, so a sub-resource inherits its parent's t
 
 See section below for full descriptions and response examples.
 
+### Narrowing large payloads
+
+Three endpoints mirror a whole scraped page and return far more than most callers need — a match's per-map performance matrices and economy tables, the full round-by-round replay, or an event's standings. Each accepts `include`, a comma-separated allowlist of top-level fields:
+
+```
+GET /v2/match/{match_id}/details?include=maps,teams
+```
+
+| Endpoint | Fields you can ask for |
+|---|---|
+| `/v2/match/details`, `/v2/match/{match_id}/details` | `event`, `date`, `map_vetos`, `status`, `teams`, `streams`, `vods`, `maps`, `head_to_head`, `performance`, `economy`, `economy_by_map` |
+| `/v2/match/logs`, `/v2/match/{match_id}/logs` | `map`, `teams`, `rounds` |
+| `/v2/event/{event_id}` | `event`, `stages`, `prizes`, `teams`, `standings` |
+
+Omit `include` and the full payload comes back, exactly as before — the parameter is opt-in. `match_id` — and `game_id` on the logs endpoints — are always kept, and an unknown name returns HTTP 400 listing the valid ones. On match detail, a fieldset naming none of `performance`, `economy` or `economy_by_map` also skips those per-game tab fetches upstream, so narrowing costs vlr.gg less work as well as less bandwidth. Trimming happens after the cache, so a narrow request never shrinks what a later full request receives.
+
 ## V2 Endpoints
 
 All examples are collapsed — click to expand.
