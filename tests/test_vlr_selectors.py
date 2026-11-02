@@ -71,7 +71,7 @@ from typing import ClassVar
 
 import httpx
 import pytest
-from selectolax.parser import HTMLParser as SelectolaxParser
+from selectolax.lexbor import LexborHTMLParser as SelectolaxParser
 
 from utils.constants import VLR_BASE_URL
 

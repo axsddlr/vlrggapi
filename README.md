@@ -156,7 +156,7 @@ Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit` and `X
 
 ### Requirements
 
-- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.14`; the Docker image runs Python `3.14`
+- Python `3.11` locally (from `.python-version`). CI tests `3.11`–`3.15`; the Docker image runs Python `3.14`
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```bash
