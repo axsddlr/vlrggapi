@@ -1,5 +1,5 @@
 import pytest
-from selectolax.parser import HTMLParser
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from api.scrapers.rankings import (
     _extract_last_played_summary,

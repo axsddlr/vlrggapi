@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from selectolax.lexbor import LexborHTMLParser
-from selectolax.parser import HTMLParser  # noqa: F401  re-exported for type hints
+from selectolax.lexbor import LexborHTMLParser as HTMLParser  # noqa: F401  re-exported for type hints
 
 
 def extract_text_content(element, strip: bool = True) -> str:

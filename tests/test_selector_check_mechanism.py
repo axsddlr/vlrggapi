@@ -11,7 +11,7 @@ from dataclasses import replace
 
 import httpx
 import pytest
-from selectolax.parser import HTMLParser as SelectolaxParser
+from selectolax.lexbor import LexborHTMLParser as SelectolaxParser
 
 import tests.test_vlr_selectors as selector_module
 from tests.test_vlr_selectors import (
