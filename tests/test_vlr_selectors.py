@@ -324,7 +324,6 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
         anchors=[
             ".match-header-super",
             ".match-header-date",
-            ".match-header-note",
             ".match-header-vs-note",
             ".match-header-link.mod-1",
             ".match-header-link.mod-2",
@@ -377,6 +376,7 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
             ".match-histories-item-date",
             ".match-h2h-matches",
             ".vm-stats-gamesnav-item",
+            ".match-header-note",
         ],
         # Verified live on a 12-page sample:
         #   .mod-ot            2/12 — renders only on a match that went to
@@ -389,9 +389,18 @@ PAGE_CHECKS: ClassVar[list[PageCheck]] = [
         #                      witnesses can miss it for an entire window and
         #                      report a layout change that is not one (#190).
         #                      Drop it if it ever settles at 0/12.
+        #   .match-header-note 8/10 — the header note carries the map vetoes
+        #                      ("X ban Haven; ..."). vlr.gg omits it on matches
+        #                      with no published vetoes, so a witness set drawn
+        #                      from those matches reports a break that is not
+        #                      one (#240). Verified live on 2026-11-08 against
+        #                      10 recent completed matches; the parser guards
+        #                      the lookup and yields an empty map_vetos, so the
+        #                      API degrades rather than failing.
         data_conditional=[
             ".mod-ot",
             ".match-h2h-matches",
+            ".match-header-note",
         ],
     ),
     # --- Match detail performance tab ------------------------------------
