@@ -7,16 +7,16 @@ license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "httpx==0.28.1",
-    "cachetools==7.2.6",
+    "cachetools==7.2.8",
     "uvicorn==0.54.0",
-    "fastapi==0.157.0",
+    "fastapi==0.162.0",
     "selectolax==1.0.2",
     "tzdata>=2024.1; sys_platform == 'win32'",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pytest-asyncio==1.4.1",
     "pytest-cov==7.1.0",
     "pip-audit",
