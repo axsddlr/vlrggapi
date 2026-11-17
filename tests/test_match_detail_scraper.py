@@ -5,6 +5,7 @@ import pytest
 from api.scrapers.match_detail import vlr_match_detail
 from api.scrapers.match_detail.parsers import (
     _parse_economy,
+    _parse_map_players,
     _parse_maps,
     _parse_rounds,
     _parse_streams_vods,
@@ -569,3 +570,110 @@ def test_parse_rounds_skips_unplayed_slots_and_names_the_win_type():
         {"round_num": 1, "winner": "team1", "side": "t", "win_type": "elim"},
         {"round_num": 2, "winner": "team2", "side": "ct", "win_type": "defuse"},
     ]
+
+
+# --- ovw-cell player rows: the agent cell beside the player cell (issue #247)
+#
+# vlr.gg renders each player as a mod-player cell (name) followed by an
+# optional mod-agents cell and the stat cells. The agent icon used to be nested
+# inside the player cell, so both placements must keep working.
+
+
+def _ovw_cells(
+    name: str,
+    rating: str,
+    with_agent: bool = True,
+    agent_title: str | None = "Viper",
+    agent_src: str = "/img/vlr/game/agents/viper.png",
+) -> str:
+    """One player's ``.ovw-cell`` sequence: name, optional agent, then stats."""
+    parts = [
+        '<div class="ovw-cell mod-player"><div class="ovw-player">'
+        f'<div class="ovw-player-name text-of">{name}</div></div></div>'
+    ]
+    if with_agent:
+        attrs = ""
+        if agent_title is not None:
+            attrs = f' title="{agent_title}" alt="{agent_title.lower()}"'
+        parts.append(
+            '<div class="ovw-cell mod-agents"><div class="ovw-agents">'
+            f'<span class="stats-sq mod-agent small"><img src="{agent_src}"{attrs}></span>'
+            "</div></div>"
+        )
+    parts.append(
+        f'<div class="ovw-cell" data-col="rating2">'
+        f'<span class="side mod-both">{rating}</span></div>'
+    )
+    return "".join(parts)
+
+
+def _ovw_game(team1: list[str], team2: list[str]):
+    html = f'<div class="vm-stats-game">{"".join(team1 + team2)}</div>'
+    return parse_html(html).css_first(".vm-stats-game")
+
+
+def test_map_players_reads_the_agent_from_its_own_cell():
+    game = _ovw_game(
+        [_ovw_cells(f"P{i}", "1.00") for i in range(5)],
+        [_ovw_cells(f"Q{i}", "0.90") for i in range(5)],
+    )
+
+    players = _parse_map_players(game)
+
+    assert [p["agent"] for p in players["team1"]] == ["Viper"] * 5
+    assert [p["agent"] for p in players["team2"]] == ["Viper"] * 5
+    assert players["team2"][0]["rating"] == "0.90"
+
+
+def test_map_players_keeps_stats_aligned_when_a_player_has_no_agent_cell():
+    """A missing agent cell must not shift the following players' stats."""
+    team1 = [_ovw_cells("NoAgent", "1.11", with_agent=False)]
+    team1 += [_ovw_cells(f"P{i}", f"1.{i}0") for i in range(1, 5)]
+    team2 = [_ovw_cells(f"Q{i}", f"0.{i}0") for i in range(1, 6)]
+
+    players = _parse_map_players(_ovw_game(team1, team2))
+
+    assert players["team1"][0]["agent"] == ""
+    assert [p["rating"] for p in players["team1"]] == [
+        "1.11", "1.10", "1.20", "1.30", "1.40"
+    ]
+    assert [p["rating"] for p in players["team2"]] == [
+        "0.10", "0.20", "0.30", "0.40", "0.50"
+    ]
+
+
+def test_map_players_falls_back_to_the_agent_slug_when_title_and_alt_are_absent():
+    game = _ovw_game(
+        [_ovw_cells("P0", "1.00", agent_title=None)],
+        [_ovw_cells("Q0", "0.90", agent_title=None,
+                    agent_src="/img/vlr/game/agents/kayo.png")],
+    )
+
+    players = _parse_map_players(game)
+
+    assert players["team1"][0]["agent"] == "Viper"
+    assert players["team2"][0]["agent"] == "KAY/O"
+
+
+def test_map_players_still_reads_an_agent_nested_in_the_player_cell():
+    """The pre-#247 layout kept .ovw-agents inside the mod-player cell."""
+    nested = (
+        '<div class="vm-stats-game">'
+        '<div class="ovw-cell mod-player">'
+        '<div class="ovw-player-name text-of">TenZ</div>'
+        '<div class="ovw-agents"><span class="stats-sq mod-agent small">'
+        '<img src="/img/vlr/game/agents/jett.png" title="Jett"></span></div></div>'
+        '<div class="ovw-cell" data-col="rating2">'
+        '<span class="side mod-both">1.20</span></div>'
+        '<div class="ovw-cell mod-player">'
+        '<div class="ovw-player-name text-of">Second</div></div>'
+        '<div class="ovw-cell" data-col="rating2">'
+        '<span class="side mod-both">1.05</span></div>'
+        "</div>"
+    )
+
+    players = _parse_map_players(parse_html(nested).css_first(".vm-stats-game"))
+
+    assert players["team1"][0]["agent"] == "Jett"
+    assert players["team1"][0]["rating"] == "1.20"
+    assert players["team2"][0]["name"] == "Second"
