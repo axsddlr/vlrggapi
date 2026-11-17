@@ -216,12 +216,40 @@ def _parse_streams_vods(html: HTMLParser) -> tuple[list[dict], list[dict]]:
 # Per-map game data parsers
 # ---------------------------------------------------------------------------
 
+_AGENT_SLUG_NAMES = {"kayo": "KAY/O"}
+
+
+def _agent_from_img(img) -> str:
+    """Agent display name from an agent icon: title, alt, then the src slug.
+
+    vlr.gg has shipped agent icons with no ``title``/``alt`` at all, leaving the
+    src as the only clue, so the slug is a real fallback rather than a guard.
+    """
+    if img is None:
+        return ""
+    for attr in ("title", "alt"):
+        value = (img.attributes.get(attr, "") or "").strip()
+        if value:
+            return value
+    src = img.attributes.get("src", "") or ""
+    if "/agents/" not in src:
+        return ""
+    slug = src.rsplit("/", 1)[-1].rsplit(".", 1)[0].strip().lower()
+    if not slug:
+        return ""
+    return _AGENT_SLUG_NAMES.get(slug, slug.replace("-", " ").title())
+
+
 def _parse_player_row_div(player_cell, stat_cells: list) -> dict:
     """Parse a single player from the new ovw-cell div-based layout.
 
-    Each player occupies 11 consecutive ``.ovw-cell`` divs: a ``mod-player``
-    cell with name / agent, followed by 10 stat cells keyed by ``data-col``
-    (rating2, acs, kills, kd-diff, kast, adr, hsp, fb, fd, fk-diff).
+    Each player spans a ``mod-player`` cell with the name, then 10 stat cells
+    keyed by ``data-col`` (rating2, acs, kills, kd-diff, kast, adr, hsp, fb,
+    fd, fk-diff).
+
+    The agent icon lives in its own ``mod-agents`` cell *beside* the player
+    cell since late 2026; it used to be nested inside it, so both places are
+    read and a player with no agent cell simply leaves the field empty (#247).
 
     The ``data-col="kills"`` cell is special: it uses ``.mod-kda`` and
     contains kills / deaths / assists inside ``.ovw-kda-stat`` sub-elements.
@@ -233,11 +261,14 @@ def _parse_player_row_div(player_cell, stat_cells: list) -> dict:
     if name_elem:
         player_name = extract_text_content(name_elem)
 
-    agents = player_cell.css_first(".ovw-agents")
-    if agents:
-        img = agents.css_first("img")
-        if img:
-            agent = img.attributes.get("title", "") or img.attributes.get("alt", "")
+    agents_cell = player_cell.css_first(".ovw-agents")
+    if agents_cell is None:
+        for cell in stat_cells:
+            if "mod-agents" in (cell.attributes.get("class", "") or ""):
+                agents_cell = cell
+                break
+    if agents_cell is not None:
+        agent = _agent_from_img(agents_cell.css_first("img"))
 
     stats: dict[str, str] = {}
     kills = deaths = assists = ""
@@ -288,31 +319,37 @@ def _parse_map_players(game_elem) -> dict:
     """Parse per-team player stats from the ovw-cell div-based layout.
 
     VLR now renders player stats as a flat sequence of ``.ovw-cell`` divs.
-    Each player uses 11 cells: ``.ovw-cell.mod-player`` (name + agent)
-    followed by 10 stat cells. The first 5 players are team 1, the next 5
-    are team 2. Falls back to the old ``table.wf-table-inset.mod-overview``
-    format when present.
+    Each player starts at a ``.ovw-cell.mod-player`` (name) and continues until
+    the next one: an optional ``.ovw-cell.mod-agents`` followed by 10 stat
+    cells. The first 5 players are team 1, the next 5 are team 2. Falls back to
+    the old ``table.wf-table-inset.mod-overview`` format when present.
     """
     team1_players: list[dict] = []
     team2_players: list[dict] = []
 
     all_cells = game_elem.css(".ovw-cell")
-    player_cells = [c for c in all_cells if "mod-player" in (c.attributes.get("class", "") or "")]
-    non_player_cells = [c for c in all_cells if "mod-player" not in (c.attributes.get("class", "") or "")]
 
-    player_count = len(player_cells)
-    stats_per_player = len(non_player_cells) // max(player_count, 1)
+    def is_player_cell(cell) -> bool:
+        return "mod-player" in (cell.attributes.get("class", "") or "")
+
+    # Group cells by the boundaries between ``.mod-player`` cells rather than
+    # dividing a flat list. vlr.gg added a separate ``.mod-agents`` cell per
+    # player (#247), so the per-player cell count is no longer fixed: a player
+    # missing its agent cell would shift every later player's stats by one.
+    groups: list[tuple] = []
+    for cell in all_cells:
+        if is_player_cell(cell):
+            groups.append((cell, []))
+        elif groups:
+            groups[-1][1].append(cell)
+
+    player_count = len(groups)
 
     def parse_players_from_range(start: int, count: int) -> list[dict]:
         players = []
-        for i in range(count):
-            pi = start + i
-            if pi >= player_count:
-                break
-            stat_start = (start + i) * stats_per_player
-            stat_group = non_player_cells[stat_start:stat_start + stats_per_player]
+        for player_cell, stat_group in groups[start:start + count]:
             try:
-                players.append(_parse_player_row_div(player_cells[pi], stat_group))
+                players.append(_parse_player_row_div(player_cell, stat_group))
             except Exception as exc:
                 logger.debug("Skipping player row due to parse error: %s", exc)
         return players
@@ -370,11 +407,7 @@ def _parse_player_row_table(cells: list) -> dict:
         else:
             player_name = player_cell.text(strip=True)
 
-    agent = ""
-    if len(cells) > 1:
-        img = cells[1].css_first("img")
-        if img:
-            agent = img.attributes.get("title", "") or img.attributes.get("alt", "")
+    agent = _agent_from_img(cells[1].css_first("img")) if len(cells) > 1 else ""
 
     return {
         "name": player_name,
