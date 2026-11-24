@@ -1,0 +1,170 @@
+name: vlr.gg field coverage check
+
+# Companion to selector-check.yml. That workflow proves selectors still exist;
+# this one proves the data behind them is still populated. #247 (every player's
+# agent silently "") is invisible to a selector check and caught here.
+#
+# Never wired to pull_request: this job depends on live vlr.gg, and a network
+# blip must not block a contributor's merge.
+on:
+  schedule:
+    - cron: "30 6 * * *" # daily at 06:30 UTC, after the selector check
+  workflow_dispatch: # manual trigger
+  push:
+    paths:
+      - "tests/test_live_field_coverage.py"
+      - ".github/workflows/field-check.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-fields:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # UV_PYTHON wins over .python-version, which pins 3.11.
+    env:
+      UV_PYTHON: "3.12"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run live field coverage
+        id: check
+        continue-on-error: true
+        env:
+          CI: "true"
+          FIELD_CHECK_LIVE: "1"
+          FIELD_REPORT_PATH: field-report.json
+          PYTHONPATH: "."
+        run: uv run pytest tests/test_live_field_coverage.py -v --tb=short
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: field-report
+          path: field-report.json
+          retention-days: 7
+
+      - name: Create issue on failure
+        if: steps.check.outcome == 'failure'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require("fs");
+
+            let report = null;
+            let reportMissing = false;
+            try {
+              report = JSON.parse(fs.readFileSync("field-report.json", "utf8"));
+            } catch {
+              // No report file: the suite failed before collecting (import
+              // error, network failure, skipped live flag). Say that instead
+              // of reporting "0 fields broken".
+              reportMissing = true;
+            }
+
+            const lines = [];
+            lines.push("## vlr.gg field coverage dropped");
+            lines.push("");
+            lines.push(
+              "A field the API is expected to populate has collapsed below its " +
+              "threshold. This is the failure mode that a selector check cannot " +
+              "see: the page still parses, but values come back empty (see #247)."
+            );
+            lines.push("");
+            lines.push(
+              `_Generated ${report && report.generated_at ? report.generated_at : "unknown"}._`
+            );
+            lines.push("");
+
+            if (reportMissing) {
+              lines.push(
+                "**No report was written.** The check failed before it could " +
+                "collect data — usually an import error or vlr.gg being " +
+                "unreachable. Re-run the workflow before treating this as a " +
+                "layout change."
+              );
+            } else {
+              const failures = report.failures || [];
+              lines.push("### Collapsed fields");
+              lines.push("");
+              lines.push("| Endpoint | Field | Present | Threshold |");
+              lines.push("|----------|-------|---------|-----------|");
+              for (const f of failures) {
+                const pct = f.total > 0 ? Math.round((f.present / f.total) * 100) : 0;
+                lines.push(
+                  `| ${f.endpoint} | \`${f.field}\` | ${f.present}/${f.total} (${pct}%) | ` +
+                  `>= ${Math.round(f.threshold * 100)}% |`
+                );
+              }
+              lines.push("");
+              lines.push("### Sampled records");
+              lines.push("");
+              for (const [label, count] of Object.entries(report.sampled || {})) {
+                lines.push(`- **${label}**: ${count}`);
+              }
+              lines.push("");
+              lines.push("### How to fix");
+              lines.push("");
+              lines.push("1. Find the failing field's parser in `api/scrapers/`.");
+              lines.push("2. Open a live vlr.gg page of that type and inspect the markup.");
+              lines.push("3. Fix the extraction; add a fallback if the element has two shapes.");
+              lines.push("4. Verify: `FIELD_CHECK_LIVE=1 uv run pytest tests/test_live_field_coverage.py -v`");
+              lines.push(
+                "5. If the field is legitimately empty in a real data state, lower " +
+                "its threshold in `tests/test_live_field_coverage.py` **and record " +
+                "the measurement** in the rule's reason — that list is where a " +
+                "real break could hide."
+              );
+            }
+
+            lines.push("");
+            lines.push(
+              `_Auto-generated by [field-check workflow]` +
+              `(https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/field-check.yml)_`
+            );
+
+            const body = lines.join("\n");
+            const title = "vlr.gg field coverage dropped — API values may be empty";
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["field-check"],
+              state: "open",
+            });
+
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["field-check", "bug"],
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues[0].number,
+                body,
+              });
+            }
+
+      # `continue-on-error` keeps the report and issue steps running, but the
+      # job must still go red so a scheduled failure is not silent.
+      - name: Fail the run when coverage broke
+        if: steps.check.outcome == 'failure'
+        run: exit 1
