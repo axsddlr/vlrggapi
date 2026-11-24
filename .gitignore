@@ -151,3 +151,6 @@ tasks/todo.md
 tasks/lessons.md
 /debug_*.py
 /docs/
+
+# Written by the live field-coverage check (tests/test_live_field_coverage.py)
+field-report.json
