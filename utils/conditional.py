@@ -8,10 +8,11 @@ response body) and answers a matching ``If-None-Match`` with ``304 Not
 Modified``, letting repeat clients skip the body entirely.
 
 It deliberately owns no cache: the ETag is derived from whatever body the
-application (and its TTL cache) already produced, and no ``Cache-Control``
-header is added. This layer also runs inside ``RateLimitMiddleware`` so a 304
-still consumes rate-limit budget and still carries the ``X-RateLimit-*``
-headers.
+application (and its TTL cache) already produced. It does add ``Cache-Control``
+so a browser or shared cache can answer a repeat read without reaching us at
+all; the ETag keeps working for the revalidation that follows that window.
+This layer also runs inside ``RateLimitMiddleware`` so a 304 still consumes
+rate-limit budget and still carries the ``X-RateLimit-*`` headers.
 
 Path normalisation mirrors ``api.utils.rate_limiter._normalise`` so both layers
 agree on what a given path is.
@@ -20,6 +21,8 @@ agree on what a given path is.
 import hashlib
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from utils.constants import CONDITIONAL_CACHE_CONTROL
 
 # Endpoints whose payloads are backed by long TTL caches.
 _SLOW_MOVER_PREFIXES = ("/rankings", "/stats", "/team")
@@ -163,10 +166,15 @@ class ConditionalGetMiddleware:
             return
 
         etag = _make_etag(body)
-        # Replace any downstream ETag rather than emitting a duplicate.
-        headers = [(key, value) for key, value in headers if key.lower() != b"etag"]
-        etag_header = (b"etag", etag.encode("latin-1"))
-        headers.append(etag_header)
+        # Replace any downstream validator or freshness header rather than
+        # emitting duplicates: this layer owns both for cached JSON.
+        headers = [
+            (key, value)
+            for key, value in headers
+            if key.lower() not in (b"etag", b"cache-control")
+        ]
+        headers.append((b"etag", etag.encode("latin-1")))
+        headers.append((b"cache-control", CONDITIONAL_CACHE_CONTROL.encode("latin-1")))
 
         if_none_match = _header_value(scope["headers"], b"if-none-match")
         if if_none_match is not None and _if_none_match_hits(

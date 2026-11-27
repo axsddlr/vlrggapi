@@ -75,6 +75,15 @@ CACHE_TTL_TEAM_ROSTER = 1800
 CACHE_TTL_TEAM_SCHEDULE = 300
 CACHE_TTL_EVENT_MATCHES = 600
 
+# Conditional GET freshness
+# Slow movers carry an ETag, but an ETag alone still costs an origin invocation
+# per repeat read. This header lets a browser or shared cache serve a repeat
+# read without asking us at all: browsers revalidate after 30s, CDNs after 60s,
+# and an expired entry is refreshed in the background instead of blocking the
+# client. Worst-case extra staleness is s-maxage on top of the scraper's own
+# TTL, which is 5 minutes or longer for every endpoint this applies to.
+CONDITIONAL_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
+
 # /stats region vocabulary
 # The /stats page uses a DIFFERENT region taxonomy from /rankings. vlr.gg's
 # filter form submits exactly these canonical values (as ``region[]`` checkboxes

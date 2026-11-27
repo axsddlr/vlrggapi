@@ -148,6 +148,8 @@ X-RateLimit-Remaining: 58
 
 Exceeding a tier returns HTTP 429 with `Retry-After`, `X-RateLimit-Limit` and `X-RateLimit-Remaining`. Counters are per worker process, so a multi-worker deployment enforces them independently in each worker.
 
+**Caching** — `/rankings`, `/stats` and `/team` are slow movers: their 200s carry a strong `ETag` (sha256 of the body) plus `Cache-Control: public, max-age=30, s-maxage=60, stale-while-revalidate=300`. A repeat read inside that window is served by the browser or a shared cache without reaching the origin; after it, `If-None-Match` gets a bodiless 304. Put a CDN or reverse proxy in front, or those repeat reads still cost an invocation each. Other routes carry neither header.
+
 **Errors** — V2 returns HTTP 400 for invalid input and propagates upstream failures with HTTP error codes.
 
 **Deployment** — Vercel for the hosted API, Docker for containerised self-hosting.

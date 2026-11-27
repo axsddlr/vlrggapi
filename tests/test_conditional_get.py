@@ -13,6 +13,7 @@ from starlette.routing import Route
 from api.utils.rate_limiter import RateLimitMiddleware
 from main import app
 from utils.conditional import ConditionalGetMiddleware, _is_conditional_request
+from utils.constants import CONDITIONAL_CACHE_CONTROL
 
 _ETAG_RE = re.compile(r'^"[0-9a-f]{64}"$')
 
@@ -48,7 +49,9 @@ async def test_rankings_returns_etag_then_304(async_client, monkeypatch):
     assert _ETAG_RE.match(etag)
     # Strong validator: sha256 of the exact body bytes, quoted.
     assert etag == '"' + hashlib.sha256(first.content).hexdigest() + '"'
-    assert "cache-control" not in first.headers
+    # Freshness must not depend on the ETag alone: a repeat read inside the
+    # max-age window should never reach the origin.
+    assert first.headers["cache-control"] == CONDITIONAL_CACHE_CONTROL
 
     second = await async_client.get(
         "/v2/rankings?region=na", headers={"If-None-Match": etag}
@@ -56,9 +59,11 @@ async def test_rankings_returns_etag_then_304(async_client, monkeypatch):
     assert second.status_code == 304
     assert second.headers["etag"] == etag
     assert second.content == b""
-    # A 304 is a bodiless response: no content-type, no cache-control.
+    # A 304 is a bodiless response: no content-type. RFC 9110 requires a 304
+    # to carry the Cache-Control it would have sent on a 200, so a cache can
+    # refresh freshness without refetching the body.
     assert "content-type" not in second.headers
-    assert "cache-control" not in second.headers
+    assert second.headers["cache-control"] == CONDITIONAL_CACHE_CONTROL
 
 
 @pytest.mark.anyio
@@ -139,6 +144,7 @@ async def test_unlisted_path_never_gets_an_etag(async_client, monkeypatch):
 
     assert resp.status_code == 200
     assert "etag" not in resp.headers
+    assert "cache-control" not in resp.headers
     assert resp.content
 
 
@@ -162,6 +168,8 @@ async def test_error_response_gets_no_etag(async_client, monkeypatch):
 
     assert resp.status_code == 502
     assert "etag" not in resp.headers
+    # An upstream error is not public, cacheable data.
+    assert "cache-control" not in resp.headers
 
 
 @pytest.mark.anyio
@@ -269,6 +277,26 @@ async def test_non_json_200_on_a_slow_mover_gets_no_etag():
 
     assert resp.status_code == 200
     assert "etag" not in resp.headers
+
+
+@pytest.mark.anyio
+async def test_downstream_cache_control_and_etag_are_replaced():
+    async def handler(request):
+        return JSONResponse(
+            {"ok": True},
+            headers={"Cache-Control": "no-store", "ETag": '"downstream"'},
+        )
+
+    wrapped = ConditionalGetMiddleware(Starlette(routes=[Route("/rankings", handler)]))
+    transport = ASGITransport(app=wrapped)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/rankings")
+
+    assert resp.status_code == 200
+    # Exactly one of each: httpx joins duplicate headers into a comma-separated
+    # value, so an accidental second header would show up here.
+    assert resp.headers["cache-control"] == CONDITIONAL_CACHE_CONTROL
+    assert resp.headers["etag"] != '"downstream"'
 
 
 # ---------------------------------------------------------------------------
